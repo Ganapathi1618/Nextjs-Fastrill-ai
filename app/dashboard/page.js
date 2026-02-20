@@ -28,16 +28,17 @@ export default function Dashboard() {
   }
 
   const handleConnect = () => {
-    const appId = "YOUR_APP_ID" // <-- replace this with your real App ID
+    const appId = "780799931531576"
+    const configId = "1090960043190718"
 
     const redirectUri =
       "https://fastrill-fastrills-projects.vercel.app/api/meta/callback"
 
-    const scope =
-      "whatsapp_business_management,whatsapp_business_messaging,business_management"
-
     window.location.href =
-      `https://www.facebook.com/v18.0/dialog/oauth?client_id=${780799931531576}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code`
+      `https://www.facebook.com/dialog/oauth?client_id=${appId}` +
+      `&redirect_uri=${redirectUri}` +
+      `&response_type=code` +
+      `&config_id=${configId}`
   }
 
   return (
