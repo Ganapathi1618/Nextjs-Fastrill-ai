@@ -12,7 +12,7 @@ export async function GET(req) {
   const appSecret = process.env.META_APP_SECRET
 
   const redirectUri =
-    "https://fastrill-fastrills-projects.vercel.app/api/meta/callback"
+    "https://fastrill.com/api/meta/callback"
 
   const tokenUrl =
     `https://graph.facebook.com/v18.0/oauth/access_token` +
