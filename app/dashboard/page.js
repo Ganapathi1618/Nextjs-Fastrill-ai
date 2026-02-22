@@ -29,7 +29,7 @@ export default function Dashboard() {
   const handleConnect = () => {
     const appId = "780799931531576"
     const configId = "1090960043190718"
-    const redirectUri = "https://fastrill-fastrills-projects.vercel.app/api/meta/callback"
+    const redirectUri = "https://fastrill.com/api/meta/callback"
     window.location.href =
       `https://www.facebook.com/dialog/oauth?client_id=${appId}` +
       `&redirect_uri=${redirectUri}` +
