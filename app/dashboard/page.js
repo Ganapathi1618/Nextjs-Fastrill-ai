@@ -31,8 +31,9 @@ export default function Dashboard() {
     const configId = "1090960043190718"
     const redirectUri = "https://fastrill.com/api/meta/callback"
     window.location.href =
-      `https://www.facebook.com/dialog/oauth?client_id=${appId}` +
-      `&redirect_uri=${redirectUri}` +
+      `https://www.facebook.com/v18.0/dialog/oauth` +
+      `?client_id=${appId}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&response_type=code` +
       `&config_id=${configId}`
   }
