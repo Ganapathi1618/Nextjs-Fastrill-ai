@@ -39,10 +39,10 @@ export default function Dashboard() {
   }
 
   const stats = [
-    { label: "Messages Today", value: "0", unit: "", trend: null, icon: "💬" },
-    { label: "Reply Rate", value: "0", unit: "%", trend: null, icon: "⚡" },
-    { label: "Conversations", value: "0", unit: "", trend: null, icon: "🔄" },
-    { label: "Conversions", value: "0", unit: "", trend: null, icon: "🎯" },
+    { label: "Messages Today", value: "0", unit: "", icon: "💬", color: "#16a34a" },
+    { label: "Reply Rate", value: "0", unit: "%", icon: "⚡", color: "#2563eb" },
+    { label: "Conversations", value: "0", unit: "", icon: "🔄", color: "#7c3aed" },
+    { label: "Conversions", value: "0", unit: "", icon: "🎯", color: "#ea580c" },
   ]
 
   const navItems = [
@@ -55,263 +55,230 @@ export default function Dashboard() {
     { id: "settings", label: "Settings", icon: "⚙️" },
   ]
 
-  const recentMessages = [
-    { name: "Priya S.", msg: "Hi, what's the price for the gold plan?", time: "—", intent: "Pricing inquiry", unread: false },
-    { name: "Rahul M.", msg: "Is there a trial available?", time: "—", intent: "Trial query", unread: false },
-    { name: "Arjun T.", msg: "Can I integrate with Shopify?", time: "—", intent: "Integration query", unread: false },
-  ]
-
   const userInitial = userEmail ? userEmail[0].toUpperCase() : "U"
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #080c10; color: #e8edf2; font-family: 'DM Sans', sans-serif; overflow-x: hidden; }
+        body { background: #f5f6fa; color: #111827; font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
 
         /* LAYOUT */
         .dash-root { display: flex; height: 100vh; overflow: hidden; }
 
         /* SIDEBAR */
         .sidebar {
-          width: 240px; flex-shrink: 0;
-          background: #0d1117;
-          border-right: 1px solid rgba(255,255,255,0.06);
+          width: 232px; flex-shrink: 0;
+          background: #fff;
+          border-right: 1px solid #e5e7eb;
           display: flex; flex-direction: column;
-          padding: 0;
           overflow-y: auto;
         }
         .sidebar-logo {
-          padding: 24px 20px 20px;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
-          font-family: 'Syne', sans-serif; font-weight: 800;
-          font-size: 20px; color: #fff; text-decoration: none;
-          display: block;
+          padding: 22px 20px 18px;
+          border-bottom: 1px solid #f3f4f6;
+          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800;
+          font-size: 20px; color: #111827; text-decoration: none;
+          display: block; letter-spacing: -0.5px;
         }
-        .sidebar-logo span { color: #00e5a0; }
+        .sidebar-logo span { color: #059669; }
 
         .sidebar-section-label {
-          font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-          color: rgba(255,255,255,0.2); font-weight: 500;
+          font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+          color: #9ca3af; font-weight: 600;
           padding: 20px 20px 8px;
         }
 
         .nav-item {
-          display: flex; align-items: center; gap: 10px;
-          padding: 10px 20px; margin: 1px 8px;
+          display: flex; align-items: center; gap: 9px;
+          padding: 9px 12px; margin: 1px 8px;
           border-radius: 8px; cursor: pointer;
-          font-size: 14px; color: rgba(255,255,255,0.4);
-          transition: all 0.15s; border: none; background: none;
+          font-size: 13.5px; color: #6b7280; font-weight: 500;
+          transition: all 0.12s; border: none; background: none;
           width: calc(100% - 16px); text-align: left;
+          font-family: 'Plus Jakarta Sans', sans-serif;
         }
-        .nav-item:hover { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.7); }
-        .nav-item.active { background: rgba(0,229,160,0.08); color: #00e5a0; }
+        .nav-item:hover { background: #f9fafb; color: #111827; }
+        .nav-item.active { background: #ecfdf5; color: #059669; font-weight: 600; }
         .nav-item-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
-        .nav-item-label { font-weight: 400; }
 
         .sidebar-footer {
-          margin-top: auto;
-          padding: 16px;
-          border-top: 1px solid rgba(255,255,255,0.05);
+          margin-top: auto; padding: 14px;
+          border-top: 1px solid #f3f4f6;
         }
         .user-card {
           display: flex; align-items: center; gap: 10px;
           padding: 10px; border-radius: 10px;
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.06);
+          background: #f9fafb; border: 1px solid #e5e7eb;
         }
         .user-avatar {
           width: 32px; height: 32px; border-radius: 8px;
-          background: linear-gradient(135deg, #00e5a0, #0099ff);
+          background: linear-gradient(135deg, #059669, #0284c7);
           display: flex; align-items: center; justify-content: center;
-          font-family: 'Syne', sans-serif; font-weight: 800;
-          font-size: 13px; color: #080c10; flex-shrink: 0;
+          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800;
+          font-size: 13px; color: #fff; flex-shrink: 0;
         }
-        .user-email { font-size: 11px; color: rgba(255,255,255,0.35); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .user-email { font-size: 11.5px; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
         .logout-btn {
           margin-top: 8px; width: 100%;
           display: flex; align-items: center; justify-content: center; gap: 6px;
           padding: 8px; border-radius: 8px;
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.06);
-          font-size: 12px; color: rgba(255,255,255,0.3);
-          cursor: pointer; transition: all 0.15s;
-          font-family: 'DM Sans', sans-serif;
+          background: #fff; border: 1px solid #e5e7eb;
+          font-size: 12px; color: #9ca3af; cursor: pointer;
+          transition: all 0.12s; font-family: 'Plus Jakarta Sans', sans-serif;
+          font-weight: 500;
         }
-        .logout-btn:hover { border-color: rgba(239,68,68,0.3); color: #ef4444; background: rgba(239,68,68,0.05); }
+        .logout-btn:hover { border-color: #fca5a5; color: #ef4444; background: #fef2f2; }
 
         /* MAIN */
         .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
         /* TOPBAR */
         .topbar {
-          height: 60px; flex-shrink: 0;
-          border-bottom: 1px solid rgba(255,255,255,0.06);
+          height: 58px; flex-shrink: 0;
+          border-bottom: 1px solid #e5e7eb;
           display: flex; align-items: center; justify-content: space-between;
-          padding: 0 28px;
-          background: #080c10;
+          padding: 0 24px; background: #fff;
         }
-        .topbar-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; color: #fff; }
-        .topbar-right { display: flex; align-items: center; gap: 12px; }
+        .topbar-title {
+          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+          font-size: 15px; color: #111827;
+        }
+        .topbar-right { display: flex; align-items: center; gap: 10px; }
         .topbar-badge {
           display: flex; align-items: center; gap: 6px;
           padding: 5px 12px; border-radius: 100px;
-          background: rgba(239,68,68,0.08);
-          border: 1px solid rgba(239,68,68,0.2);
-          font-size: 11px; color: #f87171; font-weight: 500;
+          background: #fef2f2; border: 1px solid #fecaca;
+          font-size: 11.5px; color: #dc2626; font-weight: 600;
         }
         .topbar-badge.connected {
-          background: rgba(0,229,160,0.08);
-          border-color: rgba(0,229,160,0.2);
-          color: #00e5a0;
+          background: #ecfdf5; border-color: #a7f3d0; color: #059669;
         }
         .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
         /* CONTENT */
-        .content { flex: 1; overflow-y: auto; padding: 28px; }
+        .content { flex: 1; overflow-y: auto; padding: 24px; background: #f5f6fa; }
 
         /* CONNECT BANNER */
         .connect-banner {
-          background: linear-gradient(135deg, rgba(0,229,160,0.06), rgba(0,153,255,0.04));
-          border: 1px solid rgba(0,229,160,0.15);
-          border-radius: 16px; padding: 24px 28px;
+          background: linear-gradient(135deg, #ecfdf5, #eff6ff);
+          border: 1px solid #a7f3d0;
+          border-radius: 14px; padding: 20px 24px;
           display: flex; align-items: center; justify-content: space-between;
-          gap: 20px; margin-bottom: 28px; flex-wrap: wrap;
+          gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
         }
-        .connect-banner-left { display: flex; align-items: center; gap: 16px; }
+        .connect-banner-left { display: flex; align-items: center; gap: 14px; }
         .connect-banner-icon {
-          width: 48px; height: 48px; border-radius: 12px;
+          width: 44px; height: 44px; border-radius: 12px;
           background: #25d366;
           display: flex; align-items: center; justify-content: center;
-          font-size: 22px; flex-shrink: 0;
+          font-size: 20px; flex-shrink: 0;
+          box-shadow: 0 4px 12px rgba(37,211,102,0.25);
         }
-        .connect-banner-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: #fff; margin-bottom: 4px; }
-        .connect-banner-sub { font-size: 13px; color: rgba(255,255,255,0.4); font-weight: 300; }
+        .connect-banner-title {
+          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+          font-size: 14px; color: #111827; margin-bottom: 3px;
+        }
+        .connect-banner-sub { font-size: 12.5px; color: #6b7280; font-weight: 400; }
         .connect-btn {
-          display: inline-flex; align-items: center; gap: 8px;
+          display: inline-flex; align-items: center; gap: 7px;
           background: #1877f2; color: #fff;
-          font-family: 'Syne', sans-serif; font-weight: 700;
-          font-size: 13px; padding: 11px 20px; border-radius: 10px;
-          border: none; cursor: pointer; text-decoration: none;
-          transition: opacity 0.2s, transform 0.15s; white-space: nowrap;
+          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+          font-size: 13px; padding: 10px 18px; border-radius: 9px;
+          border: none; cursor: pointer;
+          transition: opacity 0.15s, transform 0.12s; white-space: nowrap;
+          box-shadow: 0 2px 8px rgba(24,119,242,0.3);
         }
-        .connect-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+        .connect-btn:hover { opacity: 0.9; transform: translateY(-1px); }
 
         /* STATS GRID */
-        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
         .stat-card {
-          background: #0d1117;
-          border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 14px; padding: 20px;
-          transition: border-color 0.2s;
+          background: #fff; border: 1px solid #e5e7eb;
+          border-radius: 12px; padding: 18px;
+          transition: box-shadow 0.15s, border-color 0.15s;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         }
-        .stat-card:hover { border-color: rgba(0,229,160,0.12); }
-        .stat-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+        .stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #d1fae5; }
+        .stat-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
         .stat-icon {
-          width: 36px; height: 36px; border-radius: 9px;
-          background: rgba(0,229,160,0.08);
-          border: 1px solid rgba(0,229,160,0.12);
+          width: 34px; height: 34px; border-radius: 9px;
           display: flex; align-items: center; justify-content: center;
-          font-size: 16px;
+          font-size: 15px;
         }
-        .stat-label { font-size: 12px; color: rgba(255,255,255,0.35); font-weight: 400; }
+        .stat-label { font-size: 12px; color: #6b7280; font-weight: 500; }
         .stat-value {
-          font-family: 'Syne', sans-serif; font-weight: 800;
-          font-size: 32px; letter-spacing: -1px; color: #fff; line-height: 1;
+          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800;
+          font-size: 30px; letter-spacing: -1px; color: #111827; line-height: 1;
         }
-        .stat-value span { color: #00e5a0; font-size: 18px; }
-        .stat-empty { font-size: 11px; color: rgba(255,255,255,0.2); margin-top: 6px; }
+        .stat-value span { font-size: 16px; color: #9ca3af; font-weight: 600; }
+        .stat-empty { font-size: 11px; color: #d1d5db; margin-top: 5px; font-weight: 400; }
 
-        /* GRID 2 COL */
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-        .grid-3-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        /* GRID */
+        .grid-3-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
 
         /* PANEL */
         .panel {
-          background: #0d1117;
-          border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 16px; overflow: hidden;
+          background: #fff; border: 1px solid #e5e7eb;
+          border-radius: 12px; overflow: hidden;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         }
         .panel-header {
           display: flex; align-items: center; justify-content: space-between;
-          padding: 18px 20px;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          padding: 16px 18px; border-bottom: 1px solid #f3f4f6;
         }
-        .panel-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; color: #fff; }
+        .panel-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13.5px; color: #111827; }
         .panel-action {
-          font-size: 12px; color: rgba(255,255,255,0.3);
-          text-decoration: none; cursor: pointer;
-          transition: color 0.15s; background: none; border: none;
+          font-size: 12px; color: #9ca3af; text-decoration: none;
+          cursor: pointer; transition: color 0.12s;
+          background: none; border: none; font-family: 'Plus Jakarta Sans', sans-serif;
+          font-weight: 500;
         }
-        .panel-action:hover { color: #00e5a0; }
+        .panel-action:hover { color: #059669; }
 
-        /* INBOX LIST */
-        .inbox-empty {
-          padding: 48px 20px; text-align: center;
-        }
-        .inbox-empty-icon { font-size: 36px; margin-bottom: 12px; }
-        .inbox-empty-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: rgba(255,255,255,0.3); margin-bottom: 6px; }
-        .inbox-empty-sub { font-size: 13px; color: rgba(255,255,255,0.15); font-weight: 300; }
-
-        .msg-item {
-          display: flex; align-items: flex-start; gap: 12px;
-          padding: 14px 20px;
-          border-bottom: 1px solid rgba(255,255,255,0.04);
-          transition: background 0.15s; cursor: pointer;
-        }
-        .msg-item:last-child { border-bottom: none; }
-        .msg-item:hover { background: rgba(255,255,255,0.02); }
-        .msg-avatar {
-          width: 36px; height: 36px; border-radius: 50%;
-          background: linear-gradient(135deg, #7c3aed, #00e5a0);
-          display: flex; align-items: center; justify-content: center;
-          font-family: 'Syne', sans-serif; font-weight: 800;
-          font-size: 13px; color: #fff; flex-shrink: 0;
-        }
-        .msg-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 3px; }
-        .msg-preview { font-size: 12px; color: rgba(255,255,255,0.3); font-weight: 300; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
-        .msg-intent { display: inline-flex; align-items: center; margin-top: 5px; }
-        .intent-chip { font-size: 10px; color: #00e5a0; background: rgba(0,229,160,0.08); border: 1px solid rgba(0,229,160,0.15); border-radius: 4px; padding: 2px 7px; }
+        /* INBOX EMPTY */
+        .inbox-empty { padding: 44px 20px; text-align: center; }
+        .inbox-empty-icon { font-size: 32px; margin-bottom: 10px; }
+        .inbox-empty-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 14px; color: #9ca3af; margin-bottom: 5px; }
+        .inbox-empty-sub { font-size: 12.5px; color: #d1d5db; font-weight: 400; }
 
         /* QUICK ACTIONS */
-        .quick-actions { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+        .quick-actions { display: flex; flex-direction: column; gap: 8px; padding: 14px; }
         .quick-action {
-          display: flex; align-items: center; gap: 12px;
-          padding: 14px; border-radius: 10px;
-          background: rgba(255,255,255,0.02);
-          border: 1px solid rgba(255,255,255,0.06);
-          cursor: pointer; transition: all 0.15s;
-          text-align: left;
+          display: flex; align-items: center; gap: 11px;
+          padding: 12px; border-radius: 9px;
+          background: #f9fafb; border: 1px solid #f3f4f6;
+          cursor: pointer; transition: all 0.12s; text-align: left;
+          font-family: 'Plus Jakarta Sans', sans-serif;
         }
-        .quick-action:hover { border-color: rgba(0,229,160,0.2); background: rgba(0,229,160,0.03); }
+        .quick-action:hover { border-color: #a7f3d0; background: #f0fdf4; }
         .qa-icon {
-          width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0;
-          display: flex; align-items: center; justify-content: center; font-size: 16px;
+          width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center; font-size: 15px;
         }
-        .qa-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 2px; }
-        .qa-sub { font-size: 11px; color: rgba(255,255,255,0.25); font-weight: 300; }
-        .qa-arrow { margin-left: auto; color: rgba(255,255,255,0.15); font-size: 14px; }
+        .qa-title { font-weight: 600; font-size: 12.5px; color: #374151; margin-bottom: 1px; }
+        .qa-sub { font-size: 11px; color: #9ca3af; font-weight: 400; }
+        .qa-arrow { margin-left: auto; color: #d1d5db; font-size: 15px; }
 
-        /* SETUP CHECKLIST */
-        .checklist { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+        /* CHECKLIST */
+        .checklist { padding: 14px; display: flex; flex-direction: column; gap: 7px; }
         .check-item {
-          display: flex; align-items: center; gap: 12px;
-          padding: 12px; border-radius: 10px;
-          background: rgba(255,255,255,0.02);
-          border: 1px solid rgba(255,255,255,0.05);
+          display: flex; align-items: center; gap: 11px;
+          padding: 11px 13px; border-radius: 9px;
+          background: #f9fafb; border: 1px solid #f3f4f6;
         }
-        .check-item.done { background: rgba(0,229,160,0.04); border-color: rgba(0,229,160,0.1); }
+        .check-item.done { background: #f0fdf4; border-color: #d1fae5; }
         .check-circle {
           width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
-          border: 2px solid rgba(255,255,255,0.15);
+          border: 2px solid #d1d5db;
           display: flex; align-items: center; justify-content: center;
-          font-size: 10px;
+          font-size: 10px; color: transparent;
         }
-        .check-circle.done { background: #00e5a0; border-color: #00e5a0; color: #080c10; font-weight: 700; }
-        .check-text { font-size: 13px; color: rgba(255,255,255,0.4); }
-        .check-text.done { color: rgba(255,255,255,0.6); }
+        .check-circle.done { background: #059669; border-color: #059669; color: #fff; font-weight: 700; }
+        .check-text { font-size: 13px; color: #9ca3af; font-weight: 500; }
+        .check-text.done { color: #374151; }
 
         /* RESPONSIVE */
         @media (max-width: 1100px) {
@@ -321,7 +288,6 @@ export default function Dashboard() {
         @media (max-width: 768px) {
           .sidebar { display: none; }
           .stats-grid { grid-template-columns: repeat(2, 1fr); }
-          .grid-2 { grid-template-columns: 1fr; }
           .content { padding: 16px; }
           .topbar { padding: 0 16px; }
         }
@@ -336,7 +302,7 @@ export default function Dashboard() {
         <aside className="sidebar">
           <a href="/" className="sidebar-logo">fast<span>rill</span></a>
 
-          <div className="sidebar-section-label">Menu</div>
+          <div className="sidebar-section-label">Main Menu</div>
           {navItems.map((item) => (
             <button
               key={item.id}
@@ -344,7 +310,7 @@ export default function Dashboard() {
               onClick={() => setActiveTab(item.id)}
             >
               <span className="nav-item-icon">{item.icon}</span>
-              <span className="nav-item-label">{item.label}</span>
+              <span>{item.label}</span>
             </button>
           ))}
 
@@ -369,7 +335,7 @@ export default function Dashboard() {
             <div className="topbar-right">
               <div className={`topbar-badge${connected ? " connected" : ""}`}>
                 <span className="badge-dot" />
-                {connected ? "WhatsApp Connected" : "WhatsApp Not Connected"}
+                {connected ? "WhatsApp Connected" : "Not Connected"}
               </div>
             </div>
           </div>
@@ -399,7 +365,7 @@ export default function Dashboard() {
                 <div key={s.label} className="stat-card">
                   <div className="stat-card-top">
                     <div className="stat-label">{s.label}</div>
-                    <div className="stat-icon">{s.icon}</div>
+                    <div className="stat-icon" style={{background: s.color + "15"}}>{s.icon}</div>
                   </div>
                   <div className="stat-value">
                     {s.value}<span>{s.unit}</span>
@@ -410,8 +376,7 @@ export default function Dashboard() {
             </div>
 
             {/* ROW: Inbox + Quick Actions */}
-            <div className="grid-3-1" style={{marginBottom:"20px"}}>
-              {/* RECENT MESSAGES */}
+            <div className="grid-3-1" style={{marginBottom:"16px"}}>
               <div className="panel">
                 <div className="panel-header">
                   <div className="panel-title">Recent Messages</div>
@@ -424,17 +389,16 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* QUICK ACTIONS */}
               <div className="panel">
                 <div className="panel-header">
                   <div className="panel-title">Quick Actions</div>
                 </div>
                 <div className="quick-actions">
                   {[
-                    { icon: "📣", bg: "rgba(0,229,160,0.08)", title: "New Campaign", sub: "Send a broadcast" },
-                    { icon: "🤖", bg: "rgba(0,153,255,0.08)", title: "Create Automation", sub: "Build a workflow" },
-                    { icon: "📋", bg: "rgba(245,158,11,0.08)", title: "Message Templates", sub: "Browse templates" },
-                    { icon: "👥", bg: "rgba(124,58,237,0.08)", title: "Import Contacts", sub: "Upload a CSV" },
+                    { icon: "📣", bg: "#ecfdf5", title: "New Campaign", sub: "Send a broadcast" },
+                    { icon: "🤖", bg: "#eff6ff", title: "Create Automation", sub: "Build a workflow" },
+                    { icon: "📋", bg: "#fffbeb", title: "Message Templates", sub: "Browse templates" },
+                    { icon: "👥", bg: "#f5f3ff", title: "Import Contacts", sub: "Upload a CSV" },
                   ].map((a) => (
                     <button key={a.title} className="quick-action">
                       <div className="qa-icon" style={{background: a.bg}}>{a.icon}</div>
