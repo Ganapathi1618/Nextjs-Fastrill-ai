@@ -2,13 +2,11 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-
 export default function Dashboard() {
   const router = useRouter()
   const [userEmail, setUserEmail] = useState("")
   const [activeTab, setActiveTab] = useState("overview")
   const [connected, setConnected] = useState(false)
-
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser()
@@ -20,12 +18,10 @@ export default function Dashboard() {
     }
     checkUser()
   }, [])
-
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push("/login")
   }
-
   const handleConnect = () => {
     const appId = "780799931531576"
     const configId = "1090960043190718"
@@ -37,14 +33,12 @@ export default function Dashboard() {
       `&response_type=code` +
       `&config_id=${configId}`
   }
-
   const stats = [
     { label: "Messages Today", value: "0", unit: "", icon: "💬", color: "#16a34a" },
     { label: "Reply Rate", value: "0", unit: "%", icon: "⚡", color: "#2563eb" },
     { label: "Conversations", value: "0", unit: "", icon: "🔄", color: "#7c3aed" },
     { label: "Conversions", value: "0", unit: "", icon: "🎯", color: "#ea580c" },
   ]
-
   const navItems = [
     { id: "overview", label: "Overview", icon: "▣" },
     { id: "inbox", label: "Inbox", icon: "💬" },
@@ -54,20 +48,15 @@ export default function Dashboard() {
     { id: "analytics", label: "Analytics", icon: "📊" },
     { id: "settings", label: "Settings", icon: "⚙️" },
   ]
-
   const userInitial = userEmail ? userEmail[0].toUpperCase() : "U"
-
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: #f5f6fa !important; color: #111827 !important; font-family: 'Plus Jakarta Sans', sans-serif !important; overflow-x: hidden; }
-
+        html, body { background: #f5f6fa !important; color: #111827 !important; font-family: 'Inter', sans-serif !important; overflow-x: hidden; }
         /* LAYOUT */
         .dash-root { display: flex; height: 100vh; overflow: hidden; }
-
         /* SIDEBAR */
         .sidebar {
           width: 232px; flex-shrink: 0;
@@ -79,18 +68,16 @@ export default function Dashboard() {
         .sidebar-logo {
           padding: 22px 20px 18px;
           border-bottom: 1px solid #f3f4f6;
-          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800;
+          font-family: 'Inter', sans-serif; font-weight: 800;
           font-size: 20px; color: #111827; text-decoration: none;
           display: block; letter-spacing: -0.5px;
         }
-        .sidebar-logo span { color: #059669; }
-
+        .sidebar-logo span { color: #00b87a; }
         .sidebar-section-label {
           font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
           color: #9ca3af; font-weight: 600;
           padding: 20px 20px 8px;
         }
-
         .nav-item {
           display: flex; align-items: center; gap: 9px;
           padding: 9px 12px; margin: 1px 8px;
@@ -98,12 +85,11 @@ export default function Dashboard() {
           font-size: 13.5px; color: #6b7280; font-weight: 500;
           transition: all 0.12s; border: none; background: none;
           width: calc(100% - 16px); text-align: left;
-          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
         }
         .nav-item:hover { background: #f9fafb; color: #111827; }
-        .nav-item.active { background: #ecfdf5; color: #059669; font-weight: 600; }
+        .nav-item.active { background: #f0fdf9; color: #00b87a; font-weight: 600; }
         .nav-item-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
-
         .sidebar-footer {
           margin-top: auto; padding: 14px;
           border-top: 1px solid #f3f4f6;
@@ -115,9 +101,9 @@ export default function Dashboard() {
         }
         .user-avatar {
           width: 32px; height: 32px; border-radius: 8px;
-          background: linear-gradient(135deg, #059669, #0284c7);
+          background: linear-gradient(135deg, #00b87a, #0284c7);
           display: flex; align-items: center; justify-content: center;
-          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800;
+          font-family: 'Inter', sans-serif; font-weight: 800;
           font-size: 13px; color: #fff; flex-shrink: 0;
         }
         .user-email { font-size: 11.5px; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
@@ -127,14 +113,12 @@ export default function Dashboard() {
           padding: 8px; border-radius: 8px;
           background: #fff; border: 1px solid #e5e7eb;
           font-size: 12px; color: #9ca3af; cursor: pointer;
-          transition: all 0.12s; font-family: 'Plus Jakarta Sans', sans-serif;
+          transition: all 0.12s; font-family: 'Inter', sans-serif;
           font-weight: 500;
         }
         .logout-btn:hover { border-color: #fca5a5; color: #ef4444; background: #fef2f2; }
-
         /* MAIN */
         .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
         /* TOPBAR */
         .topbar {
           height: 58px; flex-shrink: 0;
@@ -143,7 +127,7 @@ export default function Dashboard() {
           padding: 0 24px; background: #fff;
         }
         .topbar-title {
-          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+          font-family: 'Inter', sans-serif; font-weight: 700;
           font-size: 15px; color: #111827;
         }
         .topbar-right { display: flex; align-items: center; gap: 10px; }
@@ -154,17 +138,15 @@ export default function Dashboard() {
           font-size: 11.5px; color: #dc2626; font-weight: 600;
         }
         .topbar-badge.connected {
-          background: #ecfdf5; border-color: #a7f3d0; color: #059669;
+          background: #f0fdf9; border-color: #6ee7d0; color: #00b87a;
         }
         .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-
         /* CONTENT */
         .content { flex: 1; overflow-y: auto; padding: 24px; background: #f5f6fa; }
-
         /* CONNECT BANNER */
         .connect-banner {
-          background: linear-gradient(135deg, #ecfdf5, #eff6ff);
-          border: 1px solid #a7f3d0;
+          background: linear-gradient(135deg, #f0fdf9, #eff6ff);
+          border: 1px solid #6ee7d0;
           border-radius: 14px; padding: 20px 24px;
           display: flex; align-items: center; justify-content: space-between;
           gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
@@ -178,21 +160,20 @@ export default function Dashboard() {
           box-shadow: 0 4px 12px rgba(37,211,102,0.25);
         }
         .connect-banner-title {
-          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+          font-family: 'Inter', sans-serif; font-weight: 700;
           font-size: 14px; color: #111827; margin-bottom: 3px;
         }
         .connect-banner-sub { font-size: 12.5px; color: #6b7280; font-weight: 400; }
         .connect-btn {
           display: inline-flex; align-items: center; gap: 7px;
           background: #1877f2; color: #fff;
-          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+          font-family: 'Inter', sans-serif; font-weight: 700;
           font-size: 13px; padding: 10px 18px; border-radius: 9px;
           border: none; cursor: pointer;
           transition: opacity 0.15s, transform 0.12s; white-space: nowrap;
           box-shadow: 0 2px 8px rgba(24,119,242,0.3);
         }
         .connect-btn:hover { opacity: 0.9; transform: translateY(-1px); }
-
         /* STATS GRID */
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
         .stat-card {
@@ -201,7 +182,7 @@ export default function Dashboard() {
           transition: box-shadow 0.15s, border-color 0.15s;
           box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         }
-        .stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #d1fae5; }
+        .stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); border-color: #6ee7d0; }
         .stat-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
         .stat-icon {
           width: 34px; height: 34px; border-radius: 9px;
@@ -210,15 +191,13 @@ export default function Dashboard() {
         }
         .stat-label { font-size: 12px; color: #6b7280; font-weight: 500; }
         .stat-value {
-          font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800;
+          font-family: 'Inter', sans-serif; font-weight: 800;
           font-size: 30px; letter-spacing: -1px; color: #111827; line-height: 1;
         }
         .stat-value span { font-size: 16px; color: #9ca3af; font-weight: 600; }
         .stat-empty { font-size: 11px; color: #d1d5db; margin-top: 5px; font-weight: 400; }
-
         /* GRID */
         .grid-3-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
-
         /* PANEL */
         .panel {
           background: #fff; border: 1px solid #e5e7eb;
@@ -229,21 +208,19 @@ export default function Dashboard() {
           display: flex; align-items: center; justify-content: space-between;
           padding: 16px 18px; border-bottom: 1px solid #f3f4f6;
         }
-        .panel-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13.5px; color: #111827; }
+        .panel-title { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 13.5px; color: #111827; }
         .panel-action {
           font-size: 12px; color: #9ca3af; text-decoration: none;
           cursor: pointer; transition: color 0.12s;
-          background: none; border: none; font-family: 'Plus Jakarta Sans', sans-serif;
+          background: none; border: none; font-family: 'Inter', sans-serif;
           font-weight: 500;
         }
-        .panel-action:hover { color: #059669; }
-
+        .panel-action:hover { color: #00b87a; }
         /* INBOX EMPTY */
         .inbox-empty { padding: 44px 20px; text-align: center; }
         .inbox-empty-icon { font-size: 32px; margin-bottom: 10px; }
-        .inbox-empty-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 14px; color: #9ca3af; margin-bottom: 5px; }
+        .inbox-empty-title { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px; color: #9ca3af; margin-bottom: 5px; }
         .inbox-empty-sub { font-size: 12.5px; color: #d1d5db; font-weight: 400; }
-
         /* QUICK ACTIONS */
         .quick-actions { display: flex; flex-direction: column; gap: 8px; padding: 14px; }
         .quick-action {
@@ -251,9 +228,9 @@ export default function Dashboard() {
           padding: 12px; border-radius: 9px;
           background: #f9fafb; border: 1px solid #f3f4f6;
           cursor: pointer; transition: all 0.12s; text-align: left;
-          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-family: 'Inter', sans-serif;
         }
-        .quick-action:hover { border-color: #a7f3d0; background: #f0fdf4; }
+        .quick-action:hover { border-color: #6ee7d0; background: #f0fdf9; }
         .qa-icon {
           width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
           display: flex; align-items: center; justify-content: center; font-size: 15px;
@@ -261,7 +238,6 @@ export default function Dashboard() {
         .qa-title { font-weight: 600; font-size: 12.5px; color: #374151; margin-bottom: 1px; }
         .qa-sub { font-size: 11px; color: #9ca3af; font-weight: 400; }
         .qa-arrow { margin-left: auto; color: #d1d5db; font-size: 15px; }
-
         /* CHECKLIST */
         .checklist { padding: 14px; display: flex; flex-direction: column; gap: 7px; }
         .check-item {
@@ -269,17 +245,16 @@ export default function Dashboard() {
           padding: 11px 13px; border-radius: 9px;
           background: #f9fafb; border: 1px solid #f3f4f6;
         }
-        .check-item.done { background: #f0fdf4; border-color: #d1fae5; }
+        .check-item.done { background: #f0fdf9; border-color: #6ee7d0; }
         .check-circle {
           width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
           border: 2px solid #d1d5db;
           display: flex; align-items: center; justify-content: center;
           font-size: 10px; color: transparent;
         }
-        .check-circle.done { background: #059669; border-color: #059669; color: #fff; font-weight: 700; }
+        .check-circle.done { background: #00b87a; border-color: #00b87a; color: #fff; font-weight: 700; }
         .check-text { font-size: 13px; color: #9ca3af; font-weight: 500; }
         .check-text.done { color: #374151; }
-
         /* RESPONSIVE */
         @media (max-width: 1100px) {
           .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -296,12 +271,10 @@ export default function Dashboard() {
           .connect-banner { flex-direction: column; align-items: flex-start; }
         }
       `}</style>
-
-      <div className="dash-root" style={{background:"#f5f6fa",color:"#111827",fontFamily:"Plus Jakarta Sans, sans-serif"}}>
+      <div className="dash-root" style={{background:"#f5f6fa",color:"#111827",fontFamily:"Inter, sans-serif"}}>
         {/* SIDEBAR */}
         <aside className="sidebar">
           <a href="/" className="sidebar-logo">fast<span>rill</span></a>
-
           <div className="sidebar-section-label">Main Menu</div>
           {navItems.map((item) => (
             <button
@@ -313,7 +286,6 @@ export default function Dashboard() {
               <span>{item.label}</span>
             </button>
           ))}
-
           <div className="sidebar-footer">
             <div className="user-card">
               <div className="user-avatar">{userInitial}</div>
@@ -324,7 +296,6 @@ export default function Dashboard() {
             </button>
           </div>
         </aside>
-
         {/* MAIN */}
         <div className="main">
           {/* TOPBAR */}
@@ -339,10 +310,8 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-
           {/* CONTENT */}
           <div className="content">
-
             {/* CONNECT BANNER */}
             {!connected && (
               <div className="connect-banner">
@@ -358,7 +327,6 @@ export default function Dashboard() {
                 </button>
               </div>
             )}
-
             {/* STATS */}
             <div className="stats-grid">
               {stats.map((s) => (
@@ -374,7 +342,6 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-
             {/* ROW: Inbox + Quick Actions */}
             <div className="grid-3-1" style={{marginBottom:"16px"}}>
               <div className="panel">
@@ -388,14 +355,13 @@ export default function Dashboard() {
                   <div className="inbox-empty-sub">Connect WhatsApp to start receiving messages here</div>
                 </div>
               </div>
-
               <div className="panel">
                 <div className="panel-header">
                   <div className="panel-title">Quick Actions</div>
                 </div>
                 <div className="quick-actions">
                   {[
-                    { icon: "📣", bg: "#ecfdf5", title: "New Campaign", sub: "Send a broadcast" },
+                    { icon: "📣", bg: "#f0fdf9", title: "New Campaign", sub: "Send a broadcast" },
                     { icon: "🤖", bg: "#eff6ff", title: "Create Automation", sub: "Build a workflow" },
                     { icon: "📋", bg: "#fffbeb", title: "Message Templates", sub: "Browse templates" },
                     { icon: "👥", bg: "#f5f3ff", title: "Import Contacts", sub: "Upload a CSV" },
@@ -412,7 +378,6 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-
             {/* SETUP CHECKLIST */}
             <div className="panel">
               <div className="panel-header">
@@ -435,7 +400,6 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
-
           </div>
         </div>
       </div>
