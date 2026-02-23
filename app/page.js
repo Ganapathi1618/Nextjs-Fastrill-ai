@@ -3,15 +3,11 @@ export default function Home() {
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
-
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { scroll-behavior: smooth; }
-        body { background: #080c10; color: #e8edf2; font-family: 'DM Sans', sans-serif; overflow-x: hidden; }
-
         .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
         .green { color: #00e5a0; }
         .outline-text { color: transparent; -webkit-text-stroke: 1.5px rgba(255,255,255,0.25); }
-
         /* NAV */
         .nav { position: sticky; top: 0; z-index: 100; backdrop-filter: blur(16px); background: rgba(8,12,16,0.9); border-bottom: 1px solid rgba(255,255,255,0.06); }
         .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; }
@@ -22,7 +18,6 @@ export default function Home() {
         .nav-cta { display: inline-flex; align-items: center; background: #00e5a0; color: #080c10 !important; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px !important; padding: 9px 20px; border-radius: 8px; text-decoration: none; transition: opacity 0.2s; }
         .nav-cta:hover { opacity: 0.88 !important; }
         .nav-mobile-cta { display: none; background: #00e5a0; color: #080c10; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; padding: 9px 18px; border-radius: 8px; text-decoration: none; }
-
         /* HERO */
         .hero { padding: 100px 24px 80px; max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
         .hero-left { order: 0; }
@@ -44,8 +39,6 @@ export default function Home() {
         .hero-trust-avatars span:first-child { margin-left: 0; }
         .hero-trust-avatars span:nth-child(2) { background: linear-gradient(135deg, #7c3aed, #00e5a0); }
         .hero-trust-avatars span:nth-child(3) { background: linear-gradient(135deg, #f59e0b, #ef4444); }
-
-        /* HERO CARD — pills are inline, not absolute */
         .hero-card-wrap { display: flex; flex-direction: column; gap: 10px; }
         .pill-inline { display: inline-flex; align-items: center; gap: 8px; background: rgba(8,12,16,0.95); border: 1px solid rgba(0,229,160,0.25); border-radius: 100px; padding: 8px 16px; font-size: 12px; font-weight: 500; color: #e8edf2; align-self: flex-start; }
         .hero-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; }
@@ -62,21 +55,18 @@ export default function Home() {
         .metric-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; text-align: center; }
         .metric-val { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; color: #00e5a0; }
         .metric-label { font-size: 10px; color: rgba(255,255,255,0.3); margin-top: 2px; letter-spacing: 0.5px; text-transform: uppercase; }
-
         /* LOGOS */
         .logos-strip { border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); padding: 28px 24px; }
         .logos-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 40px; flex-wrap: wrap; }
         .logos-label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.2); font-weight: 500; white-space: nowrap; }
         .logos-items { display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
         .logos-item { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; color: rgba(255,255,255,0.15); letter-spacing: -0.5px; }
-
         /* SECTIONS */
         .section { padding: 100px 24px; }
         .section-eyebrow { font-size: 11px; font-weight: 500; letter-spacing: 3px; text-transform: uppercase; color: #00e5a0; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
         .section-eyebrow::before { content: ''; display: block; width: 24px; height: 1px; background: #00e5a0; opacity: 0.5; }
         .section-title { font-family: 'Syne', sans-serif; font-size: clamp(30px, 4vw, 52px); font-weight: 800; line-height: 1.05; letter-spacing: -1.5px; color: #fff; margin-bottom: 16px; }
         .section-sub { font-size: 16px; line-height: 1.7; color: rgba(255,255,255,0.4); font-weight: 300; max-width: 520px; }
-
         /* HOW */
         .how-grid { max-width: 1100px; margin: 60px auto 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; background: rgba(255,255,255,0.05); border-radius: 20px; overflow: hidden; }
         .how-step { background: #080c10; padding: 36px 28px; transition: background 0.2s; }
@@ -84,7 +74,6 @@ export default function Home() {
         .how-num { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 44px; letter-spacing: -2px; color: transparent; -webkit-text-stroke: 1px rgba(0,229,160,0.2); line-height: 1; margin-bottom: 20px; }
         .how-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; color: #fff; margin-bottom: 10px; }
         .how-text { font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.4); font-weight: 300; }
-
         /* FEATURES */
         .features-section { padding: 100px 24px; }
         .features-header { max-width: 1100px; margin: 0 auto 60px; }
@@ -97,7 +86,6 @@ export default function Home() {
         .feat-icon { width: 44px; height: 44px; border-radius: 12px; background: rgba(0,229,160,0.1); border: 1px solid rgba(0,229,160,0.15); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 20px; }
         .feat-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; color: #fff; margin-bottom: 10px; }
         .feat-text { font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.4); font-weight: 300; }
-
         /* INTENT */
         .intent-section { padding: 100px 24px; background: radial-gradient(ellipse at 50% 0%, rgba(0,229,160,0.05) 0%, transparent 60%); }
         .intent-inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
@@ -116,7 +104,6 @@ export default function Home() {
         .intent-point-icon { width: 32px; height: 32px; border-radius: 8px; background: rgba(0,229,160,0.08); border: 1px solid rgba(0,229,160,0.15); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; margin-top: 2px; }
         .intent-point-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: #fff; margin-bottom: 4px; }
         .intent-point-text { font-size: 14px; color: rgba(255,255,255,0.4); font-weight: 300; line-height: 1.6; }
-
         /* STATS */
         .stats-section { padding: 80px 24px; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05); }
         .stats-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
@@ -125,7 +112,6 @@ export default function Home() {
         .stat-val { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 44px; letter-spacing: -2px; color: #fff; line-height: 1; margin-bottom: 8px; }
         .stat-val span { color: #00e5a0; }
         .stat-label { font-size: 13px; color: rgba(255,255,255,0.35); font-weight: 300; }
-
         /* PRICING */
         .pricing-section { padding: 100px 24px; }
         .pricing-header { max-width: 1100px; margin: 0 auto 60px; }
@@ -146,7 +132,6 @@ export default function Home() {
         .plan-btn-outline:hover { border-color: rgba(255,255,255,0.3); color: #fff; }
         .plan-btn-filled { background: #00e5a0; color: #080c10; }
         .plan-btn-filled:hover { opacity: 0.88; }
-
         /* TESTIMONIALS */
         .testimonials-section { padding: 100px 24px; }
         .testimonials-header { max-width: 1100px; margin: 0 auto 60px; }
@@ -158,7 +143,6 @@ export default function Home() {
         .testimonial-avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #00e5a0, #0099ff); display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; color: #080c10; }
         .testimonial-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; color: #fff; }
         .testimonial-role { font-size: 12px; color: rgba(255,255,255,0.3); margin-top: 2px; }
-
         /* CTA */
         .cta-section { padding: 60px 24px 100px; }
         .cta-inner { max-width: 1100px; margin: 0 auto; background: rgba(0,229,160,0.04); border: 1px solid rgba(0,229,160,0.15); border-radius: 24px; padding: 72px; text-align: center; position: relative; overflow: hidden; }
@@ -167,7 +151,6 @@ export default function Home() {
         .cta-sub { font-size: 16px; color: rgba(255,255,255,0.4); font-weight: 300; margin-bottom: 40px; position: relative; }
         .cta-actions { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; position: relative; }
         .cta-note { margin-top: 16px; font-size: 12px; color: rgba(255,255,255,0.2); }
-
         /* FOOTER */
         .footer { border-top: 1px solid rgba(255,255,255,0.06); padding: 48px 24px; }
         .footer-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
@@ -176,15 +159,11 @@ export default function Home() {
         .footer-links a { font-size: 13px; color: rgba(255,255,255,0.3); text-decoration: none; transition: color 0.2s; }
         .footer-links a:hover { color: rgba(255,255,255,0.7); }
         .footer-copy { font-size: 13px; color: rgba(255,255,255,0.2); }
-
         /* RESPONSIVE */
-        @media (max-width: 1024px) {
-          .how-grid { grid-template-columns: repeat(2, 1fr); }
-        }
+        @media (max-width: 1024px) { .how-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 900px) {
           .hero { grid-template-columns: 1fr; padding: 60px 24px 60px; gap: 48px; }
-          .hero-left { order: 0; }
-          .hero-visual { order: 1; }
+          .hero-left { order: 0; } .hero-visual { order: 1; }
           .intent-inner { grid-template-columns: 1fr; gap: 40px; }
           .features-grid { grid-template-columns: 1fr 1fr; }
           .feat-card.large { grid-column: span 2; }
@@ -199,22 +178,20 @@ export default function Home() {
         }
         @media (max-width: 600px) {
           .hero { padding: 40px 20px 48px; gap: 36px; }
-          .hero-title { letter-spacing: -1.5px; }
-          .hero-sub { font-size: 15px; }
-          .features-grid { grid-template-columns: 1fr; }
-          .feat-card.large { grid-column: span 1; }
+          .hero-title { letter-spacing: -1.5px; } .hero-sub { font-size: 15px; }
+          .features-grid { grid-template-columns: 1fr; } .feat-card.large { grid-column: span 1; }
           .how-grid { grid-template-columns: 1fr; border-radius: 16px; }
           .cta-inner { padding: 36px 20px; }
-          .stat-item { padding: 24px 16px; }
-          .stat-val { font-size: 34px; }
-          .section-title { letter-spacing: -1px; }
-          .pricing-grid { max-width: 100%; }
+          .stat-item { padding: 24px 16px; } .stat-val { font-size: 34px; }
+          .section-title { letter-spacing: -1px; } .pricing-grid { max-width: 100%; }
           .section { padding: 72px 20px; }
-          .logos-items { gap: 14px; }
-          .logos-item { font-size: 12px; }
+          .logos-items { gap: 14px; } .logos-item { font-size: 12px; }
           .pill-inline { font-size: 11px; padding: 7px 12px; }
         }
       `}</style>
+
+      {/* ── KEY CHANGE: body style moved here as inline wrapper ── */}
+      <div style={{background:"#080c10", color:"#e8edf2", fontFamily:"'DM Sans', sans-serif", minHeight:"100vh", overflowX:"hidden"}}>
 
       {/* NAV */}
       <nav className="nav">
@@ -257,7 +234,6 @@ export default function Home() {
               <p className="hero-trust-text">Trusted by 500+ businesses across India</p>
             </div>
           </div>
-
           <div className="hero-visual">
             <div className="hero-card-wrap">
               <div className="pill-inline">
@@ -502,6 +478,8 @@ export default function Home() {
           <p className="footer-copy">© {new Date().getFullYear()} Fastrill. All rights reserved.</p>
         </div>
       </footer>
+
+      </div>{/* end dark wrapper */}
     </>
-  );
+  )
 }
