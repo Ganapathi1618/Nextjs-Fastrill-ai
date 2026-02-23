@@ -63,7 +63,7 @@ export default function Dashboard() {
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #f5f6fa; color: #111827; font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
+        html, body { background: #f5f6fa !important; color: #111827 !important; font-family: 'Plus Jakarta Sans', sans-serif !important; overflow-x: hidden; }
 
         /* LAYOUT */
         .dash-root { display: flex; height: 100vh; overflow: hidden; }
@@ -297,7 +297,7 @@ export default function Dashboard() {
         }
       `}</style>
 
-      <div className="dash-root">
+      <div className="dash-root" style={{background:"#f5f6fa",color:"#111827",fontFamily:"Plus Jakarta Sans, sans-serif"}}>
         {/* SIDEBAR */}
         <aside className="sidebar">
           <a href="/" className="sidebar-logo">fast<span>rill</span></a>
