@@ -9,44 +9,39 @@ const supabaseAdmin = createClient(
 // ── GET: Meta webhook verification ──
 export async function GET(req) {
   const { searchParams } = new URL(req.url)
-
   const mode      = searchParams.get("hub.mode")
   const token     = searchParams.get("hub.verify_token")
   const challenge = searchParams.get("hub.challenge")
 
   if (mode === "subscribe" && token === process.env.WEBHOOK_VERIFY_TOKEN) {
-    console.log("Webhook verified successfully")
     return new Response(challenge, { status: 200 })
   }
-
   return new Response("Forbidden", { status: 403 })
 }
 
-// ── POST: Receive incoming WhatsApp messages ──
+// ── POST: Receive and reply to WhatsApp messages ──
 export async function POST(req) {
   try {
     const body = await req.json()
 
-    // Meta sends a test ping first — handle it
     if (!body?.entry?.[0]?.changes?.[0]?.value?.messages) {
       return NextResponse.json({ status: "no_message" }, { status: 200 })
     }
 
-    const value          = body.entry[0].changes[0].value
-    const phoneNumberId  = value?.metadata?.phone_number_id
-    const messages       = value?.messages || []
+    const value         = body.entry[0].changes[0].value
+    const phoneNumberId = value?.metadata?.phone_number_id
+    const messages      = value?.messages || []
 
     for (const message of messages) {
-      const fromNumber  = message.from   // customer's phone number
+      const fromNumber  = message.from
       const messageText = message.text?.body || ""
-      const messageType = message.type   // text, image, audio etc
+      const messageType = message.type
 
-      // Only handle text messages for now
       if (messageType !== "text" || !messageText) continue
 
-      console.log(`📩 Message from ${fromNumber}: ${messageText}`)
+      console.log(`📩 From ${fromNumber}: ${messageText}`)
 
-      // ── Find which user owns this phone_number_id ──
+      // ── Find which business owns this phone number ──
       const { data: connection } = await supabaseAdmin
         .from("whatsapp_connections")
         .select("user_id, access_token")
@@ -54,25 +49,64 @@ export async function POST(req) {
         .single()
 
       if (!connection) {
-        console.log("No connection found for phone_number_id:", phoneNumberId)
+        console.log("No connection found for:", phoneNumberId)
         continue
       }
 
-      // ── Save message to database ──
+      // ── Save inbound message ──
       await supabaseAdmin.from("messages").insert({
-        user_id:        connection.user_id,
+        user_id:         connection.user_id,
         phone_number_id: phoneNumberId,
-        from_number:    fromNumber,
-        message_text:   messageText,
-        direction:      "inbound",
+        from_number:     fromNumber,
+        message_text:    messageText,
+        direction:       "inbound",
       })
 
-      // ── Send auto-reply (placeholder for now) ──
+      // ── Get business knowledge base ──
+      const { data: knowledge } = await supabaseAdmin
+        .from("business_knowledge")
+        .select("*")
+        .eq("user_id", connection.user_id)
+        .single()
+
+      // ── Get last 5 messages for context ──
+      const { data: history } = await supabaseAdmin
+        .from("messages")
+        .select("message_text, direction")
+        .eq("user_id", connection.user_id)
+        .eq("from_number", fromNumber)
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      const conversationHistory = (history || [])
+        .reverse()
+        .map(m => ({
+          role:    m.direction === "inbound" ? "user" : "assistant",
+          content: m.message_text
+        }))
+
+      // ── Generate AI reply ──
+      const aiReply = await generateAIReply({
+        customerMessage: messageText,
+        knowledge,
+        history: conversationHistory,
+      })
+
+      // ── Send reply via WhatsApp ──
       await sendWhatsAppReply({
         phoneNumberId,
         accessToken: connection.access_token,
         toNumber:    fromNumber,
-        message:     `Hi! Thanks for reaching out. We'll get back to you shortly. 🙌`,
+        message:     aiReply,
+      })
+
+      // ── Save outbound message ──
+      await supabaseAdmin.from("messages").insert({
+        user_id:         connection.user_id,
+        phone_number_id: phoneNumberId,
+        from_number:     fromNumber,
+        message_text:    aiReply,
+        direction:       "outbound",
       })
     }
 
@@ -80,12 +114,71 @@ export async function POST(req) {
 
   } catch (err) {
     console.error("Webhook error:", err)
-    // Always return 200 to Meta — otherwise Meta will retry constantly
     return NextResponse.json({ status: "error" }, { status: 200 })
   }
 }
 
-// ── Helper: Send WhatsApp message via Meta API ──
+// ── AI Reply using Claude ──
+async function generateAIReply({ customerMessage, knowledge, history }) {
+  try {
+    const businessContext = knowledge ? `
+You are a friendly assistant for ${knowledge.business_name}, a ${knowledge.business_type} in ${knowledge.location}.
+
+SERVICES AND PRICING:
+${knowledge.services}
+
+WORKING HOURS:
+${knowledge.working_hours}
+
+RULES YOU MUST FOLLOW:
+- Reply in a warm, friendly, human tone — never sound like a bot
+- Keep replies short and clear (max 3-4 lines)
+- Use 1-2 relevant emojis naturally
+- Help customers book appointments when they ask
+- If you are not sure about something, say exactly this: "Let me check that for you! Our team will get back to you shortly 🙌"
+- Never make up prices or services not listed above
+- If customer seems frustrated or upset, be extra empathetic first
+- Always end with a helpful next step or a question to move forward
+- If customer asks for a human, say: "Sure! Our team will reach out to you shortly 🙌"
+` : `
+You are a friendly business assistant.
+If you do not have enough information to answer accurately, say exactly: "Let me check that for you! Our team will get back to you shortly 🙌"
+Keep replies short, warm and helpful. Max 3-4 lines.
+`
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type":      "application/json",
+        "x-api-key":         process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model:      "claude-haiku-4-5-20251001",
+        max_tokens: 300,
+        system:     businessContext,
+        messages: [
+          ...history,
+          { role: "user", content: customerMessage }
+        ],
+      }),
+    })
+
+    const data = await response.json()
+
+    if (data?.content?.[0]?.text) {
+      return data.content[0].text
+    }
+
+    return "Thanks for reaching out! Our team will get back to you shortly 🙌"
+
+  } catch (err) {
+    console.error("Claude API error:", err)
+    return "Thanks for reaching out! Our team will get back to you shortly 🙌"
+  }
+}
+
+// ── Send WhatsApp Message ──
 async function sendWhatsAppReply({ phoneNumberId, accessToken, toNumber, message }) {
   try {
     const res = await fetch(
@@ -98,14 +191,14 @@ async function sendWhatsAppReply({ phoneNumberId, accessToken, toNumber, message
         },
         body: JSON.stringify({
           messaging_product: "whatsapp",
-          to:      toNumber,
-          type:    "text",
-          text:    { body: message },
+          to:   toNumber,
+          type: "text",
+          text: { body: message },
         }),
       }
     )
     const data = await res.json()
-    console.log("Reply sent:", data)
+    console.log("✅ Reply sent:", data)
     return data
   } catch (err) {
     console.error("Failed to send reply:", err)
