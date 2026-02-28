@@ -154,7 +154,7 @@ Keep replies short, warm and helpful. Max 3-4 lines.
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model:      "claude-haiku-4-5-20251001",
+        model:      "claude-haiku-20240307",
         max_tokens: 300,
         system:     businessContext,
         messages: [
