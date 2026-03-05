@@ -486,7 +486,13 @@ export default function Dashboard() {
             <button
               key={item.id}
               className={`nav-item${activeTab === item.id ? " active" : ""}`}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+  if (item.id === "settings") {
+    router.push("/dashboard/settings")
+  } else {
+    setActiveTab(item.id)
+  }
+}}
             >
               <span className="nav-icon">{item.icon}</span>
               <span>{item.label}</span>
