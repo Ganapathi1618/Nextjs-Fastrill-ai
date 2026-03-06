@@ -1,7 +1,7 @@
 "use client"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/app/lib/supabase"
-import { useTheme } from "@/app/lib/ThemeContext"
+import { supabase } from "@/lib/supabase"
+import { useTheme } from "@/lib/ThemeContext"
 
 const navItems = [
   { id: "overview", label: "Revenue Engine", icon: "◈", path: "/dashboard" },
