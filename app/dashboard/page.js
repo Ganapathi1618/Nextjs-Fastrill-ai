@@ -487,11 +487,13 @@ export default function Dashboard() {
               key={item.id}
               className={`nav-item${activeTab === item.id ? " active" : ""}`}
               onClick={() => {
-  if (item.id === "settings") {
-    router.push("/dashboard/settings")
-  } else {
-    setActiveTab(item.id)
-  }
+  if (item.id === "settings") router.push("/dashboard/settings")
+  else if (item.id === "inbox") router.push("/dashboard/conversations")
+  else if (item.id === "bookings") router.push("/dashboard/bookings")
+  else if (item.id === "leads") router.push("/dashboard/leads")
+  else if (item.id === "contacts") router.push("/dashboard/contacts")
+  else if (item.id === "analytics") router.push("/dashboard/analytics")
+  else setActiveTab(item.id)
 }}
             >
               <span className="nav-icon">{item.icon}</span>
