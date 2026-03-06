@@ -2,6 +2,8 @@
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import DashboardLayout from "@/components/DashboardLayout"
+import { useTheme } from "@/lib/ThemeContext"
 
 const MOCK_CONVERSATIONS = [
   {
@@ -61,7 +63,7 @@ const MOCK_CONVERSATIONS = [
 
 export default function ConversationsPage() {
   const router = useRouter()
-  const [userEmail, setUserEmail] = useState("")
+  const { t, accent, darkMode } = useTheme()
   const [conversations, setConversations] = useState(MOCK_CONVERSATIONS)
   const [selected, setSelected] = useState(MOCK_CONVERSATIONS[0])
   const [inputMsg, setInputMsg] = useState("")
@@ -69,21 +71,10 @@ export default function ConversationsPage() {
   const [filter, setFilter] = useState("all")
   const messagesEndRef = useRef(null)
 
-  const navItems = [
-    { id: "overview", label: "Revenue Engine", icon: "◈" },
-    { id: "inbox", label: "Conversations", icon: "◎" },
-    { id: "bookings", label: "Bookings", icon: "◷" },
-    { id: "leads", label: "Lead Recovery", icon: "◉" },
-    { id: "contacts", label: "Customers", icon: "◑" },
-    { id: "analytics", label: "Analytics", icon: "◫" },
-    { id: "settings", label: "Settings", icon: "◌" },
-  ]
-
   useEffect(() => {
     const init = async () => {
       const { data } = await supabase.auth.getUser()
-      if (!data.user) { router.push("/login"); return }
-      setUserEmail(data.user.email || "")
+      if (!data.user) router.push("/login")
     }
     init()
   }, [])
@@ -91,11 +82,6 @@ export default function ConversationsPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [selected])
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/login")
-  }
 
   const toggleAI = (convId) => {
     setConversations(prev => prev.map(c =>
@@ -110,12 +96,10 @@ export default function ConversationsPage() {
     if (!inputMsg.trim() || !selected) return
     const newMsg = { id: Date.now(), text: inputMsg, from: "human", time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }
     const updated = conversations.map(c =>
-      c.id === selected.id
-        ? { ...c, messages: [...c.messages, newMsg], lastMsg: inputMsg, time: "now" }
-        : c
+      c.id === selected.id ? { ...c, messages: [...c.messages, newMsg], lastMsg: inputMsg, time: "now" } : c
     )
     setConversations(updated)
-    setSelected(prev => ({ ...prev, messages: [...prev.messages, newMsg], lastMsg: inputMsg }))
+    setSelected(prev => ({ ...prev, messages: [...prev.messages, newMsg] }))
     setInputMsg("")
   }
 
@@ -126,7 +110,7 @@ export default function ConversationsPage() {
   })
 
   const getStatusColor = (status) => {
-    if (status === "ai") return "#00c47d"
+    if (status === "ai") return accent
     if (status === "needs-attention") return "#f59e0b"
     if (status === "booked") return "#0ea5e9"
     if (status === "human") return "#7c3aed"
@@ -141,325 +125,209 @@ export default function ConversationsPage() {
     return status
   }
 
-  const userInitial = userEmail ? userEmail[0].toUpperCase() : "U"
   const needsAttentionCount = conversations.filter(c => c.status === "needs-attention").length
 
   return (
-    <>
+    <DashboardLayout
+      activePage="inbox"
+      topbar={<span style={{fontWeight:700, fontSize:15, color:t.text}}>Conversations</span>}
+    >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: #0a0a0f !important; color: #e8e8f0 !important; font-family: 'DM Sans', sans-serif !important; }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        .conv-root { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 54px); font-family: 'Plus Jakarta Sans', sans-serif; }
 
-        .dash-root { display: flex; height: 100vh; overflow: hidden; }
-
-        /* SIDEBAR */
-        .sidebar { width: 220px; flex-shrink: 0; background: #0f0f17; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; }
-        .sidebar-logo { padding: 24px 20px 20px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; color: #fff; text-decoration: none; display: block; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .sidebar-logo span { color: #00c47d; }
-        .sidebar-section { padding: 20px 12px 8px; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.2); font-weight: 600; }
-        .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin: 2px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.45); font-weight: 500; transition: all 0.15s; border: none; background: none; width: calc(100% - 16px); text-align: left; font-family: 'DM Sans', sans-serif; }
-        .nav-item:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.8); }
-        .nav-item.active { background: rgba(0,196,125,0.1); color: #00c47d; font-weight: 600; border: 1px solid rgba(0,196,125,0.2); }
-        .nav-icon { font-size: 14px; width: 18px; text-align: center; }
-        .nav-badge { margin-left: auto; background: #f59e0b; color: #000; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 100px; font-family: 'Syne', sans-serif; }
-        .sidebar-footer { margin-top: auto; padding: 14px; border-top: 1px solid rgba(255,255,255,0.05); }
-        .user-card { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
-        .user-avatar { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #00c47d, #0ea5e9); display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 12px; color: #fff; flex-shrink: 0; }
-        .user-email { font-size: 11px; color: rgba(255,255,255,0.35); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .logout-btn { margin-top: 8px; width: 100%; padding: 7px; border-radius: 7px; background: transparent; border: 1px solid rgba(255,255,255,0.08); font-size: 11.5px; color: rgba(255,255,255,0.3); cursor: pointer; font-family: 'DM Sans', sans-serif; }
-        .logout-btn:hover { border-color: rgba(239,68,68,0.4); color: #ef4444; }
-
-        /* MAIN */
-        .main { flex: 1; display: flex; overflow: hidden; }
-
-        /* CONV LIST */
-        .conv-list { width: 320px; flex-shrink: 0; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; background: #0f0f17; }
-        .conv-list-header { padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .conv-list-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
-        .search-box { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 9px; padding: 8px 12px; margin-bottom: 10px; }
-        .search-box input { background: none; border: none; outline: none; font-size: 12.5px; color: #e8e8f0; font-family: 'DM Sans', sans-serif; flex: 1; }
-        .search-box input::placeholder { color: rgba(255,255,255,0.2); }
-        .search-icon { color: rgba(255,255,255,0.2); font-size: 13px; }
+        /* LIST */
+        .conv-list { width: 310px; flex-shrink: 0; border-right: 1px solid ${t.border}; display: flex; flex-direction: column; background: ${t.sidebar}; }
+        .conv-list-header { padding: 14px; border-bottom: 1px solid ${t.border}; }
+        .conv-list-title { font-weight: 700; font-size: 13px; color: ${t.text}; margin-bottom: 9px; display: flex; align-items: center; justify-content: space-between; }
+        .conv-count { font-size: 11px; color: ${t.textMuted}; font-weight: 400; }
+        .search-box { display: flex; align-items: center; gap: 8px; background: ${t.inputBg}; border: 1px solid ${t.cardBorder}; border-radius: 9px; padding: 8px 11px; margin-bottom: 9px; }
+        .search-box input { background: none; border: none; outline: none; font-size: 12.5px; color: ${t.text}; font-family: 'Plus Jakarta Sans', sans-serif; flex: 1; }
+        .search-box input::placeholder { color: ${t.textFaint}; }
         .filter-tabs { display: flex; gap: 4px; }
-        .filter-tab { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.07); background: transparent; color: rgba(255,255,255,0.3); transition: all 0.12s; font-family: 'DM Sans', sans-serif; }
-        .filter-tab.active { background: rgba(0,196,125,0.1); border-color: rgba(0,196,125,0.25); color: #00c47d; }
+        .filter-tab { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid ${t.cardBorder}; background: transparent; color: ${t.textMuted}; transition: all 0.12s; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .filter-tab.active { background: ${accent}15; border-color: ${accent}40; color: ${accent}; }
         .conv-items { flex: 1; overflow-y: auto; }
-        .conv-item { display: flex; align-items: center; gap: 11px; padding: 13px 16px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.12s; position: relative; }
-        .conv-item:hover { background: rgba(255,255,255,0.03); }
-        .conv-item.active { background: rgba(0,196,125,0.06); border-left: 2px solid #00c47d; }
-        .conv-avatar { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, rgba(0,196,125,0.3), rgba(14,165,233,0.3)); display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; color: #fff; flex-shrink: 0; position: relative; }
-        .conv-status-dot { position: absolute; bottom: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid #0f0f17; }
+        .conv-item { display: flex; align-items: center; gap: 11px; padding: 12px 14px; cursor: pointer; border-bottom: 1px solid ${t.border}; transition: background 0.12s; }
+        .conv-item:hover { background: ${t.inputBg}; }
+        .conv-item.active { background: ${accent}0d; border-left: 2px solid ${accent}; }
+        .conv-avatar { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, ${accent}40, #0ea5e940); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: ${t.text}; flex-shrink: 0; position: relative; }
+        .conv-status-dot { position: absolute; bottom: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid ${t.sidebar}; }
         .conv-info { flex: 1; min-width: 0; }
-        .conv-name { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 2px; display: flex; align-items: center; justify-content: space-between; }
-        .conv-time { font-size: 10px; color: rgba(255,255,255,0.25); font-weight: 400; }
-        .conv-preview { font-size: 11.5px; color: rgba(255,255,255,0.35); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-        .conv-unread { background: #00c47d; color: #000; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 100px; flex-shrink: 0; font-family: 'Syne', sans-serif; }
+        .conv-name { font-size: 13px; font-weight: 600; color: ${t.text}; margin-bottom: 2px; display: flex; align-items: center; justify-content: space-between; }
+        .conv-time { font-size: 10px; color: ${t.textFaint}; font-weight: 400; }
+        .conv-preview { font-size: 11.5px; color: ${t.textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+        .conv-unread { background: ${accent}; color: #000; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 100px; flex-shrink: 0; }
         .conv-items::-webkit-scrollbar { width: 3px; }
-        .conv-items::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); }
+        .conv-items::-webkit-scrollbar-thumb { background: ${t.border}; }
 
-        /* CHAT PANEL */
-        .chat-panel { flex: 1; display: flex; flex-direction: column; background: #0a0a0f; }
-        .chat-header { padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); background: #0f0f17; display: flex; align-items: center; justify-content: space-between; }
-        .chat-header-left { display: flex; align-items: center; gap: 12px; }
-        .chat-header-avatar { width: 36px; height: 36px; border-radius: 9px; background: linear-gradient(135deg, rgba(0,196,125,0.3), rgba(14,165,233,0.3)); display: flex; align-items: center; justify-content: center; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 13px; color: #fff; }
-        .chat-header-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; color: #fff; }
-        .chat-header-num { font-size: 11px; color: rgba(255,255,255,0.3); }
-        .chat-header-right { display: flex; align-items: center; gap: 12px; }
-        .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 100px; font-size: 11px; font-weight: 600; }
-
-        /* AI TOGGLE */
-        .ai-toggle-wrap { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); }
-        .ai-toggle-label { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.5); }
-        .ai-toggle { width: 40px; height: 22px; border-radius: 100px; border: none; cursor: pointer; transition: background 0.2s; position: relative; flex-shrink: 0; }
-        .ai-toggle.on { background: #00c47d; }
-        .ai-toggle.off { background: rgba(255,255,255,0.12); }
-        .ai-toggle::after { content: ''; position: absolute; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left 0.2s; }
+        /* CHAT */
+        .chat-panel { flex: 1; display: flex; flex-direction: column; background: ${t.bg}; }
+        .chat-header { padding: 13px 18px; border-bottom: 1px solid ${t.border}; background: ${t.topbar}; display: flex; align-items: center; justify-content: space-between; }
+        .chat-header-left { display: flex; align-items: center; gap: 11px; }
+        .chat-hdr-avatar { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, ${accent}40, #0ea5e940); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: ${t.text}; }
+        .chat-hdr-name { font-weight: 700; font-size: 13.5px; color: ${t.text}; }
+        .chat-hdr-num { font-size: 11px; color: ${t.textMuted}; }
+        .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 100px; font-size: 11px; font-weight: 600; }
+        .ai-toggle-wrap { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 9px; background: ${t.inputBg}; border: 1px solid ${t.cardBorder}; }
+        .ai-toggle-label { font-size: 12px; font-weight: 600; color: ${t.textMuted}; }
+        .ai-toggle { width: 38px; height: 20px; border-radius: 100px; border: none; cursor: pointer; position: relative; flex-shrink: 0; transition: background 0.2s; }
+        .ai-toggle.on { background: ${accent}; }
+        .ai-toggle.off { background: ${darkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}; }
+        .ai-toggle::after { content:''; position:absolute; top:3px; width:14px; height:14px; border-radius:50%; background:#fff; transition:left 0.2s; }
         .ai-toggle.on::after { left: 21px; }
         .ai-toggle.off::after { left: 3px; }
-        .ai-toggle-status { font-size: 11px; font-weight: 700; }
-        .ai-toggle-status.on { color: #00c47d; }
-        .ai-toggle-status.off { color: rgba(255,255,255,0.3); }
+        .ai-status { font-size: 11px; font-weight: 700; }
+        .ai-status.on { color: ${accent}; }
+        .ai-status.off { color: ${t.textMuted}; }
 
-        /* ATTENTION BANNER */
-        .attention-banner { margin: 10px 16px 0; padding: 10px 14px; border-radius: 10px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); display: flex; align-items: center; gap: 10px; }
-        .attention-banner-text { font-size: 12px; color: #f59e0b; font-weight: 500; flex: 1; }
-        .attention-reply-btn { padding: 5px 12px; border-radius: 7px; background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3); color: #f59e0b; font-size: 11.5px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+        .attention-banner { margin: 10px 16px 0; padding: 9px 13px; border-radius: 9px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); display: flex; align-items: center; gap: 9px; }
+        .attention-text { font-size: 12px; color: #f59e0b; font-weight: 500; flex: 1; }
+        .attention-btn { padding: 4px 11px; border-radius: 7px; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25); color: #f59e0b; font-size: 11.5px; font-weight: 700; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; white-space: nowrap; }
 
-        /* MESSAGES */
         .messages-area { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
-        .msg-row { display: flex; align-items: flex-end; gap: 8px; }
+        .msg-row { display: flex; }
         .msg-row.customer { justify-content: flex-start; }
         .msg-row.ai, .msg-row.human { justify-content: flex-end; }
-        .msg-bubble { max-width: 68%; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.5; position: relative; }
-        .msg-bubble.customer { background: rgba(255,255,255,0.07); color: #e8e8f0; border-bottom-left-radius: 4px; }
-        .msg-bubble.ai { background: rgba(0,196,125,0.12); border: 1px solid rgba(0,196,125,0.2); color: #e8e8f0; border-bottom-right-radius: 4px; }
-        .msg-bubble.human { background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.2); color: #e8e8f0; border-bottom-right-radius: 4px; }
+        .msg-bubble { max-width: 66%; padding: 10px 13px; border-radius: 13px; font-size: 13px; line-height: 1.5; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .msg-bubble.customer { background: ${t.msgCustomer || (darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)")}; color: ${t.text}; border-bottom-left-radius: 4px; }
+        .msg-bubble.ai { background: ${accent}15; border: 1px solid ${accent}25; color: ${t.text}; border-bottom-right-radius: 4px; }
+        .msg-bubble.human { background: rgba(124,58,237,0.12); border: 1px solid rgba(124,58,237,0.2); color: ${t.text}; border-bottom-right-radius: 4px; }
         .msg-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
-        .msg-time { font-size: 10px; color: rgba(255,255,255,0.2); }
-        .msg-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 100px; letter-spacing: 0.5px; }
-        .msg-badge.ai { background: rgba(0,196,125,0.2); color: #00c47d; }
-        .msg-badge.human { background: rgba(124,58,237,0.2); color: #a78bfa; }
+        .msg-time { font-size: 10px; color: ${t.textFaint}; }
+        .msg-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 100px; }
+        .msg-badge.ai { background: ${accent}20; color: ${accent}; }
+        .msg-badge.human { background: rgba(124,58,237,0.15); color: #7c3aed; }
         .messages-area::-webkit-scrollbar { width: 3px; }
-        .messages-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); }
+        .messages-area::-webkit-scrollbar-thumb { background: ${t.border}; }
 
-        /* INPUT */
-        .chat-input-area { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,0.06); background: #0f0f17; }
-        .ai-paused-note { font-size: 11.5px; color: rgba(124,58,237,0.8); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; background: rgba(124,58,237,0.08); border: 1px solid rgba(124,58,237,0.15); padding: 7px 12px; border-radius: 8px; }
-        .input-row { display: flex; gap: 10px; align-items: flex-end; }
-        .msg-input { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 11px 15px; font-size: 13px; color: #e8e8f0; font-family: 'DM Sans', sans-serif; outline: none; resize: none; transition: border-color 0.15s; line-height: 1.4; }
-        .msg-input:focus { border-color: rgba(0,196,125,0.35); }
-        .msg-input::placeholder { color: rgba(255,255,255,0.2); }
-        .send-btn { width: 42px; height: 42px; border-radius: 11px; background: #00c47d; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 17px; transition: all 0.15s; flex-shrink: 0; }
-        .send-btn:hover { background: #00d988; transform: scale(1.05); }
-        .send-btn:disabled { background: rgba(255,255,255,0.08); cursor: not-allowed; transform: none; }
-
-        /* EMPTY STATE */
-        .empty-chat { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: rgba(255,255,255,0.2); }
-        .empty-chat-icon { font-size: 40px; opacity: 0.3; }
-        .empty-chat-text { font-size: 13px; }
+        .chat-input-area { padding: 12px 18px; border-top: 1px solid ${t.border}; background: ${t.topbar}; }
+        .ai-note { font-size: 11.5px; margin-bottom: 7px; display: flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 7px; }
+        .ai-note.active { color: ${accent}99; background: ${accent}0a; border: 1px solid ${accent}18; }
+        .ai-note.paused { color: #7c3aed; background: rgba(124,58,237,0.06); border: 1px solid rgba(124,58,237,0.12); }
+        .input-row { display: flex; gap: 9px; align-items: flex-end; }
+        .msg-input { flex: 1; background: ${t.inputBg}; border: 1px solid ${t.cardBorder}; border-radius: 11px; padding: 10px 14px; font-size: 13px; color: ${t.text}; font-family: 'Plus Jakarta Sans', sans-serif; outline: none; resize: none; transition: border-color 0.15s; line-height: 1.4; }
+        .msg-input:focus { border-color: ${accent}55; }
+        .msg-input::placeholder { color: ${t.textFaint}; }
+        .msg-input:disabled { opacity: 0.4; cursor: not-allowed; }
+        .send-btn { width: 40px; height: 40px; border-radius: 10px; background: ${accent}; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.15s; flex-shrink: 0; }
+        .send-btn:hover { opacity: 0.85; transform: scale(1.05); }
+        .send-btn:disabled { background: ${t.inputBg}; cursor: not-allowed; transform: none; }
       `}</style>
 
-      <div className="dash-root">
-        {/* SIDEBAR */}
-        <aside className="sidebar">
-          <a href="/" className="sidebar-logo">fast<span>rill</span></a>
-          <div className="sidebar-section">Platform</div>
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              className={`nav-item${item.id === "inbox" ? " active" : ""}`}
-              onClick={() => {
-                if (item.id === "settings") router.push("/dashboard/settings")
-                else if (item.id === "inbox") router.push("/dashboard/conversations")
-                else if (item.id === "overview") router.push("/dashboard")
-                else if (item.id === "bookings") router.push("/dashboard/bookings")
-                else router.push("/dashboard")
-              }}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span>{item.label}</span>
-              {item.id === "inbox" && needsAttentionCount > 0 && (
-                <span className="nav-badge">{needsAttentionCount}</span>
-              )}
-            </button>
-          ))}
-          <div className="sidebar-footer">
-            <div className="user-card">
-              <div className="user-avatar">{userInitial}</div>
-              <div className="user-email">{userEmail}</div>
+      <div className="conv-root">
+        {/* LIST */}
+        <div className="conv-list">
+          <div className="conv-list-header">
+            <div className="conv-list-title">
+              Conversations
+              <span className="conv-count">{conversations.length} total</span>
             </div>
-            <button className="logout-btn" onClick={handleLogout}>↩ Sign out</button>
-          </div>
-        </aside>
-
-        {/* MAIN */}
-        <div className="main">
-          {/* CONVERSATION LIST */}
-          <div className="conv-list">
-            <div className="conv-list-header">
-              <div className="conv-list-title">
-                Conversations
-                <span style={{fontSize:"11px", color:"rgba(255,255,255,0.25)", fontWeight:400, fontFamily:"DM Sans"}}>
-                  {conversations.length} total
-                </span>
-              </div>
-              <div className="search-box">
-                <span className="search-icon">⌕</span>
-                <input
-                  placeholder="Search conversations..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                />
-              </div>
-              <div className="filter-tabs">
-                {[
-                  { id: "all", label: "All" },
-                  { id: "needs-attention", label: "⚠ Attention" },
-                  { id: "ai", label: "AI" },
-                  { id: "booked", label: "Booked" },
-                ].map(f => (
-                  <button
-                    key={f.id}
-                    className={`filter-tab${filter === f.id ? " active" : ""}`}
-                    onClick={() => setFilter(f.id)}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
+            <div className="search-box">
+              <span style={{color: t.textFaint, fontSize:13}}>⌕</span>
+              <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-
-            <div className="conv-items">
-              {filteredConvs.map(c => (
-                <div
-                  key={c.id}
-                  className={`conv-item${selected?.id === c.id ? " active" : ""}`}
-                  onClick={() => setSelected(c)}
-                >
-                  <div className="conv-avatar">
-                    {c.avatar}
-                    <div className="conv-status-dot" style={{background: getStatusColor(c.status)}} />
-                  </div>
-                  <div className="conv-info">
-                    <div className="conv-name">
-                      {c.name}
-                      <span className="conv-time">{c.time}</span>
-                    </div>
-                    <div className="conv-preview">
-                      <span style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
-                        {c.lastMsg}
-                      </span>
-                      {c.unread > 0 && <span className="conv-unread">{c.unread}</span>}
-                    </div>
-                  </div>
-                </div>
+            <div className="filter-tabs">
+              {[
+                { id: "all", label: "All" },
+                { id: "needs-attention", label: "⚠ Attention" },
+                { id: "ai", label: "AI" },
+                { id: "booked", label: "Booked" },
+              ].map(f => (
+                <button key={f.id} className={`filter-tab${filter === f.id ? " active" : ""}`} onClick={() => setFilter(f.id)}>
+                  {f.label}
+                </button>
               ))}
             </div>
           </div>
 
-          {/* CHAT PANEL */}
-          <div className="chat-panel">
-            {selected ? (
-              <>
-                {/* CHAT HEADER */}
-                <div className="chat-header">
-                  <div className="chat-header-left">
-                    <div className="chat-header-avatar">{selected.avatar}</div>
-                    <div>
-                      <div className="chat-header-name">{selected.name}</div>
-                      <div className="chat-header-num">{selected.number}</div>
-                    </div>
-                    <div className="status-pill" style={{
-                      background: getStatusColor(selected.status) + "15",
-                      border: `1px solid ${getStatusColor(selected.status)}30`,
-                      color: getStatusColor(selected.status)
-                    }}>
-                      <span style={{width:6, height:6, borderRadius:"50%", background:"currentColor", display:"inline-block"}} />
-                      {getStatusLabel(selected.status)}
-                    </div>
+          <div className="conv-items">
+            {filteredConvs.map(c => (
+              <div key={c.id} className={`conv-item${selected?.id === c.id ? " active" : ""}`} onClick={() => setSelected(c)}>
+                <div className="conv-avatar">
+                  {c.avatar}
+                  <div className="conv-status-dot" style={{background: getStatusColor(c.status)}} />
+                </div>
+                <div className="conv-info">
+                  <div className="conv-name">
+                    {c.name}
+                    <span className="conv-time">{c.time}</span>
                   </div>
-                  <div className="chat-header-right">
-                    <div className="ai-toggle-wrap">
-                      <span className="ai-toggle-label">AI</span>
-                      <button
-                        className={`ai-toggle ${selected.aiOn ? "on" : "off"}`}
-                        onClick={() => toggleAI(selected.id)}
-                      />
-                      <span className={`ai-toggle-status ${selected.aiOn ? "on" : "off"}`}>
-                        {selected.aiOn ? "ON" : "OFF"}
-                      </span>
-                    </div>
+                  <div className="conv-preview">
+                    <span style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{c.lastMsg}</span>
+                    {c.unread > 0 && <span className="conv-unread">{c.unread}</span>}
                   </div>
                 </div>
-
-                {/* ATTENTION BANNER */}
-                {selected.status === "needs-attention" && (
-                  <div className="attention-banner">
-                    <span>⚠️</span>
-                    <span className="attention-banner-text">
-                      AI couldn't answer this customer. They need a human response.
-                    </span>
-                    <button className="attention-reply-btn" onClick={() => toggleAI(selected.id)}>
-                      Take Over →
-                    </button>
-                  </div>
-                )}
-
-                {/* MESSAGES */}
-                <div className="messages-area">
-                  {selected.messages.map(msg => (
-                    <div key={msg.id} className={`msg-row ${msg.from}`}>
-                      <div className={`msg-bubble ${msg.from}`}>
-                        {msg.text}
-                        <div className="msg-meta">
-                          <span className="msg-time">{msg.time}</span>
-                          {msg.from === "ai" && <span className="msg-badge ai">AI</span>}
-                          {msg.from === "human" && <span className="msg-badge human">You</span>}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* INPUT */}
-                <div className="chat-input-area">
-                  {!selected.aiOn && (
-                    <div className="ai-paused-note">
-                      ◈ AI is paused — you are in control of this conversation
-                    </div>
-                  )}
-                  {selected.aiOn && (
-                    <div style={{fontSize:"11.5px", color:"rgba(0,196,125,0.6)", marginBottom:"8px", display:"flex", alignItems:"center", gap:"6px"}}>
-                      ◈ AI is handling this conversation — toggle off to reply manually
-                    </div>
-                  )}
-                  <div className="input-row">
-                    <textarea
-                      className="msg-input"
-                      rows={1}
-                      placeholder={selected.aiOn ? "AI is active — toggle off to type..." : "Type a message..."}
-                      value={inputMsg}
-                      onChange={e => setInputMsg(e.target.value)}
-                      disabled={selected.aiOn}
-                      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage() }}}
-                    />
-                    <button className="send-btn" onClick={sendMessage} disabled={selected.aiOn || !inputMsg.trim()}>
-                      ➤
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="empty-chat">
-                <div className="empty-chat-icon">💬</div>
-                <div className="empty-chat-text">Select a conversation to start</div>
               </div>
-            )}
+            ))}
           </div>
         </div>
+
+        {/* CHAT */}
+        {selected && (
+          <div className="chat-panel">
+            <div className="chat-header">
+              <div className="chat-header-left">
+                <div className="chat-hdr-avatar">{selected.avatar}</div>
+                <div>
+                  <div className="chat-hdr-name">{selected.name}</div>
+                  <div className="chat-hdr-num">{selected.number}</div>
+                </div>
+                <div className="status-pill" style={{background: getStatusColor(selected.status) + "15", border:`1px solid ${getStatusColor(selected.status)}30`, color: getStatusColor(selected.status)}}>
+                  <span style={{width:5, height:5, borderRadius:"50%", background:"currentColor", display:"inline-block"}} />
+                  {getStatusLabel(selected.status)}
+                </div>
+              </div>
+              <div className="ai-toggle-wrap">
+                <span className="ai-toggle-label">AI</span>
+                <button className={`ai-toggle ${selected.aiOn ? "on" : "off"}`} onClick={() => toggleAI(selected.id)} />
+                <span className={`ai-status ${selected.aiOn ? "on" : "off"}`}>{selected.aiOn ? "ON" : "OFF"}</span>
+              </div>
+            </div>
+
+            {selected.status === "needs-attention" && (
+              <div className="attention-banner">
+                <span>⚠️</span>
+                <span className="attention-text">AI couldn't answer this customer. They need a human response.</span>
+                <button className="attention-btn" onClick={() => toggleAI(selected.id)}>Take Over →</button>
+              </div>
+            )}
+
+            <div className="messages-area">
+              {selected.messages.map(msg => (
+                <div key={msg.id} className={`msg-row ${msg.from}`}>
+                  <div className={`msg-bubble ${msg.from}`}>
+                    {msg.text}
+                    <div className="msg-meta">
+                      <span className="msg-time">{msg.time}</span>
+                      {msg.from === "ai" && <span className="msg-badge ai">AI</span>}
+                      {msg.from === "human" && <span className="msg-badge human">You</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="chat-input-area">
+              <div className={`ai-note ${selected.aiOn ? "active" : "paused"}`}>
+                {selected.aiOn ? "◈ AI is handling this conversation — toggle off to reply manually" : "◈ AI is paused — you are in control of this conversation"}
+              </div>
+              <div className="input-row">
+                <textarea
+                  className="msg-input" rows={1}
+                  placeholder={selected.aiOn ? "AI is active — toggle off to type..." : "Type a message..."}
+                  value={inputMsg}
+                  onChange={e => setInputMsg(e.target.value)}
+                  disabled={selected.aiOn}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage() }}}
+                />
+                <button className="send-btn" onClick={sendMessage} disabled={selected.aiOn || !inputMsg.trim()}>➤</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </>
+    </DashboardLayout>
   )
 }
