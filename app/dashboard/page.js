@@ -3,392 +3,359 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
-const NAV_ITEMS = [
-  { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
-  { id:"inbox",     label:"Conversations",  icon:"◎", path:"/dashboard/conversations" },
-  { id:"bookings",  label:"Bookings",       icon:"◷", path:"/dashboard/bookings" },
-  { id:"campaigns", label:"Campaigns",      icon:"◆", path:"/dashboard/campaigns" },
-  { id:"leads",     label:"Lead Recovery",  icon:"◉", path:"/dashboard/leads" },
-  { id:"contacts",  label:"Customers",      icon:"◑", path:"/dashboard/contacts" },
-  { id:"analytics", label:"Analytics",      icon:"▦", path:"/dashboard/analytics" },
-  { id:"settings",  label:"Settings",       icon:"◌", path:"/dashboard/settings" },
+const NAV = [
+  { id:"overview", label:"Revenue Engine", icon:"◈", path:"/dashboard" },
+  { id:"inbox", label:"Conversations", icon:"◎", path:"/dashboard/conversations" },
+  { id:"bookings", label:"Bookings", icon:"◷", path:"/dashboard/bookings" },
+  { id:"campaigns", label:"Campaigns", icon:"◆", path:"/dashboard/campaigns" },
+  { id:"leads", label:"Lead Recovery", icon:"◉", path:"/dashboard/leads" },
+  { id:"contacts", label:"Customers", icon:"◑", path:"/dashboard/contacts" },
+  { id:"analytics", label:"Analytics", icon:"◫", path:"/dashboard/analytics" },
+  { id:"settings", label:"Settings", icon:"◌", path:"/dashboard/settings" },
 ]
 
-export default function Dashboard() {
+const SPECS = ["Hair Stylist","Dermatologist","Beautician","Makeup Artist","Nail Technician","Massage Therapist","Spa Therapist","General Doctor","Dentist","Physiotherapist","Other"]
+const DURATIONS = [10,15,20,30,45,60,90,120]
+const WEEK_DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+const LANGUAGES = ["English","Hindi","Telugu","Tamil","Kannada","Malayalam","Marathi"]
+const BIZ_TYPES = ["Salon","Clinic","Spa","Dental","Physiotherapy","Skin Care","Other"]
+const QUICK_RULES = ["Always ask customer's name before booking","Ask for preferred time slot","Send confirmation after booking","Offer alternatives if slot is full","Always greet with business name","Ask for service preference first"]
+
+export default function SettingsPage() {
   const router = useRouter()
-  const [email,setEmail]     = useState("")
-  const [dark,setDark]       = useState(true)
-  const [period,setPeriod]   = useState("today")
-  const [connected]          = useState(false)
-  const health               = 74
+  const [userEmail, setUserEmail] = useState("")
+  const [dark, setDark] = useState(true)
+  const [tab, setTab] = useState("business")
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
-  useEffect(()=>{
+  const [bizName, setBizName] = useState("Glamour Studio")
+  const [bizType, setBizType] = useState("Salon")
+  const [location, setLocation] = useState("")
+  const [mapsLink, setMapsLink] = useState("")
+  const [phone, setPhone] = useState("+91 93460 79265")
+  const [description, setDescription] = useState("")
+
+  const [services, setServices] = useState([
+    {id:1,name:"Women's Haircut",price:"350",duration:"30",category:"Hair"},
+    {id:2,name:"Men's Haircut",price:"200",duration:"20",category:"Hair"},
+    {id:3,name:"Hair Colour",price:"1500",duration:"90",category:"Hair"},
+    {id:4,name:"Facial",price:"600",duration:"60",category:"Skin"},
+    {id:5,name:"Bridal Package",price:"8000",duration:"120",category:"Bridal"},
+  ])
+
+  const [staff, setStaff] = useState([
+    {id:1,name:"Ananya",role:"Senior Stylist",spec:"Hair Stylist",slotDur:30,capacity:1,days:Object.fromEntries(WEEK_DAYS.map(d=>[d,{on:d!=="Sun",from:"09:00",to:"18:00"}]))},
+    {id:2,name:"Riya",role:"Beautician",spec:"Beautician",slotDur:45,capacity:1,days:Object.fromEntries(WEEK_DAYS.map(d=>[d,{on:d!=="Wed"&&d!=="Sun",from:"09:00",to:"18:00"}]))},
+  ])
+
+  const [aiInstructions, setAiInstructions] = useState("")
+  const [activeRules, setActiveRules] = useState([])
+  const [faqs, setFaqs] = useState([
+    {id:1,q:"What are your working hours?",a:"Mon-Sat 9AM–7PM, Sunday 10AM–5PM."},
+    {id:2,q:"Do you offer home service?",a:"Currently in-salon services only."},
+  ])
+  const [bookingLink, setBookingLink] = useState("")
+  const [language, setLanguage] = useState("English")
+
+  useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
-    if(saved) setDark(saved==="dark")
-    supabase.auth.getUser().then(({data})=>{
-      if(!data.user) router.push("/login")
-      else setEmail(data.user.email||"")
-    })
-  },[])
+    if (saved) setDark(saved === "dark")
+    const init = async () => {
+      const { data } = await supabase.auth.getUser()
+      if (!data.user) router.push("/login")
+      else setUserEmail(data.user.email || "")
+    }
+    init()
+  }, [])
 
-  const toggle = ()=>{ const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
-  const logout = async ()=>{ await supabase.auth.signOut(); router.push("/login") }
-  const connect = ()=>{
-    const id="780799931531576", cfg="1090960043190718", uri="https://fastrill.com/api/meta/callback"
-    window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${id}&redirect_uri=${encodeURIComponent(uri)}&response_type=code&config_id=${cfg}`
+  const toggleTheme = () => { const n = !dark; setDark(n); localStorage.setItem("fastrill-theme", n?"dark":"light") }
+  const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login") }
+
+  const handleSave = async () => {
+    setSaving(true)
+    await new Promise(r=>setTimeout(r,900))
+    setSaving(false); setSaved(true)
+    setTimeout(()=>setSaved(false),2500)
   }
 
-  const accent = dark?"#00c47d":"#00935a"
-  const hColor = health>=75?accent:health>=50?"#f59e0b":"#ef4444"
-  const hLabel = health>=75?"Excellent":health>=50?"Needs Work":"Critical"
-  const init   = email?email[0].toUpperCase():"G"
-  const daysLeft = new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate()-new Date().getDate()
+  const addSvc = () => setServices(p=>[...p,{id:Date.now(),name:"",price:"",duration:"30",category:""}])
+  const rmSvc = (id) => setServices(p=>p.filter(s=>s.id!==id))
+  const updSvc = (id,f,v) => setServices(p=>p.map(s=>s.id===id?{...s,[f]:v}:s))
 
-  const t = dark?{
-    pageBg:"#0b0b12",sideBg:"#0f0f18",topBg:"#0f0f18",cardBg:"#14141e",
-    border:"rgba(255,255,255,0.07)",cardEdge:"rgba(255,255,255,0.09)",
-    text:"#ededf5",muted:"rgba(255,255,255,0.42)",faint:"rgba(255,255,255,0.2)",
-    navTxt:"rgba(255,255,255,0.48)",navAct:"rgba(0,196,125,0.13)",
-    navEdge:"rgba(0,196,125,0.28)",navActTxt:"#00c47d",
-    chipBg:"rgba(255,255,255,0.04)",
-  }:{
-    pageBg:"#eef0f4",sideBg:"#ffffff",topBg:"#ffffff",cardBg:"#ffffff",
-    border:"rgba(0,0,0,0.08)",cardEdge:"rgba(0,0,0,0.09)",
-    text:"#111827",muted:"rgba(0,0,0,0.48)",faint:"rgba(0,0,0,0.28)",
-    navTxt:"rgba(0,0,0,0.48)",navAct:"rgba(0,148,90,0.09)",
-    navEdge:"rgba(0,148,90,0.22)",navActTxt:"#00935a",
-    chipBg:"rgba(0,0,0,0.03)",
+  const addStaff = () => setStaff(p=>[...p,{id:Date.now(),name:"",role:"",spec:"Hair Stylist",slotDur:30,capacity:1,days:Object.fromEntries(WEEK_DAYS.map(d=>[d,{on:true,from:"09:00",to:"18:00"}]))}])
+  const rmStaff = (id) => setStaff(p=>p.filter(s=>s.id!==id))
+  const updStaff = (id,f,v) => setStaff(p=>p.map(s=>s.id===id?{...s,[f]:v}:s))
+  const updDay = (sid,day,f,v) => setStaff(p=>p.map(s=>s.id===sid?{...s,days:{...s.days,[day]:{...s.days[day],[f]:v}}}:s))
+
+  const addFaq = () => setFaqs(p=>[...p,{id:Date.now(),q:"",a:""}])
+  const rmFaq = (id) => setFaqs(p=>p.filter(f=>f.id!==id))
+  const updFaq = (id,f,v) => setFaqs(p=>p.map(x=>x.id===id?{...x,[f]:v}:x))
+  const toggleRule = (r) => setActiveRules(p=>p.includes(r)?p.filter(x=>x!==r):[...p,r])
+
+  const t = dark ? {
+    bg:"#0a0a0f",sidebar:"#0f0f17",border:"rgba(255,255,255,0.06)",card:"#0f0f17",
+    cardBorder:"rgba(255,255,255,0.07)",text:"#e8e8f0",textMuted:"rgba(255,255,255,0.4)",
+    textFaint:"rgba(255,255,255,0.2)",navActive:"rgba(0,196,125,0.1)",
+    navActiveBorder:"rgba(0,196,125,0.2)",navActiveText:"#00c47d",
+    navText:"rgba(255,255,255,0.45)",inputBg:"rgba(255,255,255,0.04)",
+    chipBg:"rgba(255,255,255,0.02)",chipBorder:"rgba(255,255,255,0.05)",
+  } : {
+    bg:"#f4f5f7",sidebar:"#ffffff",border:"rgba(0,0,0,0.07)",card:"#ffffff",
+    cardBorder:"rgba(0,0,0,0.08)",text:"#111827",textMuted:"rgba(0,0,0,0.45)",
+    textFaint:"rgba(0,0,0,0.25)",navActive:"rgba(0,180,115,0.08)",
+    navActiveBorder:"rgba(0,180,115,0.2)",navActiveText:"#00935a",
+    navText:"rgba(0,0,0,0.45)",inputBg:"rgba(0,0,0,0.03)",
+    chipBg:"rgba(0,0,0,0.02)",chipBorder:"rgba(0,0,0,0.05)",
   }
+  const accent = dark ? "#00c47d" : "#00935a"
+  const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
 
-  const css = `
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-    html,body{height:100%;overflow:hidden;background:${t.pageBg}!important;color:${t.text}!important;font-family:'DM Sans',sans-serif!important;}
-    .shell{display:flex;height:100vh;}
-    /* SIDEBAR */
-    .sb{width:212px;flex-shrink:0;background:${t.sideBg};border-right:1px solid ${t.border};display:flex;flex-direction:column;overflow:hidden;}
-    .sb-logo{display:block;padding:20px 18px 16px;font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:${t.text};text-decoration:none;border-bottom:1px solid ${t.border};letter-spacing:-0.5px;flex-shrink:0;}
-    .sb-logo span{color:${accent};}
-    .sb-section{padding:18px 16px 5px;font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;color:${t.faint};font-weight:600;}
-    .sb-nav{flex:1;overflow-y:auto;padding-bottom:8px;}
-    .sb-nav::-webkit-scrollbar{display:none;}
-    .sb-item{display:flex;align-items:center;gap:10px;padding:9px 11px;margin:1px 8px;border-radius:9px;border:1px solid transparent;font-size:13px;font-weight:500;color:${t.navTxt};background:none;width:calc(100% - 16px);text-align:left;cursor:pointer;transition:all 0.13s;font-family:'DM Sans',sans-serif;}
-    .sb-item:hover{background:${t.chipBg};color:${t.text};}
-    .sb-item.on{background:${t.navAct};color:${t.navActTxt};font-weight:600;border-color:${t.navEdge};}
-    .sb-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0;}
-    .sb-foot{flex-shrink:0;padding:12px;border-top:1px solid ${t.border};}
-    .sb-user{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:10px;background:${t.chipBg};border:1px solid ${t.cardEdge};margin-bottom:7px;}
-    .sb-av{width:30px;height:30px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,${accent},#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;}
-    .sb-em{font-size:11.5px;color:${t.muted};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .sb-logout{width:100%;padding:7px;border-radius:8px;background:transparent;border:1px solid ${t.cardEdge};font-size:12px;color:${t.muted};cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.13s;}
-    .sb-logout:hover{border-color:rgba(239,68,68,0.4);color:#ef4444;}
-    /* MAIN */
-    .main{flex:1;min-width:0;display:flex;flex-direction:column;}
-    /* TOPBAR */
-    .top{flex-shrink:0;height:54px;background:${t.topBg};border-bottom:1px solid ${t.border};display:flex;align-items:center;justify-content:space-between;padding:0 22px;gap:12px;}
-    .top-l{display:flex;align-items:center;gap:14px;}
-    .top-title{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:${t.text};}
-    .ptabs{display:flex;gap:2px;padding:3px;background:${t.chipBg};border:1px solid ${t.cardEdge};border-radius:9px;}
-    .ptab{padding:4px 13px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:${t.muted};font-family:'DM Sans',sans-serif;transition:all 0.13s;}
-    .ptab.on{background:${accent};color:#000;}
-    .top-r{display:flex;align-items:center;gap:10px;flex-shrink:0;}
-    .theme-btn{display:flex;align-items:center;gap:7px;padding:5px 12px;border-radius:8px;background:${t.chipBg};border:1px solid ${t.cardEdge};font-size:12px;color:${t.muted};cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500;}
-    .pill{width:30px;height:17px;border-radius:100px;background:${dark?accent:"#c9cdd4"};position:relative;flex-shrink:0;transition:background 0.2s;}
-    .pill::after{content:'';position:absolute;top:1.5px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left 0.2s;left:${dark?"14px":"1.5px"};}
-    .conn{display:flex;align-items:center;gap:6px;padding:5px 13px;border-radius:100px;font-size:11.5px;font-weight:600;white-space:nowrap;}
-    .conn.off{background:rgba(239,68,68,0.09);border:1px solid rgba(239,68,68,0.22);color:#ef4444;}
-    .conn.on{background:${accent}14;border:1px solid ${accent}30;color:${accent};}
-    .conn-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
-    /* BODY */
-    .body{flex:1;overflow-y:auto;padding:20px 22px 32px;background:${t.pageBg};}
-    .body::-webkit-scrollbar{width:4px;}
-    .body::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}
-    /* BANNER */
-    .banner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;border-radius:13px;background:${dark?`linear-gradient(135deg,${accent}0e,rgba(14,165,233,0.07))`:`linear-gradient(135deg,${accent}0a,rgba(14,165,233,0.05))`};border:1px solid ${accent}28;margin-bottom:18px;}
-    .banner-l{display:flex;align-items:center;gap:14px;}
-    .banner-ico{width:42px;height:42px;border-radius:11px;background:#25d366;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:21px;box-shadow:0 4px 12px rgba(37,211,102,0.28);}
-    .banner-title{font-weight:700;font-size:13.5px;color:${t.text};margin-bottom:3px;}
-    .banner-sub{font-size:12px;color:${t.muted};}
-    .banner-btn{flex-shrink:0;display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:10px;border:none;cursor:pointer;background:#1877f2;color:#fff;font-weight:700;font-size:13px;font-family:'DM Sans',sans-serif;box-shadow:0 4px 14px rgba(24,119,242,0.32);transition:transform 0.14s;}
-    .banner-btn:hover{transform:translateY(-1px);}
-    /* CARDS */
-    .card{background:${t.cardBg};border:1px solid ${t.cardEdge};border-radius:13px;padding:18px;}
-    .ch{font-weight:700;font-size:13.5px;color:${t.text};margin-bottom:4px;}
-    .cs{font-size:11.5px;color:${t.muted};}
-    .card-hd{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;}
-    /* ROW 1 */
-    .row1{display:grid;grid-template-columns:190px 1fr;gap:14px;margin-bottom:14px;align-items:start;}
-    .health{background:${t.cardBg};border:1px solid ${t.cardEdge};border-radius:13px;padding:20px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;overflow:hidden;}
-    .health::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,${hColor}14,transparent 60%);pointer-events:none;}
-    .h-lbl{font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;color:${t.faint};font-weight:600;margin-bottom:13px;}
-    .h-ring{width:110px;height:110px;position:relative;margin-bottom:11px;}
-    .h-ring svg{transform:rotate(-90deg);}
-    .h-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-    .h-num{font-family:'Syne',sans-serif;font-weight:800;font-size:34px;line-height:1;}
-    .h-den{font-size:11px;color:${t.faint};}
-    .h-status{font-weight:700;font-size:13px;margin-bottom:5px;}
-    .h-sub{font-size:11px;color:${t.muted};line-height:1.5;}
-    .kpis{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:12px;}
-    .kpi{background:${t.cardBg};border:1px solid ${t.cardEdge};border-radius:12px;padding:16px;display:flex;flex-direction:column;transition:border-color 0.14s,transform 0.14s;}
-    .kpi:hover{border-color:${t.muted};transform:translateY(-2px);}
-    .kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-    .kpi-name{font-size:11.5px;color:${t.muted};font-weight:500;}
-    .kpi-dot{width:7px;height:7px;border-radius:50%;}
-    .kpi-val{font-family:'Syne',sans-serif;font-weight:700;font-size:28px;line-height:1;margin-bottom:5px;}
-    .kpi-sub{font-size:11px;color:${t.faint};}
-    /* ROW 2 */
-    .row2{margin-bottom:14px;}
-    .funnel-wrap{display:flex;align-items:flex-end;gap:5px;height:96px;}
-    .f-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;}
-    .f-num{font-weight:700;font-size:12.5px;}
-    .f-bar{width:100%;border-radius:4px 4px 0 0;}
-    .f-lbl{font-size:10px;color:${t.muted};text-align:center;font-weight:500;}
-    .f-arr{color:${t.faint};font-size:18px;padding-bottom:26px;}
-    /* ROW 3 */
-    .row3{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
-    .ai-badge{display:inline-flex;align-items:center;gap:5px;margin-bottom:12px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2);border-radius:100px;padding:3px 10px;font-size:10px;color:#7c3aed;font-weight:700;}
-    .ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
-    .ai-m{background:${t.chipBg};border:1px solid ${t.cardEdge};border-radius:10px;padding:12px;}
-    .ai-v{font-family:'Syne',sans-serif;font-weight:700;font-size:22px;color:${t.text};margin-bottom:3px;}
-    .ai-l{font-size:11px;color:${t.muted};line-height:1.4;}
-    .lost{background:${t.cardBg};border:1px solid rgba(239,68,68,0.18);border-radius:13px;padding:18px;}
-    .lost-hd{font-weight:700;font-size:13.5px;color:${t.text};display:flex;align-items:center;gap:7px;margin-bottom:4px;}
-    .lost-sub{font-size:11.5px;color:${t.muted};margin-bottom:14px;}
-    .lost-big{font-family:'Syne',sans-serif;font-weight:800;font-size:38px;color:#ef4444;letter-spacing:-1px;margin-bottom:4px;}
-    .lost-desc{font-size:12px;color:${t.faint};margin-bottom:14px;}
-    .lost-row{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;border-radius:8px;background:${t.chipBg};border:1px solid ${t.cardEdge};margin-bottom:7px;}
-    .lost-row:last-child{margin-bottom:0;}
-    .lost-rl{font-size:12px;color:${t.muted};}
-    .lost-rv{font-size:12px;font-weight:700;color:#ef4444;}
-    /* ROW 4 */
-    .row4{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
-    .src-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid ${t.border};}
-    .src-row:last-child{border-bottom:none;}
-    .src-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-    .src-name{font-size:12.5px;color:${t.text};flex:1;font-weight:500;}
-    .src-ct{font-size:11px;color:${t.faint};margin-right:7px;}
-    .src-rev{font-weight:700;font-size:12.5px;color:${accent};}
-    .bk-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 0;text-align:center;gap:8px;}
-    .bk-icon{font-size:28px;opacity:0.2;}
-    .bk-txt{font-size:12px;color:${t.faint};line-height:1.5;}
-    .forecast{background:${t.cardBg};border:1px solid ${accent}22;border-radius:13px;padding:18px;}
-    .fc-lbl{font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;color:${t.faint};font-weight:600;margin-bottom:5px;}
-    .fc-amt{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:${accent};letter-spacing:-1px;margin-bottom:4px;}
-    .fc-sub{font-size:12px;color:${t.muted};margin-bottom:14px;}
-    .fc-bar{height:5px;background:${t.chipBg};border-radius:100px;margin-bottom:5px;overflow:hidden;}
-    .fc-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,${accent},#0ea5e9);width:0%;}
-    .fc-pct{font-size:11px;color:${t.faint};margin-bottom:14px;}
-    .fc-rows{display:flex;flex-direction:column;gap:9px;}
-    .fc-row{display:flex;justify-content:space-between;align-items:center;}
-    .fc-rl{font-size:12px;color:${t.muted};}
-    .fc-rv{font-size:12.5px;font-weight:600;color:${t.text};}
-    @media(max-width:1100px){.row1{grid-template-columns:1fr;}.kpis{grid-template-columns:repeat(4,1fr);grid-template-rows:unset;}.row4{grid-template-columns:1fr 1fr;}}
-    @media(max-width:820px){.sb{display:none;}.row3{grid-template-columns:1fr;}.row4{grid-template-columns:1fr;}.kpis{grid-template-columns:1fr 1fr;}}
-  `
+  const inp = {background:t.inputBg,border:`1px solid ${t.cardBorder}`,borderRadius:9,padding:"9px 12px",fontSize:13,color:t.text,fontFamily:"'Plus Jakarta Sans',sans-serif",outline:"none",width:"100%"}
+  const sinp = {background:t.inputBg,border:`1px solid ${t.cardBorder}`,borderRadius:7,padding:"7px 10px",fontSize:12.5,color:t.text,fontFamily:"'Plus Jakarta Sans',sans-serif",outline:"none",width:"100%"}
 
   return (
     <>
-      <style>{css}</style>
-      <div className="shell">
-        <aside className="sb">
-          <a href="/dashboard" className="sb-logo">fast<span>rill</span></a>
-          <div className="sb-section">Platform</div>
-          <nav className="sb-nav">
-            {NAV_ITEMS.map(n=>(
-              <button key={n.id} className={`sb-item${n.id==="overview"?" on":""}`} onClick={()=>router.push(n.path)}>
-                <span className="sb-icon">{n.icon}</span><span>{n.label}</span>
-              </button>
-            ))}
-          </nav>
-          <div className="sb-foot">
-            <div className="sb-user"><div className="sb-av">{init}</div><div className="sb-em">{email||"Loading..."}</div></div>
-            <button className="sb-logout" onClick={logout}>↩ Sign out</button>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        html,body{background:${t.bg}!important;color:${t.text}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
+        .root{display:flex;height:100vh;overflow:hidden;background:${t.bg};}
+        .sidebar{width:224px;flex-shrink:0;background:${t.sidebar};border-right:1px solid ${t.border};display:flex;flex-direction:column;overflow-y:auto;}
+        .logo{padding:22px 20px 18px;font-weight:800;font-size:20px;color:${t.text};text-decoration:none;display:block;border-bottom:1px solid ${t.border};font-family:'Plus Jakarta Sans',sans-serif;}
+        .logo span{color:${accent};}
+        .nav-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${t.textFaint};font-weight:600;}
+        .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${t.navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
+        .nav-item:hover{background:${t.inputBg};color:${t.text};}
+        .nav-item.active{background:${t.navActive};color:${t.navActiveText};font-weight:600;border-color:${t.navActiveBorder};}
+        .nav-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0;}
+        .sidebar-footer{margin-top:auto;padding:14px;border-top:1px solid ${t.border};}
+        .user-card{display:flex;align-items:center;gap:9px;padding:9px;border-radius:9px;background:${t.inputBg};border:1px solid ${t.cardBorder};}
+        .user-avatar{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,${accent},#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex-shrink:0;}
+        .user-email{font-size:11.5px;color:${t.textMuted};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .logout-btn{margin-top:7px;width:100%;padding:7px;border-radius:7px;background:transparent;border:1px solid ${t.cardBorder};font-size:12px;color:${t.textMuted};cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.12s;}
+        .logout-btn:hover{border-color:#fca5a5;color:#ef4444;}
+        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+        .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${t.border};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${t.sidebar};}
+        .topbar-title{font-weight:700;font-size:15px;color:${t.text};}
+        .topbar-right{display:flex;align-items:center;gap:10px;}
+        .theme-btn{display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:8px;background:${t.inputBg};border:1px solid ${t.cardBorder};cursor:pointer;font-size:12px;color:${t.textMuted};font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;}
+        .pill{width:32px;height:18px;border-radius:100px;background:${dark?accent:"#d1d5db"};position:relative;transition:background 0.2s;flex-shrink:0;}
+        .pill::after{content:'';position:absolute;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left 0.2s;left:${dark?"16px":"2px"};}
+        .s-root{display:flex;flex-direction:column;flex:1;overflow:hidden;}
+        .tabs{display:flex;gap:4px;padding:14px 20px 0;border-bottom:1px solid ${t.border};background:${t.sidebar};flex-shrink:0;}
+        .stab{display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:9px 9px 0 0;font-size:13px;font-weight:600;cursor:pointer;border:1px solid transparent;border-bottom:none;background:transparent;color:${t.textMuted};transition:all 0.13s;font-family:'Plus Jakarta Sans',sans-serif;}
+        .stab:hover{color:${t.text};background:${t.inputBg};}
+        .stab.active{background:${t.bg};color:${t.text};border-color:${t.border};border-bottom-color:${t.bg};}
+        .sbody{flex:1;overflow-y:auto;padding:24px;}
+        .sbody::-webkit-scrollbar{width:3px;}
+        .sbody::-webkit-scrollbar-thumb{background:${t.border};}
+        .scard{background:${t.card};border:1px solid ${t.cardBorder};border-radius:13px;padding:20px;margin-bottom:16px;}
+        .sc-title{font-weight:700;font-size:13.5px;color:${t.text};margin-bottom:4px;}
+        .sc-sub{font-size:12px;color:${t.textMuted};margin-bottom:18px;}
+        .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+        .fgrid.full{grid-column:1/-1;}
+        .flabel{font-size:11.5px;font-weight:600;color:${t.textMuted};margin-bottom:5px;display:block;}
+        .svc-hdr{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 32px;gap:9px;padding:0 0 6px;}
+        .svc-hl{font-size:10.5px;color:${t.textFaint};font-weight:600;text-transform:uppercase;letter-spacing:1px;}
+        .svc-row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 32px;gap:9px;align-items:center;padding:8px 0;border-bottom:1px solid ${t.border};}
+        .rm-btn{width:28px;height:28px;border-radius:7px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);color:#ef4444;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+        .add-btn{display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:9px;background:${accent}10;border:1px dashed ${accent}33;color:${accent};font-size:12.5px;font-weight:600;cursor:pointer;transition:all 0.13s;font-family:'Plus Jakarta Sans',sans-serif;margin-top:10px;}
+        .staff-card{background:${t.chipBg};border:1px solid ${t.chipBorder};border-radius:11px;padding:16px;margin-bottom:12px;}
+        .sc-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+        .sc-name{font-weight:700;font-size:14px;color:${t.text};}
+        .days-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;}
+        .day-pill{display:flex;flex-direction:column;align-items:center;gap:4px;}
+        .day-tog{width:36px;height:36px;border-radius:9px;border:1px solid ${t.cardBorder};background:${t.inputBg};color:${t.textMuted};cursor:pointer;font-size:11.5px;font-weight:600;transition:all 0.13s;font-family:'Plus Jakarta Sans',sans-serif;}
+        .day-tog.on{background:${accent}15;border-color:${accent}33;color:${accent};}
+        .day-hrs{display:flex;align-items:center;gap:4px;}
+        .tinput{background:${t.inputBg};border:1px solid ${t.cardBorder};border-radius:6px;padding:4px 7px;font-size:11px;color:${t.text};font-family:'Plus Jakarta Sans',sans-serif;outline:none;width:68px;}
+        .cap-row2{display:flex;align-items:center;gap:8px;margin-top:10px;}
+        .cap-lbl{font-size:12px;color:${t.textMuted};font-weight:500;}
+        .stepper{display:flex;align-items:center;border:1px solid ${t.cardBorder};border-radius:8px;overflow:hidden;}
+        .step-btn{width:30px;height:30px;background:${t.inputBg};border:none;color:${t.text};cursor:pointer;font-size:16px;font-weight:700;}
+        .step-btn:hover{background:${accent}18;color:${accent};}
+        .step-num{width:36px;text-align:center;font-weight:700;font-size:14px;color:${t.text};background:${t.chipBg};}
+        .rules-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+        .rule-tag{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:100px;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.13s;border:1px solid ${t.cardBorder};background:${t.inputBg};color:${t.textMuted};font-family:'Plus Jakarta Sans',sans-serif;}
+        .rule-tag.active{background:${accent}12;border-color:${accent}30;color:${accent};}
+        .faq-row{display:grid;grid-template-columns:1fr 1fr 32px;gap:9px;align-items:start;margin-bottom:9px;}
+        .lang-wrap{display:flex;flex-wrap:wrap;gap:7px;}
+        .lang-btn{padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;border:1px solid ${t.cardBorder};background:${t.inputBg};color:${t.textMuted};transition:all 0.13s;font-family:'Plus Jakarta Sans',sans-serif;}
+        .lang-btn.active{background:${accent}12;border-color:${accent}30;color:${accent};}
+        .save-bar{padding:14px 20px;border-top:1px solid ${t.border};background:${t.sidebar};display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-shrink:0;}
+        .save-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 24px;border-radius:10px;background:${accent};border:none;color:#000;font-weight:700;font-size:13px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.15s;}
+        .save-btn:disabled{opacity:0.6;cursor:not-allowed;}
+        .saved-msg{font-size:12.5px;color:${accent};font-weight:600;}
+        @media(max-width:768px){.sidebar{display:none;}}
+      `}</style>
+
+      <div className="root">
+        <aside className="sidebar">
+          <a href="/dashboard" className="logo">fast<span>rill</span></a>
+          <div className="nav-section">Platform</div>
+          {NAV.map(item => (
+            <button key={item.id} className={`nav-item${item.id==="settings"?" active":""}`} onClick={() => router.push(item.path)}>
+              <span className="nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+          <div className="sidebar-footer">
+            <div className="user-card">
+              <div className="user-avatar">{userInitial}</div>
+              <div className="user-email">{userEmail||"Loading..."}</div>
+            </div>
+            <button className="logout-btn" onClick={handleLogout}>↩ Sign out</button>
           </div>
         </aside>
 
         <div className="main">
-          <div className="top">
-            <div className="top-l">
-              <span className="top-title">Revenue Engine</span>
-              <div className="ptabs">
-                {["today","week","month"].map(p=>(
-                  <button key={p} className={`ptab${period===p?" on":""}`} onClick={()=>setPeriod(p)}>
-                    {p.charAt(0).toUpperCase()+p.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="top-r">
-              <button className="theme-btn" onClick={toggle}>
+          <div className="topbar">
+            <div className="topbar-title">Settings</div>
+            <div className="topbar-right">
+              <button className="theme-btn" onClick={toggleTheme}>
                 <span>{dark?"🌙":"☀️"}</span><div className="pill"/><span>{dark?"Dark":"Light"}</span>
               </button>
-              <div className={`conn ${connected?"on":"off"}`}>
-                <span className="conn-dot"/>{connected?"WhatsApp Live":"Not Connected"}
-              </div>
             </div>
           </div>
 
-          <div className="body">
-            {!connected&&(
-              <div className="banner">
-                <div className="banner-l">
-                  <div className="banner-ico">💬</div>
-                  <div>
-                    <div className="banner-title">Connect WhatsApp to start generating revenue</div>
-                    <div className="banner-sub">Link your business number to activate AI-powered lead conversion</div>
-                  </div>
-                </div>
-                <button className="banner-btn" onClick={connect}>Connect via Facebook →</button>
-              </div>
-            )}
-
-            {/* ROW 1 — Health Score + KPI Cards */}
-            <div className="row1">
-              <div className="health">
-                <div className="h-lbl">Business Health Score</div>
-                <div className="h-ring">
-                  <svg width="110" height="110" viewBox="0 0 110 110">
-                    <circle cx="55" cy="55" r="44" fill="none" stroke={dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.08)"} strokeWidth="7"/>
-                    <circle cx="55" cy="55" r="44" fill="none" stroke={hColor} strokeWidth="7" strokeLinecap="round"
-                      strokeDasharray={`${2*Math.PI*44}`}
-                      strokeDashoffset={`${2*Math.PI*44*(1-health/100)}`}
-                      style={{transition:"stroke-dashoffset 1.2s ease"}}
-                    />
-                  </svg>
-                  <div className="h-inner">
-                    <div className="h-num" style={{color:hColor}}>{health}</div>
-                    <div className="h-den">/100</div>
-                  </div>
-                </div>
-                <div className="h-status" style={{color:hColor}}>{hLabel}</div>
-                <div className="h-sub">WhatsApp converting leads<br/>above average</div>
-              </div>
-
-              <div className="kpis">
-                {[
-                  {name:"Revenue Generated",   val:"₹0", color:accent},
-                  {name:"Leads Captured",       val:"0",  color:"#0ea5e9"},
-                  {name:"Appointments Booked",  val:"0",  color:"#7c3aed"},
-                  {name:"Missed Leads",         val:"0",  color:"#ef4444"},
-                ].map(k=>(
-                  <div key={k.name} className="kpi">
-                    <div className="kpi-top">
-                      <div className="kpi-name">{k.name}</div>
-                      <div className="kpi-dot" style={{background:k.color+"55"}}/>
-                    </div>
-                    <div className="kpi-val" style={{color:k.color}}>{k.val}</div>
-                    <div className="kpi-sub">Connect to track</div>
-                  </div>
-                ))}
-              </div>
+          <div className="s-root">
+            <div className="tabs">
+              {[{id:"business",label:"Business Info",icon:"🏪"},{id:"services",label:"Services & Pricing",icon:"💈"},{id:"booking",label:"Booking Setup",icon:"📅"},{id:"ai",label:"AI Instructions",icon:"◈"}].map(x => (
+                <button key={x.id} className={`stab${tab===x.id?" active":""}`} onClick={()=>setTab(x.id)}>
+                  <span>{x.icon}</span>{x.label}
+                </button>
+              ))}
             </div>
 
-            {/* ROW 2 — Funnel */}
-            <div className="row2 card">
-              <div className="card-hd">
-                <div><div className="ch">Conversion Funnel</div><div className="cs">Where are leads dropping off?</div></div>
-              </div>
-              <div className="funnel-wrap">
-                {[
-                  {label:"Leads In",      val:0,    pct:100, color:accent},
-                  {label:"Conversations", val:0,    pct:72,  color:"#00b4d8"},
-                  {label:"Bookings",      val:0,    pct:41,  color:"#7c3aed"},
-                  {label:"Completed",     val:0,    pct:28,  color:"#f59e0b"},
-                  {label:"Revenue",       val:"₹0", pct:18,  color:"#ef4444"},
-                ].map((s,i,arr)=>(
-                  <>{
-                    <div key={s.label} className="f-col">
-                      <div className="f-num" style={{color:s.color}}>{s.val}</div>
-                      <div className="f-bar" style={{height:`${s.pct*0.66}px`,background:s.color+"22",border:`1px solid ${s.color}38`}}/>
-                      <div className="f-lbl">{s.label}</div>
-                    </div>
-                  }{i<arr.length-1&&<div className="f-arr" key={`a${i}`}>›</div>}</>
-                ))}
-              </div>
-            </div>
-
-            {/* ROW 3 — AI Performance + Lost Revenue */}
-            <div className="row3">
-              <div className="card">
-                <div className="ai-badge">◈ AI PERFORMANCE</div>
-                <div className="card-hd" style={{marginBottom:12}}>
-                  <div><div className="ch">What your AI achieved</div><div className="cs">Powered by Claude</div></div>
+            <div className="sbody">
+              {tab==="business" && (
+                <div className="scard">
+                  <div className="sc-title">Business Information</div>
+                  <div className="sc-sub">This info helps the AI understand your business context</div>
+                  <div className="fgrid">
+                    <div><label className="flabel">Business Name</label><input style={inp} value={bizName} onChange={e=>setBizName(e.target.value)} placeholder="e.g. Glamour Studio"/></div>
+                    <div><label className="flabel">Business Type</label><select style={inp} value={bizType} onChange={e=>setBizType(e.target.value)}>{BIZ_TYPES.map(x=><option key={x}>{x}</option>)}</select></div>
+                    <div><label className="flabel">Phone Number</label><input style={inp} value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+91 XXXXX XXXXX"/></div>
+                    <div><label className="flabel">Location / Area</label><input style={inp} value={location} onChange={e=>setLocation(e.target.value)} placeholder="e.g. Bandra West, Mumbai"/></div>
+                    <div style={{gridColumn:"1/-1"}}><label className="flabel">Google Maps Link</label><input style={inp} value={mapsLink} onChange={e=>setMapsLink(e.target.value)} placeholder="https://maps.google.com/..."/></div>
+                    <div style={{gridColumn:"1/-1"}}><label className="flabel">Business Description (for AI context)</label><textarea style={{...inp,resize:"vertical",minHeight:80}} value={description} onChange={e=>setDescription(e.target.value)} placeholder="Describe your business, specialties, target customers..."/></div>
+                  </div>
                 </div>
-                <div className="ai-grid">
-                  {[
-                    {l:"AI Conversations",v:"0",  s:"handled today"},
-                    {l:"Avg Response",    v:"—",  s:"seconds"},
-                    {l:"AI Bookings",     v:"0",  s:"generated"},
-                    {l:"AI Revenue",      v:"₹0", s:"attributed"},
-                  ].map(m=>(
-                    <div key={m.l} className="ai-m">
-                      <div className="ai-v">{m.v}</div>
-                      <div className="ai-l">{m.l}<br/>{m.s}</div>
+              )}
+
+              {tab==="services" && (
+                <div className="scard">
+                  <div className="sc-title">Services & Pricing</div>
+                  <div className="sc-sub">AI uses this to answer pricing questions and suggest bookings</div>
+                  <div className="svc-hdr">{["Service Name","Price (₹)","Duration","Category",""].map(h=><div key={h} className="svc-hl">{h}</div>)}</div>
+                  {services.map(s => (
+                    <div key={s.id} className="svc-row">
+                      <input style={sinp} value={s.name} onChange={e=>updSvc(s.id,"name",e.target.value)} placeholder="e.g. Women's Haircut"/>
+                      <input style={sinp} value={s.price} onChange={e=>updSvc(s.id,"price",e.target.value)} placeholder="350" type="number"/>
+                      <select style={sinp} value={s.duration} onChange={e=>updSvc(s.id,"duration",e.target.value)}>{DURATIONS.map(d=><option key={d} value={d}>{d} min</option>)}</select>
+                      <input style={sinp} value={s.category} onChange={e=>updSvc(s.id,"category",e.target.value)} placeholder="Hair, Skin..."/>
+                      <button className="rm-btn" onClick={()=>rmSvc(s.id)}>×</button>
                     </div>
                   ))}
+                  <button className="add-btn" onClick={addSvc}>+ Add Service</button>
                 </div>
-              </div>
-              <div className="lost">
-                <div className="lost-hd"><span>🔥</span> Lost Revenue Tracker</div>
-                <div className="lost-sub">Revenue lost from unanswered or abandoned leads</div>
-                <div className="lost-big">₹0</div>
-                <div className="lost-desc">potential revenue lost this {period}</div>
-                {[
-                  {l:"Unanswered leads",        v:"₹0"},
-                  {l:"Abandoned conversations", v:"₹0"},
-                  {l:"No follow-up sent",        v:"₹0"},
-                ].map(r=>(
-                  <div key={r.l} className="lost-row">
-                    <span className="lost-rl">{r.l}</span><span className="lost-rv">{r.v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+              )}
 
-            {/* ROW 4 — Sources + Bookings + Forecast */}
-            <div className="row4">
-              <div className="card">
-                <div className="card-hd"><div><div className="ch">Lead Sources</div><div className="cs">Revenue by channel</div></div></div>
-                {[
-                  {name:"Meta Ads",        color:"#1877f2"},
-                  {name:"Google Ads",      color:"#ea4335"},
-                  {name:"Organic WhatsApp",color:"#25d366"},
-                  {name:"Instagram",       color:"#e1306c"},
-                ].map(s=>(
-                  <div key={s.name} className="src-row">
-                    <div className="src-dot" style={{background:s.color}}/>
-                    <div className="src-name">{s.name}</div>
-                    <div className="src-ct">0 leads</div>
-                    <div className="src-rev">₹0</div>
-                  </div>
-                ))}
-              </div>
-              <div className="card">
-                <div className="card-hd"><div><div className="ch">Today's Bookings</div><div className="cs">Upcoming appointments</div></div></div>
-                <div className="bk-empty">
-                  <div className="bk-icon">📅</div>
-                  <div className="bk-txt">No bookings yet today<br/>Connect WhatsApp to start</div>
-                </div>
-              </div>
-              <div className="forecast">
-                <div className="fc-lbl">Monthly Forecast</div>
-                <div className="fc-amt">₹0</div>
-                <div className="fc-sub">Predicted from current trends</div>
-                <div className="fc-bar"><div className="fc-fill"/></div>
-                <div className="fc-pct">0% of monthly target reached</div>
-                <div className="fc-rows">
-                  {[
-                    {l:"Avg booking value",v:"—"},
-                    {l:"Conversion rate",  v:"—"},
-                    {l:"Leads needed",     v:"—"},
-                    {l:"Days remaining",   v:daysLeft},
-                  ].map(r=>(
-                    <div key={r.l} className="fc-row">
-                      <span className="fc-rl">{r.l}</span><span className="fc-rv">{r.v}</span>
+              {tab==="booking" && (
+                <div className="scard">
+                  <div className="sc-title">Staff & Specialists</div>
+                  <div className="sc-sub">Each staff member has their own schedule, slot duration, and capacity</div>
+                  {staff.map(s => (
+                    <div key={s.id} className="staff-card">
+                      <div className="sc-hdr"><div className="sc-name">{s.name||"New Staff Member"}</div><button className="rm-btn" onClick={()=>rmStaff(s.id)}>×</button></div>
+                      <div className="fgrid">
+                        <div><label className="flabel">Name</label><input style={inp} value={s.name} onChange={e=>updStaff(s.id,"name",e.target.value)} placeholder="Staff name"/></div>
+                        <div><label className="flabel">Role / Title</label><input style={inp} value={s.role} onChange={e=>updStaff(s.id,"role",e.target.value)} placeholder="e.g. Senior Stylist"/></div>
+                        <div><label className="flabel">Specialization</label><select style={inp} value={s.spec} onChange={e=>updStaff(s.id,"spec",e.target.value)}>{SPECS.map(x=><option key={x}>{x}</option>)}</select></div>
+                        <div><label className="flabel">Slot Duration</label><select style={inp} value={s.slotDur} onChange={e=>updStaff(s.id,"slotDur",parseInt(e.target.value))}>{DURATIONS.map(d=><option key={d} value={d}>{d} minutes</option>)}</select></div>
+                      </div>
+                      <div className="cap-row2">
+                        <span className="cap-lbl">Simultaneous clients:</span>
+                        <div className="stepper">
+                          <button className="step-btn" onClick={()=>updStaff(s.id,"capacity",Math.max(1,s.capacity-1))}>−</button>
+                          <span className="step-num">{s.capacity}</span>
+                          <button className="step-btn" onClick={()=>updStaff(s.id,"capacity",Math.min(20,s.capacity+1))}>+</button>
+                        </div>
+                        <span style={{fontSize:11,color:t.textFaint}}>(e.g. 3 chairs = capacity 3)</span>
+                      </div>
+                      <div style={{marginTop:14}}>
+                        <div style={{fontSize:11.5,color:t.textMuted,fontWeight:600,marginBottom:8}}>Working Hours</div>
+                        <div className="days-row">
+                          {WEEK_DAYS.map(day => (
+                            <div key={day} className="day-pill">
+                              <button className={`day-tog${s.days[day].on?" on":""}`} onClick={()=>updDay(s.id,day,"on",!s.days[day].on)}>{day}</button>
+                              {s.days[day].on && (
+                                <div className="day-hrs">
+                                  <input type="time" className="tinput" value={s.days[day].from} onChange={e=>updDay(s.id,day,"from",e.target.value)}/>
+                                  <span style={{fontSize:10,color:t.textFaint}}>–</span>
+                                  <input type="time" className="tinput" value={s.days[day].to} onChange={e=>updDay(s.id,day,"to",e.target.value)}/>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   ))}
+                  <button className="add-btn" onClick={addStaff}>+ Add Staff Member</button>
                 </div>
-              </div>
+              )}
+
+              {tab==="ai" && (
+                <>
+                  <div className="scard">
+                    <div className="sc-title">Quick AI Rules</div>
+                    <div className="sc-sub">Click to toggle — AI will follow these in every conversation</div>
+                    <div className="rules-wrap">
+                      {QUICK_RULES.map(r => (
+                        <button key={r} className={`rule-tag${activeRules.includes(r)?" active":""}`} onClick={()=>toggleRule(r)}>
+                          {activeRules.includes(r)?"✓ ":"+ "}{r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="scard">
+                    <div className="sc-title">Custom AI Instructions</div>
+                    <div className="sc-sub">Give the AI specific instructions for your business</div>
+                    <textarea style={{...inp,resize:"vertical",minHeight:100}} value={aiInstructions} onChange={e=>setAiInstructions(e.target.value)} placeholder="e.g. Always mention our loyalty program. Don't discuss competitor pricing..."/>
+                  </div>
+                  <div className="scard">
+                    <div className="sc-title">FAQ Builder</div>
+                    <div className="sc-sub">AI will use these answers for common questions</div>
+                    {faqs.map(f => (
+                      <div key={f.id} className="faq-row">
+                        <input style={sinp} value={f.q} onChange={e=>updFaq(f.id,"q",e.target.value)} placeholder="Question..."/>
+                        <input style={sinp} value={f.a} onChange={e=>updFaq(f.id,"a",e.target.value)} placeholder="Answer..."/>
+                        <button className="rm-btn" onClick={()=>rmFaq(f.id)}>×</button>
+                      </div>
+                    ))}
+                    <button className="add-btn" onClick={addFaq}>+ Add FAQ</button>
+                  </div>
+                  <div className="scard">
+                    <div className="sc-title">AI Reply Language</div>
+                    <div className="sc-sub">AI will respond in the selected language</div>
+                    <div className="lang-wrap">
+                      {LANGUAGES.map(l => <button key={l} className={`lang-btn${language===l?" active":""}`} onClick={()=>setLanguage(l)}>{l}</button>)}
+                    </div>
+                  </div>
+                  <div className="scard">
+                    <div className="sc-title">External Booking Link</div>
+                    <div className="sc-sub">Optional — AI will share this if in-chat booking isn't set up</div>
+                    <input style={inp} value={bookingLink} onChange={e=>setBookingLink(e.target.value)} placeholder="https://calendly.com/yourbusiness"/>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="save-bar">
+              {saved && <span className="saved-msg">✓ Changes saved successfully</span>}
+              <button className="save-btn" onClick={handleSave} disabled={saving}>{saving?"Saving...":"Save Changes"}</button>
             </div>
           </div>
         </div>
