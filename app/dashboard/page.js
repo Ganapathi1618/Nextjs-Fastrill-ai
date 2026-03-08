@@ -111,9 +111,9 @@ export default function Dashboard() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: ${bg} !important; color: ${text} !important; font-family: 'DM Sans', sans-serif !important; }
+        html, body { background: ${bg} !important; color: ${text} !important; font-family: 'Plus Jakarta Sans', sans-serif !important; }
         ::-webkit-scrollbar { width: 3px; height: 3px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: ${border}; border-radius: 10px; }
@@ -122,11 +122,11 @@ export default function Dashboard() {
 
         /* Sidebar */
         .sb { width: 220px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; transition: transform 0.25s; }
-        .sb-logo { padding: 20px 18px 16px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; letter-spacing: -0.5px; }
+        .sb-logo { padding: 20px 18px 16px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; letter-spacing: -0.5px; }
         .sb-logo span { color: ${accent}; }
         .sb-section { padding: 18px 16px 6px; font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
         .sb-nav { padding: 3px 8px; }
-        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'DM Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
+        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
         .nav-btn:hover { background: ${inputBg}; color: ${text}; }
         .nav-btn.active { background: ${accentDim}; border-color: ${accent}33; color: ${accent}; font-weight: 600; }
         .nav-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
@@ -134,19 +134,19 @@ export default function Dashboard() {
         .user-row { display: flex; align-items: center; gap: 8px; padding: 8px 9px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 9px; margin-bottom: 8px; }
         .user-av { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, ${accent}, #38bdf8); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #fff; flex-shrink: 0; }
         .user-em { font-size: 11px; color: ${textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .logout { width: 100%; padding: 7px; background: transparent; border: 1px solid ${cardBorder}; border-radius: 7px; font-size: 11.5px; color: ${textMuted}; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
+        .logout { width: 100%; padding: 7px; background: transparent; border: 1px solid ${cardBorder}; border-radius: 7px; font-size: 11.5px; color: ${textMuted}; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
         .logout:hover { border-color: #fca5a5; color: #ef4444; }
 
         /* Main */
         .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
         .topbar { height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; background: ${sidebar}; border-bottom: 1px solid ${border}; gap: 12px; }
         .topbar-l { display: flex; align-items: center; gap: 14px; }
-        .tb-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
+        .tb-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
         .period-wrap { display: flex; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; padding: 2px; gap: 1px; }
-        .period-btn { padding: 3px 11px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: ${textMuted}; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
+        .period-btn { padding: 3px 11px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: ${textMuted}; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
         .period-btn.active { background: ${card}; color: ${text}; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
         .topbar-r { display: flex; align-items: center; gap: 8px; }
-        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; cursor: pointer; font-size: 11.5px; color: ${textMuted}; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; cursor: pointer; font-size: 11.5px; color: ${textMuted}; font-family: 'Plus Jakarta Sans', sans-serif; white-space: nowrap; }
         .toggle-pill { width: 30px; height: 16px; border-radius: 100px; background: ${dark ? accent : "#d1d5db"}; position: relative; flex-shrink: 0; transition: background 0.2s; }
         .toggle-pill::after { content: ''; position: absolute; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: left 0.2s; left: ${dark ? "16px" : "2px"}; }
         .badge { display: flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 100px; font-size: 11px; font-weight: 600; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #ef4444; white-space: nowrap; }
@@ -162,7 +162,7 @@ export default function Dashboard() {
         .banner-icon { width: 38px; height: 38px; border-radius: 10px; background: #25d366; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
         .banner-title { font-weight: 700; font-size: 13px; color: ${text}; margin-bottom: 2px; }
         .banner-sub { font-size: 11.5px; color: ${textMuted}; }
-        .connect-btn { background: #1877f2; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; transition: opacity 0.12s; flex-shrink: 0; }
+        .connect-btn { background: #1877f2; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; white-space: nowrap; transition: opacity 0.12s; flex-shrink: 0; }
         .connect-btn:hover { opacity: 0.88; }
 
         /* Top row: health + kpis */
@@ -173,7 +173,7 @@ export default function Dashboard() {
         .h-ring { position: relative; width: 110px; height: 110px; margin-bottom: 12px; }
         .h-ring svg { transform: rotate(-90deg); }
         .h-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .h-num { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 34px; line-height: 1; }
+        .h-num { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 34px; line-height: 1; }
         .h-denom { font-size: 11px; color: ${textFaint}; }
         .h-status { font-weight: 700; font-size: 13px; margin-bottom: 3px; }
         .h-sub { font-size: 11px; color: ${textMuted}; line-height: 1.5; }
@@ -183,7 +183,7 @@ export default function Dashboard() {
         .kpi:hover { transform: translateY(-2px); border-color: ${accent}44; }
         .kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 11px 11px 0 0; }
         .kpi-label { font-size: 11px; color: ${textMuted}; font-weight: 500; margin-bottom: 8px; }
-        .kpi-val { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -1px; line-height: 1; margin-bottom: 5px; }
+        .kpi-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -1px; line-height: 1; margin-bottom: 5px; }
         .kpi-hint { font-size: 10.5px; color: ${textFaint}; }
         .kpi-icon { position: absolute; top: 12px; right: 13px; font-size: 13px; opacity: 0.35; }
 
@@ -191,7 +191,7 @@ export default function Dashboard() {
         .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
         .card { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 13px; padding: 18px; }
         .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-        .card-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13.5px; color: ${text}; }
+        .card-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13.5px; color: ${text}; }
         .card-sub { font-size: 11px; color: ${textMuted}; font-weight: 400; }
         .card-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.2); border-radius: 100px; padding: 2px 9px; font-size: 9.5px; color: #a78bfa; font-weight: 700; letter-spacing: 0.5px; }
 
@@ -206,12 +206,12 @@ export default function Dashboard() {
         /* AI metrics grid */
         .ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
         .ai-m { background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 9px; padding: 12px; }
-        .ai-v { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 22px; color: ${text}; line-height: 1; margin-bottom: 3px; }
+        .ai-v { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 22px; color: ${text}; line-height: 1; margin-bottom: 3px; }
         .ai-l { font-size: 11px; color: ${textMuted}; line-height: 1.4; }
 
         /* Lost revenue */
         .lost-card { background: ${card}; border: 1px solid rgba(251,113,133,0.18); border-radius: 13px; padding: 18px; }
-        .lost-amt { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 38px; color: #fb7185; letter-spacing: -1.5px; line-height: 1; margin-bottom: 2px; }
+        .lost-amt { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 38px; color: #fb7185; letter-spacing: -1.5px; line-height: 1; margin-bottom: 2px; }
         .lost-desc { font-size: 11.5px; color: ${textMuted}; margin-bottom: 13px; }
         .lost-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 7px; margin-bottom: 5px; }
         .lost-rl { font-size: 12px; color: ${textMuted}; }
@@ -236,7 +236,7 @@ export default function Dashboard() {
         /* Forecast */
         .forecast-card { background: ${card}; border: 1px solid ${accent}1e; border-radius: 13px; padding: 18px; }
         .fc-label { font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; margin-bottom: 4px; }
-        .fc-amt { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 30px; color: ${accent}; letter-spacing: -1px; line-height: 1; margin-bottom: 2px; }
+        .fc-amt { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 30px; color: ${accent}; letter-spacing: -1px; line-height: 1; margin-bottom: 2px; }
         .fc-sub { font-size: 11px; color: ${textMuted}; margin-bottom: 12px; }
         .fc-bar { height: 4px; background: ${inputBg}; border-radius: 100px; margin-bottom: 4px; overflow: hidden; }
         .fc-fill { height: 100%; background: linear-gradient(90deg, ${accent}, #38bdf8); border-radius: 100px; width: 0%; }
