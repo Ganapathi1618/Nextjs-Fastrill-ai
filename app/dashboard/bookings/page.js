@@ -113,17 +113,17 @@ export default function Bookings() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: ${bg} !important; color: ${text} !important; font-family: 'DM Sans', sans-serif !important; }
+        html, body { background: ${bg} !important; color: ${text} !important; font-family: 'Plus Jakarta Sans', sans-serif !important; }
         ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: ${border}; border-radius: 10px; }
         .wrap { display: flex; height: 100vh; overflow: hidden; }
-        .sb { width: 220px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; }
-        .sb-logo { padding: 20px 18px 16px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
+        .sb { width: 224px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; }
+        .sb-logo { padding: 20px 18px 16px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
         .sb-logo span { color: ${accent}; }
         .sb-section { padding: 18px 16px 6px; font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
         .sb-nav { padding: 3px 8px; }
-        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'DM Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
+        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
         .nav-btn:hover { background: ${inputBg}; color: ${text}; }
         .nav-btn.active { background: ${accentDim}; border-color: ${accent}33; color: ${accent}; font-weight: 600; }
         .nav-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
@@ -131,16 +131,16 @@ export default function Bookings() {
         .user-row { display: flex; align-items: center; gap: 8px; padding: 8px 9px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 9px; margin-bottom: 8px; }
         .user-av { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, ${accent}, #38bdf8); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #fff; flex-shrink: 0; }
         .user-em { font-size: 11px; color: ${textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .logout { width: 100%; padding: 7px; background: transparent; border: 1px solid ${cardBorder}; border-radius: 7px; font-size: 11.5px; color: ${textMuted}; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
+        .logout { width: 100%; padding: 7px; background: transparent; border: 1px solid ${cardBorder}; border-radius: 7px; font-size: 11.5px; color: ${textMuted}; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
         .logout:hover { border-color: #fca5a5; color: #ef4444; }
         .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-        .topbar { height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; background: ${sidebar}; border-bottom: 1px solid ${border}; }
-        .tb-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
+        .topbar { height: 54px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: ${sidebar}; border-bottom: 1px solid ${border}; }
+        .tb-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
         .topbar-r { display: flex; align-items: center; gap: 8px; }
         .view-toggle { display: flex; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; padding: 2px; gap: 1px; }
-        .vt-btn { padding: 4px 12px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: ${textMuted}; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
+        .vt-btn { padding: 4px 12px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: ${textMuted}; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
         .vt-btn.active { background: ${card}; color: ${text}; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
-        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; cursor: pointer; font-size: 11.5px; color: ${textMuted}; font-family: 'DM Sans', sans-serif; }
+        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; cursor: pointer; font-size: 11.5px; color: ${textMuted}; font-family: 'Plus Jakarta Sans', sans-serif; }
         .toggle-pill { width: 30px; height: 16px; border-radius: 100px; background: ${dark?accent:"#d1d5db"}; position: relative; flex-shrink: 0; transition: background 0.2s; }
         .toggle-pill::after { content:''; position:absolute; top:2px; width:12px; height:12px; border-radius:50%; background:#fff; transition:left 0.2s; left:${dark?"16px":"2px"}; }
 
@@ -148,12 +148,12 @@ export default function Bookings() {
         .stats-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 11px; }
         .stat { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 11px; padding: 13px 15px; }
         .stat-label { font-size: 11px; color: ${textMuted}; margin-bottom: 5px; }
-        .stat-val { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 22px; }
+        .stat-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 22px; }
 
         .bk-grid { display: grid; grid-template-columns: 1fr 280px; gap: 14px; flex: 1; min-height: 0; }
         .main-card { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 13px; overflow: hidden; display: flex; flex-direction: column; }
         .card-head { padding: 14px 16px; border-bottom: 1px solid ${border}; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-        .card-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13.5px; color: ${text}; }
+        .card-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13.5px; color: ${text}; }
         .card-body { flex: 1; overflow-y: auto; padding: 14px; }
 
         .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
@@ -170,7 +170,7 @@ export default function Bookings() {
         .slot-event { border-radius: 6px; padding: 5px 8px; font-size: 11.5px; font-weight: 600; border-left: 3px solid; }
 
         .detail-card { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 13px; padding: 16px; }
-        .detail-head { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; color: ${text}; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid ${border}; }
+        .detail-head { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13px; color: ${text}; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid ${border}; }
         .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid ${border}; }
         .detail-row:last-child { border-bottom: none; }
         .dl { font-size: 11.5px; color: ${textMuted}; }
@@ -319,8 +319,8 @@ export default function Bookings() {
                       </div>
                     ))}
                     <div style={{display:"flex",gap:7,marginTop:12}}>
-                      <button style={{flex:1,padding:"7px",background:accentDim,border:`1px solid ${accent}44`,borderRadius:7,color:accent,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>✓ Confirm</button>
-                      <button style={{flex:1,padding:"7px",background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",borderRadius:7,color:"#fb7185",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>✕ Cancel</button>
+                      <button style={{flex:1,padding:"7px",background:accentDim,border:`1px solid ${accent}44`,borderRadius:7,color:accent,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>✓ Confirm</button>
+                      <button style={{flex:1,padding:"7px",background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",borderRadius:7,color:"#fb7185",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>✕ Cancel</button>
                     </div>
                   </div>
                 ) : (
