@@ -87,6 +87,10 @@ export default function Settings() {
   const textFaint = dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.25)"
   const inputBg = dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)"
   const accent = dark ? "#00d084" : "#00935a"
+  const navText = dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.5)"
+  const navActive = dark ? "rgba(0,196,125,0.1)" : "rgba(0,180,115,0.08)"
+  const navActiveBorder = dark ? "rgba(0,196,125,0.2)" : "rgba(0,180,115,0.2)"
+  const navActiveText = dark ? "#00c47d" : "#00935a"
   const accentDim = dark ? "rgba(0,208,132,0.12)" : "rgba(0,147,90,0.1)"
   const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
 
@@ -107,27 +111,27 @@ export default function Settings() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: ${bg} !important; color: ${text} !important; font-family: 'Plus Jakarta Sans', sans-serif !important; }
-        ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: ${border}; border-radius: 10px; }
-        .wrap { display: flex; height: 100vh; overflow: hidden; }
-        .sb { width: 224px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; }
-        .sb-logo { padding: 22px 20px 18px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 20px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
-        .sb-logo span { color: ${accent}; }
-        .sb-section { padding: 18px 16px 6px; font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
-        .sb-nav { padding: 3px 8px; }
-        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 12px; border-radius: 8px; margin: 1px 8px; width: calc(100% - 16px); border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
-        .nav-btn:hover { background: ${inputBg}; color: ${text}; }
-        .nav-btn.active { background: ${accentDim}; border-color: ${accent}33; color: ${accent}; font-weight: 600; }
-        .nav-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
-        .sb-foot { margin-top: auto; padding: 12px; border-top: 1px solid ${border}; }
-        .user-row { display: flex; align-items: center; gap: 8px; padding: 8px 9px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 9px; margin-bottom: 8px; }
-        .user-av { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, ${accent}, #38bdf8); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #fff; flex-shrink: 0; }
-        .user-em { font-size: 11px; color: ${textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .logout { width: 100%; padding: 7px; background: transparent; border: 1px solid ${cardBorder}; border-radius: 7px; font-size: 11.5px; color: ${textMuted}; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
-        .logout:hover { border-color: #fca5a5; color: #ef4444; }
-        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+        html,body{background:${bg}!important;color:${text}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
+        .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
+        .sidebar{width:224px;flex-shrink:0;background:${sidebar};border-right:1px solid ${border};display:flex;flex-direction:column;overflow-y:auto;}
+        .logo{padding:22px 20px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:block;border-bottom:1px solid ${border};}
+        .logo span{color:${accent};}
+        .nav-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${textFaint};font-weight:600;}
+        .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
+        .nav-item:hover{background:${inputBg};color:${text};}
+        .nav-item.active{background:${navActive};color:${navActiveText};font-weight:600;border-color:${navActiveBorder};}
+        .nav-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0;}
+        .sidebar-footer{margin-top:auto;padding:14px;border-top:1px solid ${border};}
+        .user-card{display:flex;align-items:center;gap:9px;padding:9px;border-radius:9px;background:${inputBg};border:1px solid ${cardBorder};}
+        .user-avatar{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,${accent},#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex-shrink:0;}
+        .user-email{font-size:11.5px;color:${textMuted};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .logout-btn{margin-top:7px;width:100%;padding:7px;border-radius:7px;background:transparent;border:1px solid ${cardBorder};font-size:12px;color:${textMuted};cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
+        .logout-btn:hover{border-color:#fca5a5;color:#ef4444;}
+        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+        .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${border};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sidebar};}
+
         .topbar { height: 54px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: ${sidebar}; border-bottom: 1px solid ${border}; }
         .tb-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
         .topbar-r { display: flex; align-items: center; gap: 8px; }
@@ -193,23 +197,20 @@ export default function Settings() {
       `}</style>
 
       <div className="wrap">
-        <aside className="sb">
-          <a href="/dashboard" className="sb-logo">fast<span>rill</span></a>
-          <div className="sb-section">Platform</div>
-          <div className="sb-nav">
-            {NAV.map(item=>(
-              <button key={item.id} className={`nav-btn${item.id==="settings"?" active":""}`} onClick={()=>router.push(item.path)}>
-                <span className="nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </div>
-          <div className="sb-foot">
-            <div className="user-row">
-              <div className="user-av">{userInitial}</div>
-              <div className="user-em">{userEmail||"Loading..."}</div>
+        <aside className="sidebar">
+          <a href="/dashboard" className="logo">fast<span>rill</span></a>
+          <div className="nav-section">Platform</div>
+          {NAV.map(item=>(
+            <button key={item.id} className={`nav-item${item.id==="settings"?" active":""}`} onClick={()=>router.push(item.path)}>
+              <span className="nav-icon">{item.icon}</span><span>{item.label}</span>
+            </button>
+          ))}
+          <div className="sidebar-footer">
+            <div className="user-card">
+              <div className="user-avatar">{userInitial}</div>
+              <div className="user-email">{userEmail||"Loading..."}</div>
             </div>
-            <button className="logout" onClick={handleLogout}>↩ Sign out</button>
+            <button className="logout-btn" onClick={handleLogout}>↩ Sign out</button>
           </div>
         </aside>
 
