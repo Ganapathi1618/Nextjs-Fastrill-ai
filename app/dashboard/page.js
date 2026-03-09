@@ -122,11 +122,11 @@ export default function Dashboard() {
 
         /* Sidebar */
         .sb { width: 224px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; transition: transform 0.25s; }
-        .sb-logo { padding: 20px 18px 16px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; letter-spacing: -0.5px; }
+        .sb-logo { padding: 22px 20px 18px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 20px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; letter-spacing: -0.5px; }
         .sb-logo span { color: ${accent}; }
-        .sb-section { padding: 18px 16px 6px; font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
+        .sb-section { padding: 18px 16px 6px; font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
         .sb-nav { padding: 3px 8px; }
-        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
+        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 12px; border-radius: 8px; margin: 1px 8px; width: calc(100% - 16px); border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
         .nav-btn:hover { background: ${inputBg}; color: ${text}; }
         .nav-btn.active { background: ${accentDim}; border-color: ${accent}33; color: ${accent}; font-weight: 600; }
         .nav-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
@@ -169,7 +169,7 @@ export default function Dashboard() {
         .top-row { display: grid; grid-template-columns: 210px 1fr; gap: 14px; align-items: stretch; }
         .health-card { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 13px; padding: 20px 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; overflow: hidden; }
         .health-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 30%, ${accent}0d, transparent 70%); pointer-events: none; }
-        .h-label { font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; margin-bottom: 12px; }
+        .h-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; margin-bottom: 12px; }
         .h-ring { position: relative; width: 110px; height: 110px; margin-bottom: 12px; }
         .h-ring svg { transform: rotate(-90deg); }
         .h-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -193,14 +193,14 @@ export default function Dashboard() {
         .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
         .card-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13.5px; color: ${text}; }
         .card-sub { font-size: 11px; color: ${textMuted}; font-weight: 400; }
-        .card-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.2); border-radius: 100px; padding: 2px 9px; font-size: 9.5px; color: #a78bfa; font-weight: 700; letter-spacing: 0.5px; }
+        .card-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.2); border-radius: 100px; padding: 2px 9px; font-size: 10px; color: #a78bfa; font-weight: 700; letter-spacing: 0.5px; }
 
         /* Funnel */
         .funnel { display: flex; align-items: flex-end; gap: 6px; height: 105px; }
         .f-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .f-bar { width: 100%; border-radius: 4px 4px 0 0; }
         .f-val { font-weight: 700; font-size: 12.5px; }
-        .f-label { font-size: 9.5px; color: ${textMuted}; text-align: center; }
+        .f-label { font-size: 10px; color: ${textMuted}; text-align: center; }
         .f-arrow { color: ${textFaint}; font-size: 14px; margin-bottom: 25px; flex-shrink: 0; }
 
         /* AI metrics grid */
@@ -235,7 +235,7 @@ export default function Dashboard() {
 
         /* Forecast */
         .forecast-card { background: ${card}; border: 1px solid ${accent}1e; border-radius: 13px; padding: 18px; }
-        .fc-label { font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; margin-bottom: 4px; }
+        .fc-label { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; margin-bottom: 4px; }
         .fc-amt { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 30px; color: ${accent}; letter-spacing: -1px; line-height: 1; margin-bottom: 2px; }
         .fc-sub { font-size: 11px; color: ${textMuted}; margin-bottom: 12px; }
         .fc-bar { height: 4px; background: ${inputBg}; border-radius: 100px; margin-bottom: 4px; overflow: hidden; }
