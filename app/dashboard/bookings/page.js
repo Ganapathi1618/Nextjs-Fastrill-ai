@@ -144,7 +144,7 @@ export default function Bookings() {
         .toggle-pill { width: 30px; height: 16px; border-radius: 100px; background: ${dark?accent:"#d1d5db"}; position: relative; flex-shrink: 0; transition: background 0.2s; }
         .toggle-pill::after { content:''; position:absolute; top:2px; width:12px; height:12px; border-radius:50%; background:#fff; transition:left 0.2s; left:${dark?"16px":"2px"}; }
 
-        .content { flex: 1; overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; background: ${bg}; }
+        .content { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; background: ${bg}; }
         .stats-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 11px; }
         .stat { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 11px; padding: 13px 15px; }
         .stat-label { font-size: 11px; color: ${textMuted}; margin-bottom: 5px; }
