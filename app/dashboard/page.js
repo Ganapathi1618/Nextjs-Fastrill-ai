@@ -121,7 +121,7 @@ export default function Dashboard() {
         .wrap { display: flex; height: 100vh; overflow: hidden; background: ${bg}; }
 
         /* Sidebar */
-        .sb { width: 220px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; transition: transform 0.25s; }
+        .sb { width: 224px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; transition: transform 0.25s; }
         .sb-logo { padding: 20px 18px 16px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; letter-spacing: -0.5px; }
         .sb-logo span { color: ${accent}; }
         .sb-section { padding: 18px 16px 6px; font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
@@ -139,7 +139,7 @@ export default function Dashboard() {
 
         /* Main */
         .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-        .topbar { height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; background: ${sidebar}; border-bottom: 1px solid ${border}; gap: 12px; }
+        .topbar { height: 54px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: ${sidebar}; border-bottom: 1px solid ${border}; gap: 12px; }
         .topbar-l { display: flex; align-items: center; gap: 14px; }
         .tb-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
         .period-wrap { display: flex; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; padding: 2px; gap: 1px; }
