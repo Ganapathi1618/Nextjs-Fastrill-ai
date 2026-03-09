@@ -93,7 +93,7 @@ export default function Settings() {
   const inp = {
     background: inputBg, border:`1px solid ${cardBorder}`, borderRadius:8,
     padding:"9px 12px", fontSize:13, color:text,
-    fontFamily:"'DM Sans',sans-serif", outline:"none", width:"100%",
+    fontFamily:"'Plus Jakarta Sans',sans-serif", outline:"none", width:"100%",
     transition:"border-color 0.12s"
   }
 
@@ -107,17 +107,17 @@ export default function Settings() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: ${bg} !important; color: ${text} !important; font-family: 'DM Sans', sans-serif !important; }
+        html, body { background: ${bg} !important; color: ${text} !important; font-family: 'Plus Jakarta Sans', sans-serif !important; }
         ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: ${border}; border-radius: 10px; }
         .wrap { display: flex; height: 100vh; overflow: hidden; }
-        .sb { width: 220px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; }
-        .sb-logo { padding: 20px 18px 16px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
+        .sb { width: 224px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; }
+        .sb-logo { padding: 20px 18px 16px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
         .sb-logo span { color: ${accent}; }
         .sb-section { padding: 18px 16px 6px; font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
         .sb-nav { padding: 3px 8px; }
-        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'DM Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
+        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
         .nav-btn:hover { background: ${inputBg}; color: ${text}; }
         .nav-btn.active { background: ${accentDim}; border-color: ${accent}33; color: ${accent}; font-weight: 600; }
         .nav-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
@@ -125,30 +125,30 @@ export default function Settings() {
         .user-row { display: flex; align-items: center; gap: 8px; padding: 8px 9px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 9px; margin-bottom: 8px; }
         .user-av { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, ${accent}, #38bdf8); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #fff; flex-shrink: 0; }
         .user-em { font-size: 11px; color: ${textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .logout { width: 100%; padding: 7px; background: transparent; border: 1px solid ${cardBorder}; border-radius: 7px; font-size: 11.5px; color: ${textMuted}; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
+        .logout { width: 100%; padding: 7px; background: transparent; border: 1px solid ${cardBorder}; border-radius: 7px; font-size: 11.5px; color: ${textMuted}; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
         .logout:hover { border-color: #fca5a5; color: #ef4444; }
         .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-        .topbar { height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; background: ${sidebar}; border-bottom: 1px solid ${border}; }
-        .tb-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
+        .topbar { height: 54px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: ${sidebar}; border-bottom: 1px solid ${border}; }
+        .tb-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
         .topbar-r { display: flex; align-items: center; gap: 8px; }
-        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; cursor: pointer; font-size: 11.5px; color: ${textMuted}; font-family: 'DM Sans', sans-serif; }
+        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; cursor: pointer; font-size: 11.5px; color: ${textMuted}; font-family: 'Plus Jakarta Sans', sans-serif; }
         .toggle-pill { width: 30px; height: 16px; border-radius: 100px; background: ${dark?accent:"#d1d5db"}; position: relative; flex-shrink: 0; transition: background 0.2s; }
         .toggle-pill::after { content:''; position:absolute; top:2px; width:12px; height:12px; border-radius:50%; background:#fff; transition:left 0.2s; left:${dark?"16px":"2px"}; }
 
         .settings-body { flex: 1; display: flex; overflow: hidden; }
         .tabs-sidebar { width: 200px; flex-shrink: 0; border-right: 1px solid ${border}; padding: 16px 8px; background: ${sidebar}; }
-        .tab-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'DM Sans', sans-serif; transition: all 0.12s; margin-bottom: 2px; }
+        .tab-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 2px; }
         .tab-btn:hover { background: ${inputBg}; color: ${text}; }
         .tab-btn.active { background: ${accentDim}; border-color: ${accent}33; color: ${accent}; font-weight: 600; }
         .tab-icon { font-size: 14px; }
-        .content { flex: 1; overflow-y: auto; padding: 22px 24px; background: ${bg}; }
+        .content { flex: 1; overflow-y: auto; padding: 20px 24px; background: ${bg}; }
         .section { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 13px; padding: 20px; margin-bottom: 14px; }
-        .section-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; color: ${text}; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid ${border}; }
+        .section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 14px; color: ${text}; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid ${border}; }
         .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .field { display: flex; flex-direction: column; gap: 5px; }
         .field.full { grid-column: 1/-1; }
         .label { font-size: 11.5px; font-weight: 600; color: ${textMuted}; }
-        .inp { background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: ${text}; font-family: 'DM Sans', sans-serif; outline: none; width: 100%; }
+        .inp { background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: ${text}; font-family: 'Plus Jakarta Sans', sans-serif; outline: none; width: 100%; }
         .inp:focus { border-color: ${accent}66; }
         .inp-select { appearance: none; cursor: pointer; }
         .textarea { resize: vertical; min-height: 80px; }
@@ -156,22 +156,22 @@ export default function Settings() {
         .svc-table { width: 100%; border-collapse: collapse; }
         .svc-th { font-size: 10.5px; font-weight: 700; color: ${textFaint}; letter-spacing: 0.8px; text-transform: uppercase; padding: 0 8px 8px; text-align: left; border-bottom: 1px solid ${border}; }
         .svc-td { padding: 7px 8px; border-bottom: 1px solid ${border}; }
-        .svc-inp { background: ${inputBg}; border: 1px solid transparent; border-radius: 6px; padding: 5px 9px; font-size: 12.5px; color: ${text}; font-family: 'DM Sans', sans-serif; outline: none; width: 100%; }
+        .svc-inp { background: ${inputBg}; border: 1px solid transparent; border-radius: 6px; padding: 5px 9px; font-size: 12.5px; color: ${text}; font-family: 'Plus Jakarta Sans', sans-serif; outline: none; width: 100%; }
         .svc-inp:focus { border-color: ${accent}55; }
         .del-btn { background: transparent; border: none; color: ${textFaint}; cursor: pointer; font-size: 15px; padding: 2px 6px; border-radius: 5px; transition: color 0.12s; }
         .del-btn:hover { color: #fb7185; }
-        .add-btn { display: flex; align-items: center; gap: 6px; background: ${inputBg}; border: 1px dashed ${cardBorder}; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; color: ${textMuted}; cursor: pointer; font-family: 'DM Sans', sans-serif; margin-top: 10px; transition: all 0.12s; }
+        .add-btn { display: flex; align-items: center; gap: 6px; background: ${inputBg}; border: 1px dashed ${cardBorder}; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; color: ${textMuted}; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; margin-top: 10px; transition: all 0.12s; }
         .add-btn:hover { border-color: ${accent}55; color: ${accent}; }
 
         .staff-card { background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
         .staff-name { font-weight: 700; font-size: 13px; color: ${text}; margin-bottom: 10px; }
         .days-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
-        .day-toggle { width: 32px; height: 32px; border-radius: 8px; border: 1px solid ${cardBorder}; background: transparent; color: ${textFaint}; font-size: 10.5px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
+        .day-toggle { width: 32px; height: 32px; border-radius: 8px; border: 1px solid ${cardBorder}; background: transparent; color: ${textFaint}; font-size: 10.5px; font-weight: 700; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
         .day-toggle.on { background: ${accentDim}; border-color: ${accent}44; color: ${accent}; }
         .hours-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: ${textMuted}; }
 
         .stepper { display: flex; align-items: center; gap: 10px; }
-        .step-btn { width: 30px; height: 30px; border-radius: 8px; background: ${inputBg}; border: 1px solid ${cardBorder}; color: ${text}; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
+        .step-btn { width: 30px; height: 30px; border-radius: 8px; background: ${inputBg}; border: 1px solid ${cardBorder}; color: ${text}; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
         .step-btn:hover { border-color: ${accent}55; color: ${accent}; }
         .step-val { font-weight: 700; font-size: 16px; color: ${text}; min-width: 20px; text-align: center; }
 
@@ -187,7 +187,7 @@ export default function Settings() {
         .faq-label { font-size: 10.5px; font-weight: 700; color: ${textFaint}; letter-spacing: 0.5px; text-transform: uppercase; width: 14px; padding-top: 10px; flex-shrink: 0; }
 
         .save-bar { position: sticky; bottom: 0; padding: 12px 24px; background: ${sidebar}; border-top: 1px solid ${border}; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-        .save-btn { background: ${accent}; color: #fff; border: none; padding: 9px 24px; border-radius: 9px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: opacity 0.12s; }
+        .save-btn { background: ${accent}; color: #fff; border: none; padding: 9px 24px; border-radius: 9px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: opacity 0.12s; }
         .save-btn:hover { opacity: 0.88; }
         .save-msg { font-size: 12.5px; color: ${accent}; font-weight: 600; display: flex; align-items: center; gap: 6px; }
       `}</style>
