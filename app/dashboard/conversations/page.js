@@ -136,11 +136,11 @@ export default function Conversations() {
 
         .wrap { display: flex; height: 100vh; overflow: hidden; background: ${bg}; }
         .sb { width: 224px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; }
-        .sb-logo { padding: 20px 18px 16px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
+        .sb-logo { padding: 22px 20px 18px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 20px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
         .sb-logo span { color: ${accent}; }
-        .sb-section { padding: 18px 16px 6px; font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
+        .sb-section { padding: 18px 16px 6px; font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
         .sb-nav { padding: 3px 8px; }
-        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
+        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 12px; border-radius: 8px; margin: 1px 8px; width: calc(100% - 16px); border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
         .nav-btn:hover { background: ${inputBg}; color: ${text}; }
         .nav-btn.active { background: ${accentDim}; border-color: ${accent}33; color: ${accent}; font-weight: 600; }
         .nav-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
@@ -181,7 +181,7 @@ export default function Conversations() {
         .c-time { font-size: 10.5px; color: ${textFaint}; font-weight: 400; }
         .c-msg { font-size: 12px; color: ${textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .c-badges { display: flex; align-items: center; gap: 5px; margin-top: 4px; }
-        .status-pill { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 100px; font-size: 9.5px; font-weight: 700; border: 1px solid; }
+        .status-pill { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 100px; font-size: 10px; font-weight: 700; border: 1px solid; }
         .unread-dot { background: ${accent}; color: #fff; font-size: 9px; font-weight: 700; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 
         /* Chat area */
@@ -205,7 +205,7 @@ export default function Conversations() {
         .msg-bubble.ai { background: ${accent}22; border: 1px solid ${accent}44; color: ${text}; border-radius: 12px 4px 12px 12px; }
         .msg-bubble.human { background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.3); color: ${text}; border-radius: 12px 4px 12px 12px; }
         .msg-time { font-size: 10px; color: ${textFaint}; margin-top: 3px; }
-        .msg-from { font-size: 9.5px; font-weight: 700; margin-bottom: 2px; letter-spacing: 0.5px; }
+        .msg-from { font-size: 10px; font-weight: 700; margin-bottom: 2px; letter-spacing: 0.5px; }
 
         .attention-banner { margin: 10px 18px 0; padding: 10px 14px; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); border-radius: 9px; font-size: 12px; color: #f59e0b; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
