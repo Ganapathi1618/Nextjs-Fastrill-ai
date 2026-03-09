@@ -119,11 +119,11 @@ export default function Bookings() {
         ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: ${border}; border-radius: 10px; }
         .wrap { display: flex; height: 100vh; overflow: hidden; }
         .sb { width: 224px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; }
-        .sb-logo { padding: 20px 18px 16px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
+        .sb-logo { padding: 22px 20px 18px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 20px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
         .sb-logo span { color: ${accent}; }
-        .sb-section { padding: 18px 16px 6px; font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
+        .sb-section { padding: 18px 16px 6px; font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
         .sb-nav { padding: 3px 8px; }
-        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
+        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 12px; border-radius: 8px; margin: 1px 8px; width: calc(100% - 16px); border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
         .nav-btn:hover { background: ${inputBg}; color: ${text}; }
         .nav-btn.active { background: ${accentDim}; border-color: ${accent}33; color: ${accent}; font-weight: 600; }
         .nav-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
@@ -161,11 +161,11 @@ export default function Bookings() {
         .wd-name { font-size: 10.5px; color: ${textFaint}; margin-bottom: 5px; font-weight: 600; }
         .wd-num { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.12s; }
         .wd-num.today { background: ${accent}; color: #fff; }
-        .wd-event { font-size: 9.5px; padding: 2px 5px; border-radius: 4px; margin-bottom: 2px; font-weight: 600; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .wd-event { font-size: 10px; padding: 2px 5px; border-radius: 4px; margin-bottom: 2px; font-weight: 600; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .time-grid { display: grid; gap: 0; }
         .time-row { display: flex; align-items: stretch; min-height: 36px; border-bottom: 1px solid ${border}; }
-        .time-label { width: 55px; flex-shrink: 0; font-size: 10.5px; color: ${textFaint}; padding: 8px 10px 0 0; text-align: right; }
+        .time-label { width: 55px; flex-shrink: 0; font-size: 10.5px; color: ${textFaint}; padding: 9px 12px 0 0; text-align: right; }
         .time-slot { flex: 1; padding: 3px 6px; }
         .slot-event { border-radius: 6px; padding: 5px 8px; font-size: 11.5px; font-weight: 600; border-left: 3px solid; }
 
