@@ -122,7 +122,7 @@ export default function Dashboard() {
 
         /* Sidebar */
         .sb { width: 224px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; transition: transform 0.25s; }
-        .sb-logo { padding: 22px 20px 18px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 20px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; letter-spacing: -0.5px; }
+        .sb-logo { padding: 22px 20px 18px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 20px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
         .sb-logo span { color: ${accent}; }
         .sb-section { padding: 18px 16px 6px; font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
         .sb-nav { padding: 3px 8px; }
