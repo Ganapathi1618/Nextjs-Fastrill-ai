@@ -154,7 +154,7 @@ export default function Dashboard() {
         .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 
         /* Content */
-        .content { flex: 1; overflow-y: auto; padding: 18px 22px; background: ${bg}; display: flex; flex-direction: column; gap: 14px; }
+        .content { flex: 1; overflow-y: auto; padding: 20px 24px; background: ${bg}; display: flex; flex-direction: column; gap: 14px; }
 
         /* Banner */
         .banner { background: ${dark ? `linear-gradient(135deg, ${accent}0f, rgba(56,189,248,0.06))` : `linear-gradient(135deg, ${accent}0a, rgba(56,189,248,0.04))`}; border: 1px solid ${accent}28; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
