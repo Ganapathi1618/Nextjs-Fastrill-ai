@@ -129,18 +129,18 @@ export default function Conversations() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: ${bg} !important; color: ${text} !important; font-family: 'DM Sans', sans-serif !important; }
+        html, body { background: ${bg} !important; color: ${text} !important; font-family: 'Plus Jakarta Sans', sans-serif !important; }
         ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-thumb { background: ${border}; border-radius: 10px; }
 
         .wrap { display: flex; height: 100vh; overflow: hidden; background: ${bg}; }
-        .sb { width: 220px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; }
-        .sb-logo { padding: 20px 18px 16px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
+        .sb { width: 224px; flex-shrink: 0; background: ${sidebar}; border-right: 1px solid ${border}; display: flex; flex-direction: column; overflow-y: auto; }
+        .sb-logo { padding: 20px 18px 16px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 19px; color: ${text}; border-bottom: 1px solid ${border}; display: block; text-decoration: none; }
         .sb-logo span { color: ${accent}; }
         .sb-section { padding: 18px 16px 6px; font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; }
         .sb-nav { padding: 3px 8px; }
-        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'DM Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
+        .nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 1px; }
         .nav-btn:hover { background: ${inputBg}; color: ${text}; }
         .nav-btn.active { background: ${accentDim}; border-color: ${accent}33; color: ${accent}; font-weight: 600; }
         .nav-icon { font-size: 12px; width: 16px; text-align: center; flex-shrink: 0; }
@@ -148,14 +148,14 @@ export default function Conversations() {
         .user-row { display: flex; align-items: center; gap: 8px; padding: 8px 9px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 9px; margin-bottom: 8px; }
         .user-av { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, ${accent}, #38bdf8); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #fff; flex-shrink: 0; }
         .user-em { font-size: 11px; color: ${textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .logout { width: 100%; padding: 7px; background: transparent; border: 1px solid ${cardBorder}; border-radius: 7px; font-size: 11.5px; color: ${textMuted}; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
+        .logout { width: 100%; padding: 7px; background: transparent; border: 1px solid ${cardBorder}; border-radius: 7px; font-size: 11.5px; color: ${textMuted}; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
         .logout:hover { border-color: #fca5a5; color: #ef4444; }
 
         .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-        .topbar { height: 52px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; background: ${sidebar}; border-bottom: 1px solid ${border}; }
-        .tb-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
+        .topbar { height: 54px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: ${sidebar}; border-bottom: 1px solid ${border}; }
+        .tb-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
         .topbar-r { display: flex; align-items: center; gap: 8px; }
-        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; cursor: pointer; font-size: 11.5px; color: ${textMuted}; font-family: 'DM Sans', sans-serif; }
+        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; cursor: pointer; font-size: 11.5px; color: ${textMuted}; font-family: 'Plus Jakarta Sans', sans-serif; }
         .toggle-pill { width: 30px; height: 16px; border-radius: 100px; background: ${dark ? accent : "#d1d5db"}; position: relative; flex-shrink: 0; transition: background 0.2s; }
         .toggle-pill::after { content: ''; position: absolute; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: left 0.2s; left: ${dark ? "16px" : "2px"}; }
 
@@ -165,10 +165,10 @@ export default function Conversations() {
         .clist { width: 300px; flex-shrink: 0; border-right: 1px solid ${border}; display: flex; flex-direction: column; background: ${sidebar}; }
         .clist-top { padding: 12px; border-bottom: 1px solid ${border}; }
         .search-box { display: flex; align-items: center; gap: 7px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; padding: 7px 10px; margin-bottom: 9px; }
-        .search-box input { flex: 1; background: transparent; border: none; outline: none; font-size: 12.5px; color: ${text}; font-family: 'DM Sans', sans-serif; }
+        .search-box input { flex: 1; background: transparent; border: none; outline: none; font-size: 12.5px; color: ${text}; font-family: 'Plus Jakarta Sans', sans-serif; }
         .search-box input::placeholder { color: ${textFaint}; }
         .filters { display: flex; gap: 4px; flex-wrap: wrap; }
-        .filter-btn { padding: 3px 9px; border-radius: 100px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid ${cardBorder}; background: transparent; color: ${textMuted}; font-family: 'DM Sans', sans-serif; transition: all 0.12s; }
+        .filter-btn { padding: 3px 9px; border-radius: 100px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid ${cardBorder}; background: transparent; color: ${textMuted}; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
         .filter-btn.active { background: ${accentDim}; border-color: ${accent}44; color: ${accent}; }
         .clist-items { flex: 1; overflow-y: auto; }
         .c-item { padding: 11px 14px; border-bottom: 1px solid ${border}; cursor: pointer; transition: background 0.1s; }
@@ -210,10 +210,10 @@ export default function Conversations() {
         .attention-banner { margin: 10px 18px 0; padding: 10px 14px; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); border-radius: 9px; font-size: 12px; color: #f59e0b; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
         .chat-input { padding: 12px 18px; border-top: 1px solid ${border}; background: ${card}; display: flex; gap: 9px; align-items: center; flex-shrink: 0; }
-        .msg-field { flex: 1; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 9px; padding: 9px 13px; font-size: 13px; color: ${text}; font-family: 'DM Sans', sans-serif; outline: none; }
+        .msg-field { flex: 1; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 9px; padding: 9px 13px; font-size: 13px; color: ${text}; font-family: 'Plus Jakarta Sans', sans-serif; outline: none; }
         .msg-field::placeholder { color: ${textFaint}; }
         .msg-field:disabled { opacity: 0.4; cursor: not-allowed; }
-        .send-btn { background: ${accent}; color: #fff; border: none; border-radius: 9px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: opacity 0.12s; flex-shrink: 0; }
+        .send-btn { background: ${accent}; color: #fff; border: none; border-radius: 9px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: opacity 0.12s; flex-shrink: 0; }
         .send-btn:hover { opacity: 0.85; }
         .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .ai-note { font-size: 11px; color: ${textFaint}; text-align: center; flex: 1; }
