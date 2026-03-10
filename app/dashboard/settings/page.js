@@ -13,105 +13,105 @@ const NAV = [
   { id:"analytics", label:"Analytics", icon:"▦", path:"/dashboard/analytics" },
   { id:"settings", label:"Settings", icon:"◌", path:"/dashboard/settings" },
 ]
-
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
-
-const DEFAULT_SERVICES = [
-  { name:"Haircut", price:"300", duration:"30", category:"Hair" },
-  { name:"Hair Colour", price:"800", duration:"90", category:"Hair" },
-  { name:"Gold Facial", price:"1500", duration:"60", category:"Skin" },
-  { name:"Bridal Package", price:"8500", duration:"120", category:"Bridal" },
-  { name:"Nail Art", price:"600", duration:"45", category:"Nails" },
-]
-
-const LANGUAGES = ["English","Hindi","Telugu","Tamil","Kannada","Malayalam","Marathi"]
+const LANGUAGES = ["English","Hindi","Telugu","Tamil","Kannada","Malayalam","Marathi","Bengali","Gujarati","Punjabi"]
 
 export default function Settings() {
   const router = useRouter()
   const [userEmail, setUserEmail] = useState("")
+  const [userId, setUserId] = useState(null)
   const [dark, setDark] = useState(true)
   const [tab, setTab] = useState("business")
+  const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const [business, setBusiness] = useState({
-    name:"", type:"Salon", phone:"", location:"", mapsLink:"", description:""
-  })
-  const [services, setServices] = useState(DEFAULT_SERVICES)
-  const [booking, setBooking] = useState({
-    slotDuration: 30,
-    capacity: 2,
-    staff: [
-      { name:"Ananya", days: {Mon:true,Tue:true,Wed:true,Thu:true,Fri:true,Sat:true,Sun:false}, start:"09:00", end:"19:00" },
-      { name:"Riya", days: {Mon:true,Tue:true,Wed:true,Thu:true,Fri:true,Sat:false,Sun:false}, start:"10:00", end:"18:00" },
-    ]
-  })
-  const [ai, setAI] = useState({
-    language: "English",
-    customInstructions: "",
-    bookingLink: "",
-    rules: { greetNewLeads:true, autoBookAppointments:true, sendReminders:true, collectFeedback:false, handleCancellations:true, upsellServices:false },
-    faqs: [
-      { q:"What are your working hours?", a:"We are open Monday to Saturday, 9 AM to 7 PM." },
-      { q:"Do you take walk-ins?", a:"Yes, subject to availability. Appointments are preferred." },
-    ]
-  })
+  const [business, setBusiness] = useState({ name:"", type:"Salon", phone:"", location:"", mapsLink:"", description:"" })
+  const [services, setServices] = useState([])
+  const [newService, setNewService] = useState({ name:"", price:"", duration:"30", category:"Hair" })
+  const [ai, setAI] = useState({ language:"English", customInstructions:"", autoBooking:true, followUpEnabled:true, greetingMessage:"", missedLeadMessage:"" })
+  const [whatsapp, setWhatsapp] = useState(null)
 
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
     if (saved) setDark(saved === "dark")
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) router.push("/login")
-      else setUserEmail(data.user.email || "")
+      else { setUserEmail(data.user.email||""); setUserId(data.user.id) }
     })
   }, [])
 
-  const toggleTheme = () => {
-    const n = !dark; setDark(n)
-    localStorage.setItem("fastrill-theme", n ? "dark" : "light")
-  }
-  const handleLogout = async () => {
-    await supabase.auth.signOut(); router.push("/login")
-  }
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+  useEffect(() => { if (userId) loadAll() }, [userId])
+
+  async function loadAll() {
+    setLoading(true)
+    const [{ data: bs }, { data: svcs }, { data: wa }] = await Promise.all([
+      supabase.from("business_settings").select("*").eq("user_id", userId).single(),
+      supabase.from("services").select("*").eq("user_id", userId).order("category"),
+      supabase.from("whatsapp_connections").select("*").eq("user_id", userId).single()
+    ])
+    if (bs) {
+      setBusiness({ name:bs.business_name||"", type:bs.business_type||"Salon", phone:bs.phone||"", location:bs.location||"", mapsLink:bs.maps_link||"", description:bs.description||"" })
+      setAI({ language:bs.ai_language||"English", customInstructions:bs.ai_instructions||"", autoBooking:bs.auto_booking!==false, followUpEnabled:bs.follow_up_enabled!==false, greetingMessage:bs.greeting_message||"", missedLeadMessage:bs.missed_lead_message||"" })
+    }
+    setServices(svcs||[])
+    setWhatsapp(wa||null)
+    setLoading(false)
   }
 
-  const bg = dark ? "#08080e" : "#f0f2f5"
-  const sidebar = dark ? "#0c0c15" : "#ffffff"
-  const card = dark ? "#0f0f1a" : "#ffffff"
-  const border = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)"
-  const cardBorder = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)"
-  const text = dark ? "#eeeef5" : "#111827"
-  const textMuted = dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.5)"
-  const textFaint = dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.25)"
-  const inputBg = dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)"
-  const accent = dark ? "#00d084" : "#00935a"
-  const navText = dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.5)"
-  const navActive = dark ? "rgba(0,196,125,0.1)" : "rgba(0,180,115,0.08)"
-  const navActiveBorder = dark ? "rgba(0,196,125,0.2)" : "rgba(0,180,115,0.2)"
-  const navActiveText = dark ? "#00c47d" : "#00935a"
-  const accentDim = dark ? "rgba(0,208,132,0.12)" : "rgba(0,147,90,0.1)"
-  const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
-
-  const inp = {
-    background: inputBg, border:`1px solid ${cardBorder}`, borderRadius:8,
-    padding:"9px 12px", fontSize:13, color:text,
-    fontFamily:"'Plus Jakarta Sans',sans-serif", outline:"none", width:"100%",
-    transition:"border-color 0.12s"
+  async function saveBusiness() {
+    setSaving(true)
+    const payload = { user_id:userId, business_name:business.name, business_type:business.type, phone:business.phone, location:business.location, maps_link:business.mapsLink, description:business.description, ai_language:ai.language, ai_instructions:ai.customInstructions, auto_booking:ai.autoBooking, follow_up_enabled:ai.followUpEnabled, greeting_message:ai.greetingMessage, missed_lead_message:ai.missedLeadMessage, updated_at:new Date().toISOString() }
+    await supabase.from("business_settings").upsert(payload, { onConflict:"user_id" })
+    // Also sync to business_knowledge for AI to use
+    const knowledgeText = `Business: ${business.name}\nType: ${business.type}\nPhone: ${business.phone}\nLocation: ${business.location}\nMaps: ${business.mapsLink}\nAbout: ${business.description}`
+    await supabase.from("business_knowledge").upsert({ user_id:userId, category:"business_info", content:knowledgeText }, { onConflict:"user_id,category" })
+    setSaving(false); setSaved(true); setTimeout(()=>setSaved(false),2500)
   }
 
-  const TABS = [
-    { id:"business", label:"Business Info", icon:"🏢" },
-    { id:"services", label:"Services & Pricing", icon:"✂️" },
-    { id:"booking", label:"Booking Setup", icon:"📅" },
-    { id:"ai", label:"AI Instructions", icon:"◈" },
-  ]
+  async function addService() {
+    if (!newService.name||!newService.price) return
+    const { data } = await supabase.from("services").insert({ ...newService, user_id:userId, price:parseInt(newService.price), duration:parseInt(newService.duration) }).select().single()
+    if (data) {
+      setServices(prev=>[...prev, data])
+      setNewService({ name:"", price:"", duration:"30", category:"Hair" })
+      // Sync services to knowledge base
+      const svcText = [...services, data].map(s=>`${s.name}: ₹${s.price} (${s.duration} min)`).join("\n")
+      await supabase.from("business_knowledge").upsert({ user_id:userId, category:"services", content:svcText }, { onConflict:"user_id,category" })
+    }
+  }
+
+  async function deleteService(id) {
+    await supabase.from("services").delete().eq("id", id)
+    setServices(prev=>prev.filter(s=>s.id!==id))
+  }
+
+  async function disconnectWhatsApp() {
+    if (!confirm("Disconnect WhatsApp? AI will stop responding.")) return
+    await supabase.from("whatsapp_connections").delete().eq("user_id", userId)
+    setWhatsapp(null)
+  }
+
+  const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
+  const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login") }
+
+  const bg=dark?"#08080e":"#f0f2f5", sidebar=dark?"#0c0c15":"#ffffff", card=dark?"#0f0f1a":"#ffffff"
+  const border=dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.08)", cardBorder=dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.09)"
+  const text=dark?"#eeeef5":"#111827", textMuted=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
+  const textFaint=dark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.25)", inputBg=dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
+  const accent=dark?"#00d084":"#00935a", navText=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
+  const navActive=dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)", navActiveBorder=dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
+  const navActiveText=dark?"#00c47d":"#00935a"
+  const userInitial=userEmail?userEmail[0].toUpperCase():"G"
+  const inp = { background:inputBg, border:`1px solid ${cardBorder}`, borderRadius:8, padding:"9px 12px", fontSize:13, color:text, fontFamily:"'Plus Jakarta Sans',sans-serif", outline:"none", width:"100%" }
+
+  const TABS = [{ id:"business",label:"Business"},{id:"services",label:"Services"},{id:"ai",label:"AI Brain"},{id:"whatsapp",label:"WhatsApp"}]
+  const CATEGORIES = ["Hair","Skin","Nails","Bridal","Massage","Body","Other"]
 
   return (
     <>
       <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         html,body{background:${bg}!important;color:${text}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
@@ -131,69 +131,16 @@ export default function Settings() {
         .logout-btn:hover{border-color:#fca5a5;color:#ef4444;}
         .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
         .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${border};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sidebar};}
-
-        .topbar { height: 54px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: ${sidebar}; border-bottom: 1px solid ${border}; }
-        .tb-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
-        .topbar-r { display: flex; align-items: center; gap: 8px; }
-        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; cursor: pointer; font-size: 11.5px; color: ${textMuted}; font-family: 'Plus Jakarta Sans', sans-serif; }
-        .toggle-pill { width: 30px; height: 16px; border-radius: 100px; background: ${dark?accent:"#d1d5db"}; position: relative; flex-shrink: 0; transition: background 0.2s; }
-        .toggle-pill::after { content:''; position:absolute; top:2px; width:12px; height:12px; border-radius:50%; background:#fff; transition:left 0.2s; left:${dark?"16px":"2px"}; }
-
-        .settings-body { flex: 1; display: flex; overflow: hidden; }
-        .tabs-sidebar { width: 200px; flex-shrink: 0; border-right: 1px solid ${border}; padding: 16px 8px; background: ${sidebar}; }
-        .tab-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 11px; border-radius: 8px; margin: 1px 8px; width: calc(100% - 16px); border: 1px solid transparent; background: transparent; color: ${textMuted}; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; margin-bottom: 2px; }
-        .tab-btn:hover { background: ${inputBg}; color: ${text}; }
-        .tab-btn.active { background: ${accentDim}; border-color: ${accent}33; color: ${accent}; font-weight: 600; }
-        .tab-icon { font-size: 14px; }
-        .content { flex: 1; overflow-y: auto; padding: 20px 24px; background: ${bg}; }
-        .section { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 13px; padding: 20px; margin-bottom: 14px; }
-        .section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 14px; color: ${text}; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid ${border}; }
-        .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .field { display: flex; flex-direction: column; gap: 5px; }
-        .field.full { grid-column: 1/-1; }
-        .label { font-size: 11.5px; font-weight: 600; color: ${textMuted}; }
-        .inp { background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: ${text}; font-family: 'Plus Jakarta Sans', sans-serif; outline: none; width: 100%; }
-        .inp:focus { border-color: ${accent}66; }
-        .inp-select { appearance: none; cursor: pointer; }
-        .textarea { resize: vertical; min-height: 80px; }
-
-        .svc-table { width: 100%; border-collapse: collapse; }
-        .svc-th { font-size: 10.5px; font-weight: 700; color: ${textFaint}; letter-spacing: 0.8px; text-transform: uppercase; padding: 0 8px 8px; text-align: left; border-bottom: 1px solid ${border}; }
-        .svc-td { padding: 7px 8px; border-bottom: 1px solid ${border}; }
-        .svc-inp { background: ${inputBg}; border: 1px solid transparent; border-radius: 6px; padding: 5px 9px; font-size: 12.5px; color: ${text}; font-family: 'Plus Jakarta Sans', sans-serif; outline: none; width: 100%; }
-        .svc-inp:focus { border-color: ${accent}55; }
-        .del-btn { background: transparent; border: none; color: ${textFaint}; cursor: pointer; font-size: 15px; padding: 2px 6px; border-radius: 5px; transition: color 0.12s; }
-        .del-btn:hover { color: #fb7185; }
-        .add-btn { display: flex; align-items: center; gap: 6px; background: ${inputBg}; border: 1px dashed ${cardBorder}; border-radius: 8px; padding: 8px 14px; font-size: 12.5px; color: ${textMuted}; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; margin-top: 10px; transition: all 0.12s; }
-        .add-btn:hover { border-color: ${accent}55; color: ${accent}; }
-
-        .staff-card { background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
-        .staff-name { font-weight: 700; font-size: 13px; color: ${text}; margin-bottom: 10px; }
-        .days-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
-        .day-toggle { width: 32px; height: 32px; border-radius: 8px; border: 1px solid ${cardBorder}; background: transparent; color: ${textFaint}; font-size: 10.5px; font-weight: 700; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
-        .day-toggle.on { background: ${accentDim}; border-color: ${accent}44; color: ${accent}; }
-        .hours-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: ${textMuted}; }
-
-        .stepper { display: flex; align-items: center; gap: 10px; }
-        .step-btn { width: 30px; height: 30px; border-radius: 8px; background: ${inputBg}; border: 1px solid ${cardBorder}; color: ${text}; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
-        .step-btn:hover { border-color: ${accent}55; color: ${accent}; }
-        .step-val { font-weight: 700; font-size: 16px; color: ${text}; min-width: 20px; text-align: center; }
-
-        .rules-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-        .rule-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 9px; }
-        .rule-label { font-size: 12.5px; color: ${text}; font-weight: 500; }
-        .rule-toggle { width: 34px; height: 18px; border-radius: 100px; position: relative; cursor: pointer; transition: background 0.2s; border: none; flex-shrink: 0; }
-        .rule-toggle::after { content:''; position:absolute; top:2px; width:14px; height:14px; border-radius:50%; background:#fff; transition:left 0.2s; }
-
-        .faq-item { background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 10px; padding: 13px; margin-bottom: 9px; }
-        .faq-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; }
-        .faq-row:last-child { margin-bottom: 0; }
-        .faq-label { font-size: 10.5px; font-weight: 700; color: ${textFaint}; letter-spacing: 0.5px; text-transform: uppercase; width: 14px; padding-top: 10px; flex-shrink: 0; }
-
-        .save-bar { position: sticky; bottom: 0; padding: 12px 24px; background: ${sidebar}; border-top: 1px solid ${border}; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-        .save-btn { background: ${accent}; color: #fff; border: none; padding: 9px 24px; border-radius: 9px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: opacity 0.12s; }
-        .save-btn:hover { opacity: 0.88; }
-        .save-msg { font-size: 12.5px; color: ${accent}; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .tb-title{font-weight:700;font-size:15px;color:${text};}
+        .topbar-r{display:flex;align-items:center;gap:8px;}
+        .theme-toggle{display:flex;align-items:center;gap:6px;padding:5px 10px;background:${inputBg};border:1px solid ${cardBorder};border-radius:8px;cursor:pointer;font-size:11.5px;color:${textMuted};font-family:'Plus Jakarta Sans',sans-serif;}
+        .toggle-pill{width:30px;height:16px;border-radius:100px;background:${dark?accent:"#d1d5db"};position:relative;flex-shrink:0;}
+        .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
+        .content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};}
+        .section-label{font-size:11px;color:${textFaint};fontWeight:600;textTransform:uppercase;letterSpacing:1px;marginBottom:7px;}
+        .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid ${border};}
+        .tog{width:38px;height:22px;border-radius:100px;position:relative;cursor:pointer;border:none;flex-shrink:0;transition:background 0.2s;}
+        .tog::after{content:'';position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 0.2s;}
       `}</style>
 
       <div className="wrap">
@@ -218,218 +165,176 @@ export default function Settings() {
           <div className="topbar">
             <span className="tb-title">Settings</span>
             <div className="topbar-r">
+              {(tab==="business"||tab==="ai") && (
+                <button onClick={saveBusiness} disabled={saving} style={{background:saved?"#22c55e":accent,color:"#000",border:"none",padding:"7px 18px",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",transition:"background 0.2s"}}>
+                  {saving?"Saving...":saved?"✓ Saved":"Save Changes"}
+                </button>
+              )}
               <button className="theme-toggle" onClick={toggleTheme}>
-                <span>{dark?"🌙":"☀️"}</span>
-                <div className="toggle-pill"/>
-                <span>{dark?"Dark":"Light"}</span>
+                <span>{dark?"🌙":"☀️"}</span><div className="toggle-pill"/><span>{dark?"Dark":"Light"}</span>
               </button>
             </div>
           </div>
 
-          <div className="settings-body">
-            <div className="tabs-sidebar">
-              {TABS.map(t=>(
-                <button key={t.id} className={`tab-btn${tab===t.id?" active":""}`} onClick={()=>setTab(t.id)}>
-                  <span className="tab-icon">{t.icon}</span>
-                  <span>{t.label}</span>
-                </button>
-              ))}
-            </div>
+          {/* Tabs */}
+          <div style={{padding:"0 24px",borderBottom:`1px solid ${border}`,background:sidebar,display:"flex",gap:0,flexShrink:0}}>
+            {TABS.map(t=>(
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"14px 18px",background:"transparent",border:"none",borderBottom:tab===t.id?`2px solid ${accent}`:"2px solid transparent",color:tab===t.id?accent:textMuted,fontWeight:tab===t.id?700:500,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",transition:"all 0.12s"}}>
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-            <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-              <div className="content">
-
-                {tab==="business" && (
-                  <div className="section">
-                    <div className="section-title">Business Information</div>
-                    <div className="field-grid">
-                      <div className="field">
-                        <div className="label">Business Name</div>
-                        <input className="inp" placeholder="e.g. Glamour Studio" value={business.name} onChange={e=>setBusiness({...business,name:e.target.value})}/>
-                      </div>
-                      <div className="field">
-                        <div className="label">Business Type</div>
-                        <select className="inp inp-select" value={business.type} onChange={e=>setBusiness({...business,type:e.target.value})}>
-                          {["Salon","Spa","Clinic","Beauty Parlour","Physiotherapy","Dental","Other"].map(t=><option key={t}>{t}</option>)}
-                        </select>
-                      </div>
-                      <div className="field">
-                        <div className="label">WhatsApp Number</div>
-                        <input className="inp" placeholder="+91 98765 43210" value={business.phone} onChange={e=>setBusiness({...business,phone:e.target.value})}/>
-                      </div>
-                      <div className="field">
-                        <div className="label">Location / Area</div>
-                        <input className="inp" placeholder="e.g. Banjara Hills, Hyderabad" value={business.location} onChange={e=>setBusiness({...business,location:e.target.value})}/>
-                      </div>
-                      <div className="field full">
-                        <div className="label">Google Maps Link</div>
-                        <input className="inp" placeholder="https://maps.google.com/..." value={business.mapsLink} onChange={e=>setBusiness({...business,mapsLink:e.target.value})}/>
-                      </div>
-                      <div className="field full">
-                        <div className="label">Business Description (for AI)</div>
-                        <textarea className="inp textarea" placeholder="Describe your business, specialties, and what makes you unique..." value={business.description} onChange={e=>setBusiness({...business,description:e.target.value})}/>
-                      </div>
+          <div className="content">
+            {loading ? (
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:200,color:textFaint}}>Loading...</div>
+            ) : tab==="business" ? (
+              <div style={{maxWidth:620,display:"flex",flexDirection:"column",gap:20}}>
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:22}}>
+                  <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:16}}>Business Info</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                    <div><div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Business Name *</div><input placeholder="e.g. Priya Beauty Salon" value={business.name} onChange={e=>setBusiness(p=>({...p,name:e.target.value}))} style={inp}/></div>
+                    <div><div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Business Type</div>
+                      <select value={business.type} onChange={e=>setBusiness(p=>({...p,type:e.target.value}))} style={inp}>
+                        {["Salon","Beauty Parlour","Spa","Clinic","Dermatology","Dental","Gym","Yoga Studio","Other"].map(t=><option key={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div><div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>WhatsApp Phone Number</div><input placeholder="+91 98765 43210" value={business.phone} onChange={e=>setBusiness(p=>({...p,phone:e.target.value}))} style={inp}/></div>
+                    <div><div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Location / Address</div><input placeholder="Building, Street, City" value={business.location} onChange={e=>setBusiness(p=>({...p,location:e.target.value}))} style={inp}/></div>
+                    <div><div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Google Maps Link</div><input placeholder="https://maps.google.com/..." value={business.mapsLink} onChange={e=>setBusiness(p=>({...p,mapsLink:e.target.value}))} style={inp}/></div>
+                    <div><div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Business Description <span style={{color:textFaint}}>(AI uses this to answer customer questions)</span></div>
+                      <textarea placeholder="Tell customers about your salon — specialties, experience, awards, unique selling points..." value={business.description} onChange={e=>setBusiness(p=>({...p,description:e.target.value}))}
+                        style={{...inp,resize:"vertical",minHeight:90,lineHeight:1.5}}/>
                     </div>
                   </div>
-                )}
+                </div>
+              </div>
 
-                {tab==="services" && (
-                  <div className="section">
-                    <div className="section-title">Services & Pricing</div>
-                    <table className="svc-table">
-                      <thead>
-                        <tr>
-                          {["Service Name","Price (₹)","Duration (min)","Category",""].map(h=>(
-                            <th key={h} className="svc-th">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {services.map((s,i)=>(
-                          <tr key={i}>
-                            <td className="svc-td"><input className="svc-inp" value={s.name} onChange={e=>{const ns=[...services];ns[i]={...ns[i],name:e.target.value};setServices(ns)}}/></td>
-                            <td className="svc-td"><input className="svc-inp" type="number" value={s.price} onChange={e=>{const ns=[...services];ns[i]={...ns[i],price:e.target.value};setServices(ns)}}/></td>
-                            <td className="svc-td"><input className="svc-inp" type="number" value={s.duration} onChange={e=>{const ns=[...services];ns[i]={...ns[i],duration:e.target.value};setServices(ns)}}/></td>
-                            <td className="svc-td"><input className="svc-inp" value={s.category} onChange={e=>{const ns=[...services];ns[i]={...ns[i],category:e.target.value};setServices(ns)}}/></td>
-                            <td className="svc-td"><button className="del-btn" onClick={()=>setServices(services.filter((_,j)=>j!==i))}>×</button></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <button className="add-btn" onClick={()=>setServices([...services,{name:"",price:"",duration:"",category:""}])}>
-                      + Add Service
+            ) : tab==="services" ? (
+              <div style={{maxWidth:700,display:"flex",flexDirection:"column",gap:16}}>
+                {/* Add service */}
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:20}}>
+                  <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:14}}>Add Service</div>
+                  <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr auto",gap:8,alignItems:"end"}}>
+                    <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Name</div><input placeholder="e.g. Haircut" value={newService.name} onChange={e=>setNewService(p=>({...p,name:e.target.value}))} style={inp}/></div>
+                    <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Price (₹)</div><input type="number" placeholder="500" value={newService.price} onChange={e=>setNewService(p=>({...p,price:e.target.value}))} style={inp}/></div>
+                    <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Duration (min)</div><input type="number" placeholder="30" value={newService.duration} onChange={e=>setNewService(p=>({...p,duration:e.target.value}))} style={inp}/></div>
+                    <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Category</div>
+                      <select value={newService.category} onChange={e=>setNewService(p=>({...p,category:e.target.value}))} style={inp}>
+                        {CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <button onClick={addService} style={{background:accent,color:"#000",border:"none",padding:"9px 16px",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",whiteSpace:"nowrap"}}>+ Add</button>
+                  </div>
+                </div>
+
+                {/* Service list */}
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,overflow:"hidden"}}>
+                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${border}`,fontWeight:700,fontSize:13,color:text}}>Your Services ({services.length})</div>
+                  {services.length===0 ? (
+                    <div style={{textAlign:"center",padding:"30px",color:textFaint,fontSize:12}}>No services yet — add your first service above</div>
+                  ) : CATEGORIES.filter(cat=>services.some(s=>s.category===cat)).map(cat=>(
+                    <div key={cat}>
+                      <div style={{padding:"8px 16px",background:inputBg,fontSize:10,fontWeight:700,color:textFaint,letterSpacing:"1px",textTransform:"uppercase"}}>{cat}</div>
+                      {services.filter(s=>s.category===cat).map(s=>(
+                        <div key={s.id} style={{display:"flex",alignItems:"center",padding:"10px 16px",borderBottom:`1px solid ${border}`}}>
+                          <div style={{flex:1,fontWeight:600,fontSize:13,color:text}}>{s.name}</div>
+                          <div style={{fontSize:12,color:textMuted,marginRight:16}}>{s.duration} min</div>
+                          <div style={{fontWeight:700,fontSize:13,color:accent,marginRight:16}}>₹{parseInt(s.price||0).toLocaleString()}</div>
+                          <button onClick={()=>deleteService(s.id)} style={{background:"transparent",border:"none",color:textFaint,cursor:"pointer",fontSize:15,lineHeight:1}}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            ) : tab==="ai" ? (
+              <div style={{maxWidth:620,display:"flex",flexDirection:"column",gap:20}}>
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:22}}>
+                  <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:16}}>AI Settings</div>
+
+                  <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                    <div><div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Primary Language</div>
+                      <select value={ai.language} onChange={e=>setAI(p=>({...p,language:e.target.value}))} style={inp}>
+                        {LANGUAGES.map(l=><option key={l}>{l}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="toggle-row">
+                      <div>
+                        <div style={{fontWeight:600,fontSize:13,color:text}}>Auto Booking</div>
+                        <div style={{fontSize:11.5,color:textMuted}}>AI books appointments without human approval</div>
+                      </div>
+                      <button className="tog" style={{background:ai.autoBooking?accent:"rgba(255,255,255,0.12)"}} onClick={()=>setAI(p=>({...p,autoBooking:!p.autoBooking}))}>
+                        <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:ai.autoBooking?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
+                      </button>
+                    </div>
+
+                    <div className="toggle-row">
+                      <div>
+                        <div style={{fontWeight:600,fontSize:13,color:text}}>Follow-up Messages</div>
+                        <div style={{fontSize:11.5,color:textMuted}}>AI sends follow-ups to inactive leads</div>
+                      </div>
+                      <button className="tog" style={{background:ai.followUpEnabled?accent:"rgba(255,255,255,0.12)"}} onClick={()=>setAI(p=>({...p,followUpEnabled:!p.followUpEnabled}))}>
+                        <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:ai.followUpEnabled?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
+                      </button>
+                    </div>
+
+                    <div><div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Greeting Message</div>
+                      <textarea placeholder="Hi [Name]! Welcome to our salon 😊 How can I help you today?" value={ai.greetingMessage} onChange={e=>setAI(p=>({...p,greetingMessage:e.target.value}))}
+                        style={{...inp,resize:"vertical",minHeight:70}}/>
+                    </div>
+
+                    <div><div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Custom AI Instructions <span style={{color:textFaint}}>(tone, rules, what to say/avoid)</span></div>
+                      <textarea placeholder="Always respond in a warm, friendly tone. Never mention competitor salons. If unsure about pricing, say 'let me check and get back to you'..." value={ai.customInstructions} onChange={e=>setAI(p=>({...p,customInstructions:e.target.value}))}
+                        style={{...inp,resize:"vertical",minHeight:110,lineHeight:1.5}}/>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            ) : tab==="whatsapp" ? (
+              <div style={{maxWidth:560,display:"flex",flexDirection:"column",gap:16}}>
+                {whatsapp ? (
+                  <div style={{background:card,border:`1px solid ${accent}44`,borderRadius:13,padding:22}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                      <div style={{width:44,height:44,borderRadius:11,background:"#25d366",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💬</div>
+                      <div>
+                        <div style={{fontWeight:800,fontSize:15,color:text}}>WhatsApp Connected ✓</div>
+                        <div style={{fontSize:12,color:textMuted}}>Your AI is live and responding</div>
+                      </div>
+                    </div>
+                    {[["Phone Number ID",whatsapp.phone_number_id],["WABA ID",whatsapp.waba_id||"—"],["Status","🟢 Active"]].map(([l,v])=>(
+                      <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${border}`}}>
+                        <span style={{fontSize:12,color:textMuted}}>{l}</span>
+                        <span style={{fontSize:12,fontWeight:600,color:text,fontFamily:"monospace"}}>{v}</span>
+                      </div>
+                    ))}
+                    <button onClick={disconnectWhatsApp} style={{marginTop:16,width:"100%",padding:"9px",background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",borderRadius:8,color:"#fb7185",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Disconnect WhatsApp</button>
+                  </div>
+                ) : (
+                  <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:28,textAlign:"center"}}>
+                    <div style={{fontSize:36,marginBottom:12}}>💬</div>
+                    <div style={{fontWeight:800,fontSize:16,color:text,marginBottom:6}}>Connect Your WhatsApp</div>
+                    <div style={{fontSize:13,color:textMuted,marginBottom:20,lineHeight:1.6}}>Link your business WhatsApp to activate AI replies, lead capture, and auto-booking.</div>
+                    <button onClick={()=>{ const appId="780799931531576",configId="1090960043190718",redirectUri="https://fastrill.com/api/meta/callback"; window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}` }} style={{background:"#1877f2",color:"#fff",border:"none",padding:"11px 24px",borderRadius:9,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                      Connect WhatsApp via Meta →
                     </button>
                   </div>
                 )}
 
-                {tab==="booking" && (
-                  <>
-                    <div className="section">
-                      <div className="section-title">Booking Configuration</div>
-                      <div style={{display:"flex",gap:32,flexWrap:"wrap"}}>
-                        <div>
-                          <div className="label" style={{marginBottom:8}}>Slot Duration (minutes)</div>
-                          <div className="stepper">
-                            <button className="step-btn" onClick={()=>setBooking({...booking,slotDuration:Math.max(10,booking.slotDuration-5)})}>−</button>
-                            <span className="step-val">{booking.slotDuration}</span>
-                            <button className="step-btn" onClick={()=>setBooking({...booking,slotDuration:booking.slotDuration+5})}>+</button>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="label" style={{marginBottom:8}}>Simultaneous Clients</div>
-                          <div className="stepper">
-                            <button className="step-btn" onClick={()=>setBooking({...booking,capacity:Math.max(1,booking.capacity-1)})}>−</button>
-                            <span className="step-val">{booking.capacity}</span>
-                            <button className="step-btn" onClick={()=>setBooking({...booking,capacity:booking.capacity+1})}>+</button>
-                          </div>
-                        </div>
-                      </div>
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:20}}>
+                  <div style={{fontWeight:700,fontSize:13.5,color:text,marginBottom:12}}>Webhook Configuration</div>
+                  {[["Webhook URL","https://fastrill.com/api/meta/webhook"],["Verify Token","fastrill_webhook_2026"],["Events","messages, message_status"]].map(([l,v])=>(
+                    <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${border}`}}>
+                      <span style={{fontSize:12,color:textMuted}}>{l}</span>
+                      <span style={{fontSize:11.5,fontWeight:600,color:text,fontFamily:"monospace",wordBreak:"break-all",textAlign:"right",maxWidth:"60%"}}>{v}</span>
                     </div>
-
-                    <div className="section">
-                      <div className="section-title">Staff Schedule</div>
-                      {booking.staff.map((s,si)=>(
-                        <div key={si} className="staff-card">
-                          <div className="staff-name">👤 {s.name}</div>
-                          <div className="days-row">
-                            {DAYS.map(d=>(
-                              <button key={d} className={`day-toggle${s.days[d]?" on":""}`}
-                                onClick={()=>{
-                                  const ns=[...booking.staff]
-                                  ns[si]={...ns[si],days:{...ns[si].days,[d]:!ns[si].days[d]}}
-                                  setBooking({...booking,staff:ns})
-                                }}>
-                                {d}
-                              </button>
-                            ))}
-                          </div>
-                          <div className="hours-row">
-                            <span>From</span>
-                            <input className="inp" style={{width:90}} type="time" value={s.start}
-                              onChange={e=>{const ns=[...booking.staff];ns[si]={...ns[si],start:e.target.value};setBooking({...booking,staff:ns})}}/>
-                            <span>To</span>
-                            <input className="inp" style={{width:90}} type="time" value={s.end}
-                              onChange={e=>{const ns=[...booking.staff];ns[si]={...ns[si],end:e.target.value};setBooking({...booking,staff:ns})}}/>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                {tab==="ai" && (
-                  <>
-                    <div className="section">
-                      <div className="section-title">AI Quick Rules</div>
-                      <div className="rules-grid">
-                        {Object.entries(ai.rules).map(([key, val])=>(
-                          <div key={key} className="rule-item">
-                            <span className="rule-label">{key.replace(/([A-Z])/g," $1").replace(/^./,s=>s.toUpperCase())}</span>
-                            <button className="rule-toggle" style={{background:val?accent:"rgba(255,255,255,0.1)"}}
-                              onClick={()=>setAI({...ai,rules:{...ai.rules,[key]:!val}})}>
-                              <span style={{position:"absolute",top:"2px",width:"14px",height:"14px",borderRadius:"50%",background:"#fff",transition:"left 0.2s",left:val?"18px":"2px",display:"block"}}/>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="section">
-                      <div className="section-title">Custom AI Instructions</div>
-                      <div className="field" style={{marginBottom:12}}>
-                        <div className="label">Response Language</div>
-                        <select className="inp inp-select" style={{width:200}} value={ai.language} onChange={e=>setAI({...ai,language:e.target.value})}>
-                          {LANGUAGES.map(l=><option key={l}>{l}</option>)}
-                        </select>
-                      </div>
-                      <div className="field" style={{marginBottom:12}}>
-                        <div className="label">External Booking Link (optional)</div>
-                        <input className="inp" placeholder="https://calendly.com/..." value={ai.bookingLink} onChange={e=>setAI({...ai,bookingLink:e.target.value})}/>
-                      </div>
-                      <div className="field">
-                        <div className="label">Additional Instructions for AI</div>
-                        <textarea className="inp textarea" style={{minHeight:100}} placeholder="e.g. Always greet with the customer's name. Never quote prices without checking availability first..." value={ai.customInstructions} onChange={e=>setAI({...ai,customInstructions:e.target.value})}/>
-                      </div>
-                    </div>
-
-                    <div className="section">
-                      <div className="section-title" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                        <span>FAQ Builder</span>
-                        <button className="add-btn" style={{margin:0,padding:"5px 12px",fontSize:12}} onClick={()=>setAI({...ai,faqs:[...ai.faqs,{q:"",a:""}]})}>
-                          + Add FAQ
-                        </button>
-                      </div>
-                      {ai.faqs.map((f,i)=>(
-                        <div key={i} className="faq-item">
-                          <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
-                            <div style={{flex:1}}>
-                              <div className="faq-row">
-                                <span className="faq-label">Q</span>
-                                <input className="inp" placeholder="Question" value={f.q} onChange={e=>{const nf=[...ai.faqs];nf[i]={...nf[i],q:e.target.value};setAI({...ai,faqs:nf})}}/>
-                              </div>
-                              <div className="faq-row">
-                                <span className="faq-label">A</span>
-                                <input className="inp" placeholder="Answer" value={f.a} onChange={e=>{const nf=[...ai.faqs];nf[i]={...nf[i],a:e.target.value};setAI({...ai,faqs:nf})}}/>
-                              </div>
-                            </div>
-                            <button className="del-btn" onClick={()=>setAI({...ai,faqs:ai.faqs.filter((_,j)=>j!==i)})}>×</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
+                  ))}
+                </div>
               </div>
-
-              <div className="save-bar">
-                {saved ? (
-                  <span className="save-msg">✓ Settings saved successfully</span>
-                ) : (
-                  <span style={{fontSize:12,color:textFaint}}>Changes are not saved yet</span>
-                )}
-                <button className="save-btn" onClick={handleSave}>Save Changes</button>
-              </div>
-            </div>
+            ) : null}
           </div>
         </div>
       </div>
