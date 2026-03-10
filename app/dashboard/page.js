@@ -155,6 +155,9 @@ export default function Dashboard() {
         .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
         @media(max-width:1200px){.three-col{grid-template-columns:1fr 1fr;}}
         @media(max-width:960px){.two-col,.three-col{grid-template-columns:1fr;}}
+        select{color-scheme:dark;background-color:inherit;}
+        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
+        select:focus{outline:none;}
       `}</style>
 
       <div className="wrap">
