@@ -141,6 +141,9 @@ export default function Settings() {
         .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid ${border};}
         .tog{width:38px;height:22px;border-radius:100px;position:relative;cursor:pointer;border:none;flex-shrink:0;transition:background 0.2s;}
         .tog::after{content:'';position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 0.2s;}
+        select{color-scheme:dark;background-color:inherit;}
+        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
+        select:focus{outline:none;}
       `}</style>
 
       <div className="wrap">
@@ -215,16 +218,20 @@ export default function Settings() {
                 {/* Add service */}
                 <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:20}}>
                   <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:14}}>Add Service</div>
-                  <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr auto",gap:8,alignItems:"end"}}>
-                    <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Name</div><input placeholder="e.g. Haircut" value={newService.name} onChange={e=>setNewService(p=>({...p,name:e.target.value}))} style={inp}/></div>
-                    <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Price (₹)</div><input type="number" placeholder="500" value={newService.price} onChange={e=>setNewService(p=>({...p,price:e.target.value}))} style={inp}/></div>
-                    <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Duration (min)</div><input type="number" placeholder="30" value={newService.duration} onChange={e=>setNewService(p=>({...p,duration:e.target.value}))} style={inp}/></div>
-                    <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Category</div>
-                      <select value={newService.category} onChange={e=>setNewService(p=>({...p,category:e.target.value}))} style={inp}>
-                        {CATEGORIES.map(c=><option key={c}>{c}</option>)}
-                      </select>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10}}>
+                      <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Service Name</div><input placeholder="e.g. Haircut" value={newService.name} onChange={e=>setNewService(p=>({...p,name:e.target.value}))} style={inp}/></div>
+                      <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Price (₹)</div><input type="number" placeholder="500" value={newService.price} onChange={e=>setNewService(p=>({...p,price:e.target.value}))} style={inp}/></div>
+                      <div><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Duration (min)</div><input type="number" placeholder="30" value={newService.duration} onChange={e=>setNewService(p=>({...p,duration:e.target.value}))} style={inp}/></div>
                     </div>
-                    <button onClick={addService} style={{background:accent,color:"#000",border:"none",padding:"9px 16px",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",whiteSpace:"nowrap"}}>+ Add</button>
+                    <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+                      <div style={{flex:1}}><div style={{fontSize:11,color:textMuted,marginBottom:4}}>Category</div>
+                        <select value={newService.category} onChange={e=>setNewService(p=>({...p,category:e.target.value}))} style={inp}>
+                          {CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <button onClick={addService} style={{background:accent,color:"#000",border:"none",padding:"10px 22px",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",whiteSpace:"nowrap",height:40,flexShrink:0}}>+ Add Service</button>
+                    </div>
                   </div>
                 </div>
 
