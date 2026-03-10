@@ -296,7 +296,7 @@ ${greetingStyle ? `\nWhen greeting new customers, use this style: "${greetingSty
   // ── 1. Try Sarvam AI (free, great for Indian languages) ──
   if (process.env.SARVAM_API_KEY) {
     try {
-      // Build messages in Sarvam format (OpenAI-compatible)
+      console.log("🔄 Trying Sarvam AI...")
       const sarvamMessages = [
         { role: "system", content: systemPrompt },
         ...history,
@@ -305,26 +305,39 @@ ${greetingStyle ? `\nWhen greeting new customers, use this style: "${greetingSty
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Content-Type":  "application/json",
-          "Authorization": `Bearer ${process.env.SARVAM_API_KEY}`,
+          "Content-Type":         "application/json",
           "api-subscription-key": process.env.SARVAM_API_KEY,
         },
         body: JSON.stringify({
-          model:       "sarvam-m",  // Sarvam's multilingual model
+          model:       "sarvam-m",
           messages:    sarvamMessages,
           max_tokens:  300,
           temperature: 0.7,
         }),
       })
-      const data = await response.json()
+      const raw = await response.text()
+      console.log("Sarvam raw response:", raw.substring(0, 300))
+      const data = JSON.parse(raw)
       if (data?.choices?.[0]?.message?.content) {
-        console.log("✅ Sarvam AI replied")
-        return data.choices[0].message.content.trim()
+        let reply = data.choices[0].message.content.trim()
+        // sarvam-m is a reasoning model — strip <think>...</think> block
+        reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, "").trim()
+        // Also handle unclosed <think> tag (model cut off mid-think)
+        reply = reply.replace(/<think>[\s\S]*/gi, "").trim()
+        // If nothing left after stripping, fall through to next AI
+        if (!reply) {
+          console.warn("Sarvam reply was only thinking, no actual response")
+        } else {
+          console.log("✅ Sarvam replied:", reply.substring(0, 80))
+          return reply
+        }
       }
-      console.error("Sarvam unexpected response:", JSON.stringify(data).substring(0, 200))
+      console.error("Sarvam bad response:", JSON.stringify(data).substring(0, 300))
     } catch (err) {
       console.error("Sarvam API error:", err.message)
     }
+  } else {
+    console.warn("⚠️ SARVAM_API_KEY not set in environment variables")
   }
 
   // ── 2. Try Claude (if API key set) ──
