@@ -136,6 +136,9 @@ export default function Contacts() {
         .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
         .content{flex:1;display:flex;overflow:hidden;}
         .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;color:${textFaint};}
+        select{color-scheme:dark;background-color:inherit;}
+        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
+        select:focus{outline:none;}
       `}</style>
 
       <div className="wrap">
