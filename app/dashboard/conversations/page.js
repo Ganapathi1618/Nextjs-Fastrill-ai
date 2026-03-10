@@ -153,16 +153,31 @@ export default function Conversations() {
       return
     }
 
-    // Fallback: load by customer_phone if conversation_id returns nothing
+    // Fallback: load by customer_phone — try multiple formats
     if (customerPhone) {
-      const { data: byPhone } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("customer_phone", customerPhone)
-        .eq("user_id", userId)
-        .order("created_at", { ascending: true })
-      if (byPhone?.length) {
-        // Backfill conversation_id on all these messages
+      // Generate all phone variants to search for
+      const digits = customerPhone.replace(/[^0-9]/g, "")
+      const variants = [...new Set([
+        customerPhone,           // original: +919876543210
+        digits,                  // digits only: 919876543210
+        "+" + digits,            // with plus: +919876543210
+        digits.slice(-10),       // last 10: 9876543210
+        "91" + digits.slice(-10) // with country: 919876543210
+      ])]
+
+      let byPhone = []
+      for (const variant of variants) {
+        const { data } = await supabase
+          .from("messages")
+          .select("*")
+          .eq("customer_phone", variant)
+          .eq("user_id", userId)
+          .order("created_at", { ascending: true })
+        if (data?.length) { byPhone = data; break }
+      }
+
+      if (byPhone.length) {
+        // Backfill conversation_id so this never happens again
         const ids = byPhone.map(m => m.id)
         await supabase.from("messages").update({ conversation_id: convoId }).in("id", ids)
         setMessages(byPhone)
