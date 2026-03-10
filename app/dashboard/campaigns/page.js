@@ -71,6 +71,8 @@ export default function Campaigns() {
   const [templateParams, setTemplateParams] = useState({})
   const [audience, setAudience] = useState("all")
   const [sending, setSending] = useState(false)
+  const [testNumbers, setTestNumbers] = useState("") // comma-separated phone numbers for test send
+  const [testMode, setTestMode] = useState(false)
   const [sendProgress, setSendProgress] = useState(0)
   const [sendResults, setSendResults] = useState({ sent:0, failed:0, total:0 })
 
@@ -173,14 +175,25 @@ export default function Campaigns() {
     setStep("sending")
     setSendProgress(0)
 
-    // Get audience
-    let query = supabase.from("customers").select("name,phone").eq("user_id", userId)
-    if (audience !== "all") query = query.eq("tag", audience)
-    const { data: recipients } = await query
-
-    if (!recipients?.length) {
-      alert("No customers in this audience")
-      setSending(false); setStep("create"); return
+    // Get recipients — test mode or full audience
+    let recipients = []
+    if (testMode && testNumbers.trim()) {
+      recipients = testNumbers.split(",")
+        .map(n => ({ name: "Test", phone: n.trim().replace(/\D/g, "") }))
+        .filter(r => r.phone.length >= 10)
+      if (!recipients.length) {
+        alert("Enter valid phone numbers (with country code, e.g. 919876543210)")
+        setSending(false); setStep("create"); return
+      }
+    } else {
+      let query = supabase.from("customers").select("name,phone").eq("user_id", userId)
+      if (audience !== "all") query = query.eq("tag", audience)
+      const { data } = await query
+      recipients = data || []
+      if (!recipients.length) {
+        alert("No customers in this audience. Add customers first or switch audience.")
+        setSending(false); setStep("create"); return
+      }
     }
 
     // Save campaign to DB
