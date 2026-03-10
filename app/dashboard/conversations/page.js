@@ -233,6 +233,9 @@ export default function Conversations() {
         .send-btn:disabled{opacity:0.4;cursor:not-allowed;}
         .ai-note{font-size:11px;color:${textFaint};text-align:center;flex:1;}
         .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:${textFaint};}
+        select{color-scheme:dark;background-color:inherit;}
+        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
+        select:focus{outline:none;}
       `}</style>
 
       <div className="wrap">
