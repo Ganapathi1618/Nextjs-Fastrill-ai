@@ -70,15 +70,41 @@ export default function Settings() {
   }
 
   async function addService() {
-    if (!newService.name||!newService.price) return
-    const { data } = await supabase.from("services").insert({ ...newService, user_id:userId, price:parseInt(newService.price), duration:parseInt(newService.duration) }).select().single()
-    if (data) {
-      setServices(prev=>[...prev, data])
-      setNewService({ name:"", price:"", duration:"30", category:"Hair" })
-      // Sync services to knowledge base
-      const svcText = [...services, data].map(s=>`${s.name}: ₹${s.price} (${s.duration} min)`).join("\n")
-      await supabase.from("business_knowledge").upsert({ user_id:userId, category:"services", content:svcText }, { onConflict:"user_id,category" })
+    if (!newService.name || !newService.price) return
+    setSaving(true)
+    try {
+      const payload = {
+        name: newService.name.trim(),
+        price: parseInt(newService.price) || 0,
+        duration: parseInt(newService.duration) || 30,
+        category: newService.category,
+        user_id: userId
+      }
+      const { data, error } = await supabase.from("services").insert(payload).select().single()
+      if (error) {
+        console.error("Add service error:", error)
+        alert("Could not add service: " + error.message)
+        setSaving(false)
+        return
+      }
+      if (data) {
+        const updated = [...services, data]
+        setServices(updated)
+        setNewService({ name:"", price:"", duration:"30", category:"Hair" })
+        // Sync to knowledge base (non-blocking)
+        try {
+          const svcText = updated.map(s=>`${s.name}: ₹${s.price} (${s.duration} min)`).join("\n")
+          await supabase.from("business_knowledge").upsert(
+            { user_id:userId, category:"services", content:svcText },
+            { onConflict:"user_id,category" }
+          )
+        } catch(e) { console.warn("Knowledge sync failed (non-critical):", e) }
+      }
+    } catch(e) {
+      console.error("Unexpected error:", e)
+      alert("Something went wrong. Check console.")
     }
+    setSaving(false)
   }
 
   async function deleteService(id) {
@@ -230,7 +256,7 @@ export default function Settings() {
                           {CATEGORIES.map(c=><option key={c}>{c}</option>)}
                         </select>
                       </div>
-                      <button onClick={addService} style={{background:accent,color:"#000",border:"none",padding:"10px 22px",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",whiteSpace:"nowrap",height:40,flexShrink:0}}>+ Add Service</button>
+                      <button onClick={addService} disabled={saving||!newService.name||!newService.price} style={{background:(saving||!newService.name||!newService.price)?"rgba(0,208,132,0.4)":accent,color:"#000",border:"none",padding:"10px 22px",borderRadius:8,fontWeight:700,fontSize:13,cursor:(saving||!newService.name||!newService.price)?"not-allowed":"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",whiteSpace:"nowrap",height:40,flexShrink:0,transition:"background 0.15s"}}>{saving?"Adding...":"+ Add Service"}</button>
                     </div>
                   </div>
                 </div>
