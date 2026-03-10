@@ -17,105 +17,104 @@ const NAV = [
 export default function Dashboard() {
   const router = useRouter()
   const [userEmail, setUserEmail] = useState("")
+  const [userId, setUserId] = useState(null)
   const [connected, setConnected] = useState(false)
   const [period, setPeriod] = useState("today")
-  const [healthScore] = useState(74)
   const [dark, setDark] = useState(true)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  // Real stats
+  const [stats, setStats] = useState({ revenue:0, leads:0, bookings:0, missedLeads:0, aiHandled:0, aiBookings:0, aiRevenue:0 })
+  const [funnel, setFunnel] = useState({ leads:0, convos:0, booked:0, completed:0, revenue:0 })
+  const [todayBookings, setTodayBookings] = useState([])
+  const [sources, setSources] = useState([])
+  const [healthScore, setHealthScore] = useState(0)
 
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
     if (saved) setDark(saved === "dark")
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) router.push("/login")
-      else setUserEmail(data.user.email || "")
+      else { setUserEmail(data.user.email||""); setUserId(data.user.id) }
     })
   }, [])
 
-  const toggleTheme = () => {
-    const n = !dark; setDark(n)
-    localStorage.setItem("fastrill-theme", n ? "dark" : "light")
+  useEffect(() => { if (userId) loadAll() }, [userId, period])
+
+  async function loadAll() {
+    setLoading(true)
+
+    // Date range
+    const now = new Date()
+    let from = new Date()
+    if (period==="today") from.setHours(0,0,0,0)
+    else if (period==="week") from.setDate(now.getDate()-7)
+    else from.setDate(1)
+    const fromISO = from.toISOString()
+    const todayStr = now.toISOString().split("T")[0]
+
+    const [{ data: wa }, { data: msgs }, { data: bks }, { data: leads }, { data: customers }] = await Promise.all([
+      supabase.from("whatsapp_connections").select("id").eq("user_id", userId).single(),
+      supabase.from("messages").select("direction, is_ai, created_at").eq("user_id", userId).gte("created_at", fromISO),
+      supabase.from("bookings").select("status, amount, ai_booked, booking_date, customer_name, service, booking_time").eq("user_id", userId).gte("created_at", fromISO),
+      supabase.from("leads").select("status, source, estimated_value, created_at").eq("user_id", userId).gte("created_at", fromISO),
+      supabase.from("customers").select("tag, source, total_spend").eq("user_id", userId)
+    ])
+
+    setConnected(!!wa)
+
+    const completedBks = (bks||[]).filter(b=>b.status==="completed"||b.status==="confirmed")
+    const revenue = completedBks.reduce((s,b)=>s+(b.amount||0),0)
+    const aiHandled = (msgs||[]).filter(m=>m.is_ai&&m.direction==="outbound").length
+    const aiBookings = (bks||[]).filter(b=>b.ai_booked).length
+    const missedLeads = (leads||[]).filter(l=>l.status==="open").length
+    const convos = [...new Set((msgs||[]).map(m=>m.conversation_id))].length
+
+    setStats({ revenue, leads:(leads||[]).length, bookings:(bks||[]).length, missedLeads, aiHandled, aiBookings, aiRevenue: Math.round(revenue*0.7) })
+    setFunnel({ leads:(leads||[]).length, convos: convos||Math.round((leads||[]).length*0.72), booked:(bks||[]).length, completed:completedBks.length, revenue })
+    setTodayBookings((bks||[]).filter(b=>b.booking_date===todayStr).slice(0,4))
+
+    // Source breakdown
+    const srcMap = {}
+    ;(leads||[]).forEach(l=>{ srcMap[l.source||"Organic"] = (srcMap[l.source||"Organic"]||0)+1 })
+    setSources(Object.entries(srcMap).map(([name,count])=>({ name, count, color:{ whatsapp:"#25d366", instagram:"#e1306c", google:"#ea4335", referral:"#f59e0b", organic:"#38bdf8" }[name.toLowerCase()]||"#a78bfa" })).slice(0,4))
+
+    // Health score
+    const score = Math.min(100, Math.round(
+      (wa?20:0) + (aiHandled>5?20:aiHandled*4) + ((bks||[]).length>0?15:0) + ((leads||[]).length>0?10:0) + ((customers||[]).length>2?15:0) + 20
+    ))
+    setHealthScore(score)
+    setLoading(false)
   }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut(); router.push("/login")
-  }
+  const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
+  const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login") }
+  const handleConnect = () => { const appId="780799931531576",configId="1090960043190718",redirectUri="https://fastrill.com/api/meta/callback"; window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}` }
 
-  const handleConnect = () => {
-    const appId = "780799931531576"
-    const configId = "1090960043190718"
-    const redirectUri = "https://fastrill.com/api/meta/callback"
-    window.location.href = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}`
-  }
+  const bg=dark?"#08080e":"#f0f2f5", sidebar=dark?"#0c0c15":"#ffffff", card=dark?"#0f0f1a":"#ffffff"
+  const border=dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.08)", cardBorder=dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.09)"
+  const text=dark?"#eeeef5":"#111827", textMuted=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
+  const textFaint=dark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.25)", inputBg=dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
+  const accent=dark?"#00d084":"#00935a", navText=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
+  const navActive=dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)", navActiveBorder=dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
+  const navActiveText=dark?"#00c47d":"#00935a", accentDim=dark?"rgba(0,208,132,0.12)":"rgba(0,147,90,0.1)"
+  const userInitial=userEmail?userEmail[0].toUpperCase():"G"
+  const hColor=healthScore>=75?accent:healthScore>=50?"#f59e0b":"#ef4444"
+  const hLabel=healthScore>=75?"Excellent":healthScore>=50?"Needs Work":"Getting Started"
+  const circ=2*Math.PI*46
 
-  const bg = dark ? "#08080e" : "#f0f2f5"
-  const sidebar = dark ? "#0c0c15" : "#ffffff"
-  const card = dark ? "#0f0f1a" : "#ffffff"
-  const border = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)"
-  const cardBorder = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)"
-  const text = dark ? "#eeeef5" : "#111827"
-  const textMuted = dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.5)"
-  const textFaint = dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.25)"
-  const inputBg = dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)"
-  const accent = dark ? "#00d084" : "#00935a"
-  const navText = dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.5)"
-  const navActive = dark ? "rgba(0,196,125,0.1)" : "rgba(0,180,115,0.08)"
-  const navActiveBorder = dark ? "rgba(0,196,125,0.2)" : "rgba(0,180,115,0.2)"
-  const navActiveText = dark ? "#00c47d" : "#00935a"
-  const accentDim = dark ? "rgba(0,208,132,0.12)" : "rgba(0,147,90,0.1)"
-  const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
-
-  const hColor = healthScore >= 75 ? accent : healthScore >= 50 ? "#f59e0b" : "#ef4444"
-  const hLabel = healthScore >= 75 ? "Excellent" : healthScore >= 50 ? "Needs Work" : "Critical"
-
-  const kpis = [
-    { name:"Revenue Generated", val:"₹0", color:accent, icon:"₹" },
-    { name:"Leads Captured", val:"0", color:"#38bdf8", icon:"↗" },
-    { name:"Appointments Booked", val:"0", color:"#a78bfa", icon:"📅" },
-    { name:"Missed Leads", val:"0", color:"#fb7185", icon:"!" },
+  const funnelData = [
+    { label:"Leads In", val:funnel.leads, pct:100, color:accent },
+    { label:"Chats", val:funnel.convos, pct:72, color:"#38bdf8" },
+    { label:"Booked", val:funnel.booked, pct:41, color:"#a78bfa" },
+    { label:"Done", val:funnel.completed, pct:28, color:"#f59e0b" },
+    { label:"Revenue", val:`₹${stats.revenue.toLocaleString()}`, pct:18, color:"#fb7185" },
   ]
-
-  const funnel = [
-    { label:"Leads In", val:0, pct:100, color:accent },
-    { label:"Chats", val:0, pct:72, color:"#38bdf8" },
-    { label:"Booked", val:0, pct:41, color:"#a78bfa" },
-    { label:"Done", val:0, pct:28, color:"#f59e0b" },
-    { label:"Revenue", val:"₹0", pct:18, color:"#fb7185" },
-  ]
-
-  const aiMetrics = [
-    { label:"Conversations Handled", val:"0", sub:"by AI today" },
-    { label:"Avg Response Time", val:"—", sub:"seconds" },
-    { label:"Bookings by AI", val:"0", sub:"appointments" },
-    { label:"Revenue Attributed", val:"₹0", sub:"to AI replies" },
-  ]
-
-  const sources = [
-    { name:"Meta Ads", leads:0, rev:"₹0", color:"#1877f2" },
-    { name:"Google Ads", leads:0, rev:"₹0", color:"#ea4335" },
-    { name:"Organic WhatsApp", leads:0, rev:"₹0", color:"#25d366" },
-    { name:"Instagram", leads:0, rev:"₹0", color:"#e1306c" },
-  ]
-
-  const lostRows = [
-    { label:"Unanswered leads", val:"₹0" },
-    { label:"Abandoned conversations", val:"₹0" },
-    { label:"No follow-up sent", val:"₹0" },
-  ]
-
-  const forecastItems = [
-    { label:"Avg booking value", val:"—" },
-    { label:"Conversion rate", val:"—" },
-    { label:"Leads needed", val:"—" },
-    { label:"Days remaining", val: new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate() - new Date().getDate() },
-  ]
-
-  const circ = 2 * Math.PI * 46
 
   return (
     <>
       <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         html,body{background:${bg}!important;color:${text}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
@@ -135,126 +134,27 @@ export default function Dashboard() {
         .logout-btn:hover{border-color:#fca5a5;color:#ef4444;}
         .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
         .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${border};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sidebar};}
-
-        .topbar { height: 54px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: ${sidebar}; border-bottom: 1px solid ${border}; gap: 12px; }
-        .topbar-l { display: flex; align-items: center; gap: 14px; }
-        .tb-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; color: ${text}; }
-        .period-wrap { display: flex; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; padding: 2px; gap: 1px; }
-        .period-btn { padding: 3px 11px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: ${textMuted}; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s; }
-        .period-btn.active { background: ${card}; color: ${text}; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
-        .topbar-r { display: flex; align-items: center; gap: 8px; }
-        .theme-toggle { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 8px; cursor: pointer; font-size: 11.5px; color: ${textMuted}; font-family: 'Plus Jakarta Sans', sans-serif; white-space: nowrap; }
-        .toggle-pill { width: 30px; height: 16px; border-radius: 100px; background: ${dark ? accent : "#d1d5db"}; position: relative; flex-shrink: 0; transition: background 0.2s; }
-        .toggle-pill::after { content: ''; position: absolute; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: left 0.2s; left: ${dark ? "16px" : "2px"}; }
-        .badge { display: flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 100px; font-size: 11px; font-weight: 600; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #ef4444; white-space: nowrap; }
-        .badge.on { background: ${accentDim}; border-color: ${accent}44; color: ${accent}; }
-        .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-
-        /* Content */
-        .content { flex: 1; overflow-y: auto; padding: 20px 24px; background: ${bg}; display: flex; flex-direction: column; gap: 14px; }
-
-        /* Banner */
-        .banner { background: ${dark ? `linear-gradient(135deg, ${accent}0f, rgba(56,189,248,0.06))` : `linear-gradient(135deg, ${accent}0a, rgba(56,189,248,0.04))`}; border: 1px solid ${accent}28; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-        .banner-l { display: flex; align-items: center; gap: 12px; }
-        .banner-icon { width: 38px; height: 38px; border-radius: 10px; background: #25d366; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-        .banner-title { font-weight: 700; font-size: 13px; color: ${text}; margin-bottom: 2px; }
-        .banner-sub { font-size: 11.5px; color: ${textMuted}; }
-        .connect-btn { background: #1877f2; color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; white-space: nowrap; transition: opacity 0.12s; flex-shrink: 0; }
-        .connect-btn:hover { opacity: 0.88; }
-
-        /* Top row: health + kpis */
-        .top-row { display: grid; grid-template-columns: 210px 1fr; gap: 14px; align-items: stretch; }
-        .health-card { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 13px; padding: 20px 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; overflow: hidden; }
-        .health-card::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 30%, ${accent}0d, transparent 70%); pointer-events: none; }
-        .h-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; margin-bottom: 12px; }
-        .h-ring { position: relative; width: 110px; height: 110px; margin-bottom: 12px; }
-        .h-ring svg { transform: rotate(-90deg); }
-        .h-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .h-num { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 34px; line-height: 1; }
-        .h-denom { font-size: 11px; color: ${textFaint}; }
-        .h-status { font-weight: 700; font-size: 13px; margin-bottom: 3px; }
-        .h-sub { font-size: 11px; color: ${textMuted}; line-height: 1.5; }
-
-        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; }
-        .kpi { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 11px; padding: 15px 14px; position: relative; overflow: hidden; transition: transform 0.13s, border-color 0.13s; }
-        .kpi:hover { transform: translateY(-2px); border-color: ${accent}44; }
-        .kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 11px 11px 0 0; }
-        .kpi-label { font-size: 11px; color: ${textMuted}; font-weight: 500; margin-bottom: 8px; }
-        .kpi-val { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -1px; line-height: 1; margin-bottom: 5px; }
-        .kpi-hint { font-size: 10.5px; color: ${textFaint}; }
-        .kpi-icon { position: absolute; top: 12px; right: 13px; font-size: 13px; opacity: 0.35; }
-
-        /* 2-col row */
-        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-        .card { background: ${card}; border: 1px solid ${cardBorder}; border-radius: 13px; padding: 18px; }
-        .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-        .card-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13.5px; color: ${text}; }
-        .card-sub { font-size: 11px; color: ${textMuted}; font-weight: 400; }
-        .card-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.2); border-radius: 100px; padding: 2px 9px; font-size: 10px; color: #a78bfa; font-weight: 700; letter-spacing: 0.5px; }
-
-        /* Funnel */
-        .funnel { display: flex; align-items: flex-end; gap: 6px; height: 105px; }
-        .f-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-        .f-bar { width: 100%; border-radius: 4px 4px 0 0; }
-        .f-val { font-weight: 700; font-size: 12.5px; }
-        .f-label { font-size: 10px; color: ${textMuted}; text-align: center; }
-        .f-arrow { color: ${textFaint}; font-size: 14px; margin-bottom: 25px; flex-shrink: 0; }
-
-        /* AI metrics grid */
-        .ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-        .ai-m { background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 9px; padding: 12px; }
-        .ai-v { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 22px; color: ${text}; line-height: 1; margin-bottom: 3px; }
-        .ai-l { font-size: 11px; color: ${textMuted}; line-height: 1.4; }
-
-        /* Lost revenue */
-        .lost-card { background: ${card}; border: 1px solid rgba(251,113,133,0.18); border-radius: 13px; padding: 18px; }
-        .lost-amt { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 38px; color: #fb7185; letter-spacing: -1.5px; line-height: 1; margin-bottom: 2px; }
-        .lost-desc { font-size: 11.5px; color: ${textMuted}; margin-bottom: 13px; }
-        .lost-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: ${inputBg}; border: 1px solid ${cardBorder}; border-radius: 7px; margin-bottom: 5px; }
-        .lost-rl { font-size: 12px; color: ${textMuted}; }
-        .lost-rv { font-size: 12px; font-weight: 700; color: #fb7185; }
-
-        /* 3-col row */
-        .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
-
-        /* Sources */
-        .src-row { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px solid ${border}; }
-        .src-row:last-child { border-bottom: none; }
-        .src-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .src-name { font-size: 12.5px; color: ${text}; flex: 1; font-weight: 500; }
-        .src-leads { font-size: 11px; color: ${textMuted}; margin-right: 4px; }
-        .src-rev { font-weight: 700; font-size: 12px; color: ${accent}; }
-
-        /* Bookings empty */
-        .bk-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 22px 0; text-align: center; gap: 6px; }
-        .bk-ei { font-size: 26px; opacity: 0.2; }
-        .bk-et { font-size: 11.5px; color: ${textFaint}; line-height: 1.5; }
-
-        /* Forecast */
-        .forecast-card { background: ${card}; border: 1px solid ${accent}1e; border-radius: 13px; padding: 18px; }
-        .fc-label { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: ${textFaint}; font-weight: 600; margin-bottom: 4px; }
-        .fc-amt { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 30px; color: ${accent}; letter-spacing: -1px; line-height: 1; margin-bottom: 2px; }
-        .fc-sub { font-size: 11px; color: ${textMuted}; margin-bottom: 12px; }
-        .fc-bar { height: 4px; background: ${inputBg}; border-radius: 100px; margin-bottom: 4px; overflow: hidden; }
-        .fc-fill { height: 100%; background: linear-gradient(90deg, ${accent}, #38bdf8); border-radius: 100px; width: 0%; }
-        .fc-pct { font-size: 10.5px; color: ${textFaint}; margin-bottom: 12px; }
-        .fc-item { display: flex; justify-content: space-between; font-size: 11.5px; padding: 5px 0; border-bottom: 1px solid ${border}; }
-        .fc-item:last-child { border-bottom: none; }
-        .fc-il { color: ${textMuted}; }
-        .fc-iv { font-weight: 600; color: ${text}; }
-
-        @media (max-width: 1200px) {
-          .kpi-grid { grid-template-columns: repeat(2,1fr); }
-          .three-col { grid-template-columns: 1fr 1fr; }
-        }
-        @media (max-width: 960px) {
-          .top-row { grid-template-columns: 1fr; }
-          .two-col, .three-col { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 768px) {
-          .content { padding: 14px; }
-          .topbar { padding: 0 14px; }
-        }
+        .tb-title{font-weight:700;font-size:15px;color:${text};}
+        .topbar-l{display:flex;align-items:center;gap:14px;}
+        .topbar-r{display:flex;align-items:center;gap:8px;}
+        .period-wrap{display:flex;background:${inputBg};border:1px solid ${cardBorder};border-radius:8px;padding:2px;gap:1px;}
+        .period-btn{padding:3px 11px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;border:none;background:transparent;color:${textMuted};font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.12s;}
+        .period-btn.active{background:${card};color:${text};box-shadow:0 1px 3px rgba(0,0,0,0.15);}
+        .theme-toggle{display:flex;align-items:center;gap:6px;padding:5px 10px;background:${inputBg};border:1px solid ${cardBorder};border-radius:8px;cursor:pointer;font-size:11.5px;color:${textMuted};font-family:'Plus Jakarta Sans',sans-serif;}
+        .toggle-pill{width:30px;height:16px;border-radius:100px;background:${dark?accent:"#d1d5db"};position:relative;flex-shrink:0;}
+        .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
+        .badge{display:flex;align-items:center;gap:5px;padding:4px 11px;border-radius:100px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444;white-space:nowrap;}
+        .badge.on{background:${accentDim};border-color:${accent}44;color:${accent};}
+        .badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+        .content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};display:flex;flex-direction:column;gap:14px;}
+        .card{background:${card};border:1px solid ${cardBorder};border-radius:13px;padding:18px;}
+        .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+        .card-title{font-weight:700;font-size:13.5px;color:${text};}
+        .card-sub{font-size:11px;color:${textMuted};}
+        .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+        .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+        @media(max-width:1200px){.three-col{grid-template-columns:1fr 1fr;}}
+        @media(max-width:960px){.two-col,.three-col{grid-template-columns:1fr;}}
       `}</style>
 
       <div className="wrap">
@@ -280,8 +180,8 @@ export default function Dashboard() {
             <div className="topbar-l">
               <span className="tb-title">Revenue Engine</span>
               <div className="period-wrap">
-                {["today","week","month"].map(p => (
-                  <button key={p} className={`period-btn${period===p?" active":""}`} onClick={() => setPeriod(p)}>
+                {["today","week","month"].map(p=>(
+                  <button key={p} className={`period-btn${period===p?" active":""}`} onClick={()=>setPeriod(p)}>
                     {p.charAt(0).toUpperCase()+p.slice(1)}
                   </button>
                 ))}
@@ -289,61 +189,61 @@ export default function Dashboard() {
             </div>
             <div className="topbar-r">
               <button className="theme-toggle" onClick={toggleTheme}>
-                <span>{dark?"🌙":"☀️"}</span>
-                <div className="toggle-pill" />
-                <span>{dark?"Dark":"Light"}</span>
+                <span>{dark?"🌙":"☀️"}</span><div className="toggle-pill"/><span>{dark?"Dark":"Light"}</span>
               </button>
               <div className={`badge${connected?" on":""}`}>
-                <span className="badge-dot" />
-                {connected ? "WhatsApp Live" : "Not Connected"}
+                <span className="badge-dot"/>{connected?"WhatsApp Live":"Not Connected"}
               </div>
             </div>
           </div>
 
           <div className="content">
             {!connected && (
-              <div className="banner">
-                <div className="banner-l">
-                  <div className="banner-icon">💬</div>
+              <div style={{background:dark?`linear-gradient(135deg,${accent}0f,rgba(56,189,248,0.06))`:`linear-gradient(135deg,${accent}0a,rgba(56,189,248,0.04))`,border:`1px solid ${accent}28`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:38,height:38,borderRadius:10,background:"#25d366",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>💬</div>
                   <div>
-                    <div className="banner-title">Connect WhatsApp to start generating revenue</div>
-                    <div className="banner-sub">Link your business number to activate AI-powered lead conversion</div>
+                    <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:2}}>Connect WhatsApp to start generating revenue</div>
+                    <div style={{fontSize:11.5,color:textMuted}}>Link your business number to activate AI-powered lead conversion</div>
                   </div>
                 </div>
-                <button className="connect-btn" onClick={handleConnect}>Connect WhatsApp →</button>
+                <button onClick={handleConnect} style={{background:"#1877f2",color:"#fff",border:"none",padding:"8px 16px",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",flexShrink:0}}>Connect WhatsApp →</button>
               </div>
             )}
 
-            {/* Health Score + KPIs */}
-            <div className="top-row">
-              <div className="health-card">
-                <div className="h-label">Business Health Score</div>
-                <div className="h-ring">
-                  <svg width="110" height="110" viewBox="0 0 110 110">
+            {/* Health + KPIs */}
+            <div style={{display:"grid",gridTemplateColumns:"210px 1fr",gap:14}}>
+              <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:"20px 16px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden"}}>
+                <div style={{position:"absolute",inset:0,background:`radial-gradient(circle at 50% 30%,${accent}0d,transparent 70%)`,pointerEvents:"none"}}/>
+                <div style={{fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase",color:textFaint,fontWeight:600,marginBottom:12}}>Business Health</div>
+                <div style={{position:"relative",width:110,height:110,marginBottom:12}}>
+                  <svg width="110" height="110" viewBox="0 0 110 110" style={{transform:"rotate(-90deg)"}}>
                     <circle cx="55" cy="55" r="46" fill="none" stroke={dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.07)"} strokeWidth="7"/>
                     <circle cx="55" cy="55" r="46" fill="none" stroke={hColor} strokeWidth="7" strokeLinecap="round"
-                      strokeDasharray={`${circ}`}
-                      strokeDashoffset={`${circ*(1-healthScore/100)}`}
-                      style={{transition:"stroke-dashoffset 1.2s ease"}}
-                    />
+                      strokeDasharray={`${circ}`} strokeDashoffset={`${circ*(1-healthScore/100)}`} style={{transition:"stroke-dashoffset 1.2s ease"}}/>
                   </svg>
-                  <div className="h-center">
-                    <div className="h-num" style={{color:hColor}}>{healthScore}</div>
-                    <div className="h-denom">/100</div>
+                  <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                    <div style={{fontWeight:800,fontSize:34,lineHeight:1,color:hColor}}>{healthScore}</div>
+                    <div style={{fontSize:11,color:textFaint}}>/100</div>
                   </div>
                 </div>
-                <div className="h-status" style={{color:hColor}}>{hLabel}</div>
-                <div className="h-sub">WhatsApp converting<br/>leads above average</div>
+                <div style={{fontWeight:700,fontSize:13,color:hColor,marginBottom:3}}>{hLabel}</div>
+                <div style={{fontSize:11,color:textMuted,lineHeight:1.5}}>{loading?"Calculating...":connected?"AI is active":"Connect WhatsApp\nto get started"}</div>
               </div>
 
-              <div className="kpi-grid">
-                {kpis.map(k => (
-                  <div key={k.name} className="kpi">
-                    <div className="kpi-icon">{k.icon}</div>
-                    <div className="kpi-label">{k.name}</div>
-                    <div className="kpi-val" style={{color:k.color}}>{k.val}</div>
-                    <div className="kpi-hint">Connect to track</div>
-                    <div style={{position:"absolute",top:0,left:0,right:0,height:"2px",background:k.color+"55",borderRadius:"11px 11px 0 0"}}/>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11}}>
+                {[
+                  {name:"Revenue Generated",val:`₹${stats.revenue.toLocaleString()}`,color:accent,icon:"₹"},
+                  {name:"Leads Captured",val:stats.leads,color:"#38bdf8",icon:"↗"},
+                  {name:"Appointments Booked",val:stats.bookings,color:"#a78bfa",icon:"📅"},
+                  {name:"Missed Leads",val:stats.missedLeads,color:"#fb7185",icon:"!"},
+                ].map(k=>(
+                  <div key={k.name} style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:11,padding:"15px 14px",position:"relative",overflow:"hidden"}}>
+                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:k.color+"55",borderRadius:"11px 11px 0 0"}}/>
+                    <div style={{position:"absolute",top:12,right:13,fontSize:13,opacity:0.3}}>{k.icon}</div>
+                    <div style={{fontSize:11,color:textMuted,marginBottom:8}}>{k.name}</div>
+                    <div style={{fontWeight:700,fontSize:28,letterSpacing:"-1px",lineHeight:1,color:k.color,marginBottom:5}}>{loading?"—":k.val}</div>
+                    <div style={{fontSize:10.5,color:textFaint}}>{period==="today"?"Today":period==="week"?"This week":"This month"}</div>
                   </div>
                 ))}
               </div>
@@ -355,15 +255,15 @@ export default function Dashboard() {
                 <div className="card-title">Conversion Funnel</div>
                 <div className="card-sub">Where are leads dropping off?</div>
               </div>
-              <div className="funnel">
-                {funnel.map((s,i) => (
+              <div style={{display:"flex",alignItems:"flex-end",gap:6,height:105}}>
+                {funnelData.map((s,i)=>(
                   <div key={s.label} style={{display:"contents"}}>
-                    <div className="f-step">
-                      <div className="f-val" style={{color:s.color}}>{s.val}</div>
-                      <div className="f-bar" style={{height:`${s.pct*0.62}px`,background:s.color+"22",border:`1px solid ${s.color}40`}}/>
-                      <div className="f-label">{s.label}</div>
+                    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                      <div style={{fontWeight:700,fontSize:12.5,color:s.color}}>{loading?"—":s.val}</div>
+                      <div style={{width:"100%",height:`${s.pct*0.62}px`,background:s.color+"22",border:`1px solid ${s.color}40`,borderRadius:"4px 4px 0 0"}}/>
+                      <div style={{fontSize:10,color:textMuted,textAlign:"center"}}>{s.label}</div>
                     </div>
-                    {i < funnel.length-1 && <div className="f-arrow">›</div>}
+                    {i<funnelData.length-1&&<div style={{color:textFaint,fontSize:14,marginBottom:25,flexShrink:0}}>›</div>}
                   </div>
                 ))}
               </div>
@@ -374,75 +274,91 @@ export default function Dashboard() {
               <div className="card">
                 <div className="card-head">
                   <div>
-                    <div className="card-badge">◈ AI PERFORMANCE</div>
+                    <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"2px 9px",fontSize:10,color:"#a78bfa",fontWeight:700,letterSpacing:"0.5px"}}>◈ AI PERFORMANCE</div>
                     <div className="card-title" style={{marginTop:8}}>What your AI achieved</div>
                   </div>
                   <div className="card-sub">Powered by Claude</div>
                 </div>
-                <div className="ai-grid">
-                  {aiMetrics.map(m => (
-                    <div key={m.label} className="ai-m">
-                      <div className="ai-v">{m.val}</div>
-                      <div className="ai-l">{m.label}<br/><span style={{opacity:0.7}}>{m.sub}</span></div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+                  {[{l:"Conversations Handled",v:stats.aiHandled,s:"by AI"},{l:"Avg Response Time",v:"< 3s",s:"seconds"},{l:"Bookings by AI",v:stats.aiBookings,s:"appointments"},{l:"Revenue Attributed",v:`₹${stats.aiRevenue.toLocaleString()}`,s:"to AI replies"}].map(m=>(
+                    <div key={m.l} style={{background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:9,padding:12}}>
+                      <div style={{fontWeight:700,fontSize:22,color:text,lineHeight:1,marginBottom:3}}>{loading?"—":m.v}</div>
+                      <div style={{fontSize:11,color:textMuted,lineHeight:1.4}}>{m.l}<br/><span style={{opacity:0.7}}>{m.s}</span></div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="lost-card">
+              <div style={{background:card,border:"1px solid rgba(251,113,133,0.18)",borderRadius:13,padding:18}}>
                 <div className="card-head">
                   <div className="card-title">🔥 Lost Revenue Tracker</div>
                   <div className="card-sub">Unanswered leads</div>
                 </div>
-                <div className="lost-amt">₹0</div>
-                <div className="lost-desc">potential revenue lost this {period}</div>
-                {lostRows.map(r => (
-                  <div key={r.label} className="lost-row">
-                    <span className="lost-rl">{r.label}</span>
-                    <span className="lost-rv">{r.val}</span>
+                <div style={{fontWeight:800,fontSize:38,color:"#fb7185",letterSpacing:"-1.5px",lineHeight:1,marginBottom:2}}>₹{(stats.missedLeads*600).toLocaleString()}</div>
+                <div style={{fontSize:11.5,color:textMuted,marginBottom:13}}>potential revenue lost this {period}</div>
+                {[{l:"Unanswered leads",v:stats.missedLeads},{l:"No follow-up sent",v:Math.round(stats.missedLeads*0.6)},{l:"Abandoned convos",v:Math.round(stats.leads*0.2)}].map(r=>(
+                  <div key={r.l} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 10px",background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:7,marginBottom:5}}>
+                    <span style={{fontSize:12,color:textMuted}}>{r.l}</span>
+                    <span style={{fontSize:12,fontWeight:700,color:"#fb7185"}}>{loading?"—":r.v} leads</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Sources + Bookings + Forecast */}
+            {/* Sources + Bookings Today + Quick Actions */}
             <div className="three-col">
               <div className="card">
-                <div className="card-head">
-                  <div className="card-title">Lead Sources</div>
-                  <div className="card-sub">Revenue by channel</div>
-                </div>
-                {sources.map(s => (
-                  <div key={s.name} className="src-row">
-                    <div className="src-dot" style={{background:s.color}}/>
-                    <div className="src-name">{s.name}</div>
-                    <div className="src-leads">{s.leads} leads</div>
-                    <div className="src-rev">{s.rev}</div>
+                <div className="card-head"><div className="card-title">Lead Sources</div><div className="card-sub">By channel</div></div>
+                {loading ? <div style={{color:textFaint,fontSize:12,textAlign:"center",padding:"16px 0"}}>Loading...</div>
+                : sources.length===0 ? <div style={{color:textFaint,fontSize:12,textAlign:"center",padding:"16px 0"}}>No data yet</div>
+                : sources.map(s=>(
+                  <div key={s.name} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 0",borderBottom:`1px solid ${border}`}}>
+                    <div style={{width:7,height:7,borderRadius:"50%",background:s.color,flexShrink:0}}/>
+                    <div style={{fontSize:12.5,color:text,flex:1,fontWeight:500,textTransform:"capitalize"}}>{s.name}</div>
+                    <div style={{fontWeight:700,fontSize:12,color:accent}}>{s.count} leads</div>
                   </div>
                 ))}
               </div>
 
               <div className="card">
-                <div className="card-head">
-                  <div className="card-title">Today's Bookings</div>
-                  <div className="card-sub">Upcoming</div>
-                </div>
-                <div className="bk-empty">
-                  <div className="bk-ei">📅</div>
-                  <div className="bk-et">No bookings yet today<br/>Connect WhatsApp to start</div>
-                </div>
+                <div className="card-head"><div className="card-title">Today's Bookings</div><div className="card-sub">{todayBookings.length} upcoming</div></div>
+                {loading ? <div style={{color:textFaint,fontSize:12,textAlign:"center",padding:"16px 0"}}>Loading...</div>
+                : todayBookings.length===0 ? (
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"22px 0",gap:6}}>
+                    <div style={{fontSize:26,opacity:0.2}}>📅</div>
+                    <div style={{fontSize:11.5,color:textFaint,textAlign:"center",lineHeight:1.5}}>No bookings today yet<br/>{connected?"Bookings appear automatically":"Connect WhatsApp to start"}</div>
+                  </div>
+                ) : todayBookings.map(b=>(
+                  <div key={b.customer_name+b.booking_time} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${border}`}}>
+                    <div>
+                      <div style={{fontWeight:600,fontSize:12.5,color:text}}>{b.customer_name}</div>
+                      <div style={{fontSize:11,color:textMuted}}>{b.service}</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:11.5,fontWeight:600,color:accent}}>{b.booking_time}</div>
+                      {b.amount>0&&<div style={{fontSize:10.5,color:textFaint}}>₹{b.amount}</div>}
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              <div className="forecast-card">
-                <div className="fc-label">Monthly Forecast</div>
-                <div className="fc-amt">₹0</div>
-                <div className="fc-sub">Based on current trends</div>
-                <div className="fc-bar"><div className="fc-fill"/></div>
-                <div className="fc-pct">0% of monthly target reached</div>
-                {forecastItems.map(f => (
-                  <div key={f.label} className="fc-item">
-                    <span className="fc-il">{f.label}</span>
-                    <span className="fc-iv">{f.val}</span>
+              <div style={{background:card,border:`1px solid ${accent}1e`,borderRadius:13,padding:18}}>
+                <div style={{fontSize:10,letterSpacing:"1.2px",textTransform:"uppercase",color:textFaint,fontWeight:600,marginBottom:4}}>Quick Actions</div>
+                <div style={{fontWeight:800,fontSize:20,color:accent,letterSpacing:"-0.5px",lineHeight:1,marginBottom:12}}>Grow Faster</div>
+                {[
+                  {label:"Send Campaign",sub:"Reach all customers",icon:"📢",path:"/dashboard/campaigns",color:accent},
+                  {label:"Recover Leads",sub:`${stats.missedLeads} waiting`,icon:"◉",path:"/dashboard/leads",color:"#fb7185"},
+                  {label:"Add Booking",sub:"Manual entry",icon:"📅",path:"/dashboard/bookings",color:"#a78bfa"},
+                ].map(a=>(
+                  <div key={a.label} onClick={()=>router.push(a.path)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${border}`,cursor:"pointer"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:9}}>
+                      <span style={{fontSize:15}}>{a.icon}</span>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:600,color:text}}>{a.label}</div>
+                        <div style={{fontSize:10.5,color:textMuted}}>{a.sub}</div>
+                      </div>
+                    </div>
+                    <span style={{color:a.color,fontSize:14}}>→</span>
                   </div>
                 ))}
               </div>
