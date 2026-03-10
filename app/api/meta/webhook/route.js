@@ -44,7 +44,9 @@ export async function POST(req) {
       const timestamp     = new Date(parseInt(message.timestamp) * 1000).toISOString()
       const contact       = contacts.find(c => c.wa_id === fromNumber)
       const contactName   = contact?.profile?.name || "Customer"
-      const formattedPhone = "+" + fromNumber
+      // Normalize phone: always store as digits only (e.g. 919876543210)
+      // This prevents +91 vs 91 mismatches across tables
+      const formattedPhone = fromNumber.replace(/[^0-9]/g, "")
 
       // Extract text from all message types
       let messageText = ""
@@ -250,11 +252,11 @@ export async function POST(req) {
 
 // ─────────────────────────────────────────
 // GENERATE AI REPLY
+// Priority: Sarvam AI → Claude → Smart Fallback
 // ─────────────────────────────────────────
 async function generateAIReply({ customerMessage, knowledge, bizSettings, history, customerName }) {
   const firstName    = customerName?.split(" ")[0] || "there"
 
-  // Pull business name from settings OR knowledge base (set up in Settings page)
   const businessName = bizSettings?.business_name
     || (knowledge?.business_info?.match(/Business:\s*(.+)/)?.[1])
     || "our salon"
@@ -283,15 +285,49 @@ RULES (follow strictly):
 - Address customer as ${firstName} occasionally
 - Respond in ${aiLanguage} (if customer writes in Hindi/Tamil/Telugu, reply in same language)
 - For booking requests: ask service + preferred date + preferred time
-- When customer confirms a booking: say exactly "Great! ✅ I've booked you for [service] on [date] at [time]. See you at ${businessName}! 😊"
-- For pricing questions: give prices directly from the list above
-- For location: share the address${mapsLink ? ` and maps link: ${mapsLink}` : ""}
+- When customer confirms a booking: say "Great! ✅ Booked you for [service] on [date] at [time]. See you at ${businessName}! 😊"
+- For pricing: give prices directly from the list above
+- For location: share address${mapsLink ? ` and maps link: ${mapsLink}` : ""}
 - If customer asks for human/owner: "Of course! I'll notify our team and they'll call you shortly 🙌"
-- Never make up services, prices, or information not listed above
-- If asked something you don't know: "I'll check that and our team will confirm shortly 🙌"
+- Never make up services, prices, or info not listed above
+- If unsure: "I'll check that and our team will confirm shortly 🙌"
 ${greetingStyle ? `\nWhen greeting new customers, use this style: "${greetingStyle}"` : ""}`
 
-  // Try Claude API first
+  // ── 1. Try Sarvam AI (free, great for Indian languages) ──
+  if (process.env.SARVAM_API_KEY) {
+    try {
+      // Build messages in Sarvam format (OpenAI-compatible)
+      const sarvamMessages = [
+        { role: "system", content: systemPrompt },
+        ...history,
+        { role: "user", content: customerMessage }
+      ]
+      const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${process.env.SARVAM_API_KEY}`,
+          "api-subscription-key": process.env.SARVAM_API_KEY,
+        },
+        body: JSON.stringify({
+          model:       "sarvam-m",  // Sarvam's multilingual model
+          messages:    sarvamMessages,
+          max_tokens:  300,
+          temperature: 0.7,
+        }),
+      })
+      const data = await response.json()
+      if (data?.choices?.[0]?.message?.content) {
+        console.log("✅ Sarvam AI replied")
+        return data.choices[0].message.content.trim()
+      }
+      console.error("Sarvam unexpected response:", JSON.stringify(data).substring(0, 200))
+    } catch (err) {
+      console.error("Sarvam API error:", err.message)
+    }
+  }
+
+  // ── 2. Try Claude (if API key set) ──
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -302,7 +338,7 @@ ${greetingStyle ? `\nWhen greeting new customers, use this style: "${greetingSty
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model:      "claude-haiku-20240307", // Fast + cheap for WhatsApp replies
+          model:      "claude-haiku-20240307",
           max_tokens: 300,
           system:     systemPrompt,
           messages:   [...history, { role: "user", content: customerMessage }],
@@ -310,17 +346,17 @@ ${greetingStyle ? `\nWhen greeting new customers, use this style: "${greetingSty
       })
       const data = await response.json()
       if (data?.content?.[0]?.text) {
+        console.log("✅ Claude replied")
         return data.content[0].text.trim()
       }
       console.error("Claude unexpected response:", JSON.stringify(data).substring(0, 200))
     } catch (err) {
       console.error("Claude API error:", err.message)
     }
-  } else {
-    console.warn("⚠️ ANTHROPIC_API_KEY not set — using smart fallback replies")
   }
 
-  // Smart fallback (when no Claude key or Claude fails)
+  // ── 3. Smart keyword fallback ──
+  console.warn("⚠️ No AI key set or both failed — using keyword fallback")
   return smartFallback(customerMessage, businessName, servicesText, firstName, location, mapsLink)
 }
 
