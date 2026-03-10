@@ -99,13 +99,24 @@ export default function Conversations() {
 
   async function loadConvos() {
     setLoading(true)
-    const { data } = await supabase
+    // Load conversations with optional customer join
+    const { data, error } = await supabase
       .from("conversations")
       .select("*, customers(name, phone)")
       .eq("user_id", userId)
       .order("last_message_at", { ascending: false })
-    setConvos(data || [])
-    if (data?.length && !selected) setSelected(data[0])
+
+    if (error) console.error("loadConvos error:", error.message)
+
+    // For any conversation missing customer info, patch display name from phone
+    const enriched = (data || []).map(c => ({
+      ...c,
+      _displayName: c.customers?.name || c.phone || "Unknown",
+      _displayPhone: c.customers?.phone || c.phone || ""
+    }))
+
+    setConvos(enriched)
+    if (enriched.length && !selected) setSelected(enriched[0])
     setLoading(false)
   }
 
@@ -214,49 +225,112 @@ export default function Conversations() {
   async function saveBooking() {
     if (!bookingForm.service || !bookingForm.date) return alert("Service and date are required")
     setSavingBooking(true)
-    const customerName = selected?.customers?.name || selected?.phone || "Customer"
-    const customerPhone = selected?.phone || ""
 
-    const { data, error } = await supabase.from("bookings").insert({
-      user_id:       userId,
-      customer_name: customerName,
-      customer_phone: customerPhone,
-      customer_id:   selected?.customer_id || selected?.customers?.id || null,
-      service:       bookingForm.service,
-      booking_date:  bookingForm.date,
-      booking_time:  bookingForm.time,
-      amount:        parseInt(bookingForm.amount) || 0,
-      staff:         bookingForm.staff,
-      notes:         bookingForm.notes,
-      status:        "confirmed",
-      ai_booked:     false,
-      created_at:    new Date().toISOString()
-    })
+    const customerName  = selected?._displayName || selected?.customers?.name || selected?.phone || "Customer"
+    const customerPhone = selected?.phone || selected?.customers?.phone || ""
+    // Clean phone: remove +, spaces, dashes — WhatsApp needs digits only with country code
+    const phoneForWA = customerPhone.replace(/[^0-9]/g, "")
 
-    if (error) { alert("Booking error: " + error.message); setSavingBooking(false); return }
+    try {
+      // ── Save booking to DB ──
+      const { data: booking, error: bookErr } = await supabase
+        .from("bookings")
+        .insert({
+          user_id:        userId,
+          customer_name:  customerName,
+          customer_phone: customerPhone,
+          customer_id:    selected?.customer_id || selected?.customers?.id || null,
+          service:        bookingForm.service,
+          booking_date:   bookingForm.date,
+          booking_time:   bookingForm.time || null,
+          amount:         parseInt(bookingForm.amount) || 0,
+          staff:          bookingForm.staff || null,
+          notes:          bookingForm.notes || null,
+          status:         "confirmed",
+          ai_booked:      false,
+          created_at:     new Date().toISOString()
+        })
+        .select()
+        .single()
 
-    // Send confirmation on WhatsApp
-    if (waConn) {
-      const confirmMsg = `✅ Booking Confirmed!\n\n📋 ${bookingForm.service}\n📅 ${bookingForm.date}${bookingForm.time ? ` at ${bookingForm.time}` : ""}\n${bookingForm.staff ? `👤 ${bookingForm.staff}\n` : ""}${bookingForm.amount ? `💰 ₹${bookingForm.amount}\n` : ""}\nSee you soon! 😊`
-      const phone = (customerPhone).replace("+","").replace(/\s/g,"")
-      await fetch(`https://graph.facebook.com/v18.0/${waConn.phone_number_id}/messages`, {
-        method:"POST",
-        headers:{"Authorization":`Bearer ${waConn.access_token}`,"Content-Type":"application/json"},
-        body:JSON.stringify({messaging_product:"whatsapp",to:phone,type:"text",text:{body:confirmMsg}})
-      })
-      // Save confirmation to messages
-      const { data: confirmSaved } = await supabase.from("messages").insert({
-        conversation_id: selected.id, customer_phone: customerPhone,
-        direction:"outbound", message_type:"text", message_text:confirmMsg, content:confirmMsg,
-        status:"sent", is_ai:false, user_id:userId, created_at:new Date().toISOString()
-      }).select().single()
-      if (confirmSaved) setMessages(prev => [...prev, confirmSaved])
+      if (bookErr) {
+        console.error("Booking DB error:", bookErr)
+        alert("Could not save booking: " + bookErr.message)
+        setSavingBooking(false)
+        return
+      }
+
+      // ── Build confirmation message ──
+      const confirmMsg = [
+        "✅ *Booking Confirmed!*",
+        "",
+        `📋 Service: ${bookingForm.service}`,
+        `📅 Date: ${bookingForm.date}`,
+        bookingForm.time   ? `⏰ Time: ${bookingForm.time}`   : "",
+        bookingForm.staff  ? `👤 Staff: ${bookingForm.staff}` : "",
+        bookingForm.amount ? `💰 Amount: ₹${bookingForm.amount}` : "",
+        "",
+        `See you soon at ${selected?._displayName ? "" : "our salon"}! 😊`
+      ].filter(Boolean).join("\n")
+
+      // ── Send WhatsApp confirmation ──
+      let whatsappSent = false
+      if (waConn && phoneForWA.length >= 10) {
+        try {
+          const waRes = await fetch(`https://graph.facebook.com/v18.0/${waConn.phone_number_id}/messages`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${waConn.access_token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messaging_product: "whatsapp",
+              to:   phoneForWA,
+              type: "text",
+              text: { body: confirmMsg, preview_url: false }
+            })
+          })
+          const waData = await waRes.json()
+          if (waData.error) {
+            console.error("WA send error:", waData.error.message)
+          } else {
+            whatsappSent = true
+            // Save the confirmation message to the chat
+            const { data: savedMsg } = await supabase.from("messages").insert({
+              conversation_id: selected.id,
+              customer_phone:  customerPhone,
+              direction:       "outbound",
+              message_type:    "text",
+              message_text:    confirmMsg,
+              content:         confirmMsg,
+              status:          "sent",
+              is_ai:           false,
+              user_id:         userId,
+              wa_message_id:   waData?.messages?.[0]?.id || null,
+              created_at:      new Date().toISOString()
+            }).select().single()
+            if (savedMsg) setMessages(prev => [...prev, savedMsg])
+            // Update conversation last message
+            await supabase.from("conversations")
+              .update({ last_message: confirmMsg, last_message_at: new Date().toISOString() })
+              .eq("id", selected.id)
+          }
+        } catch(waErr) {
+          console.error("WA send failed:", waErr.message)
+        }
+      }
+
+      setShowBooking(false)
+      setBookingForm({ service:"", date:"", time:"", amount:"", staff:"", notes:"" })
+      setSavingBooking(false)
+
+      const msg = whatsappSent
+        ? `✅ Booking saved! Confirmation sent to ${customerName} on WhatsApp.`
+        : `✅ Booking saved! (WhatsApp confirmation not sent — check connection)`
+      alert(msg)
+
+    } catch(e) {
+      console.error("saveBooking unexpected error:", e)
+      alert("Something went wrong: " + e.message)
+      setSavingBooking(false)
     }
-
-    setShowBooking(false)
-    setBookingForm({ service:"", date:"", time:"", amount:"", staff:"", notes:"" })
-    setSavingBooking(false)
-    alert(`✅ Booking saved & confirmation sent to ${customerName}!`)
   }
 
   const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
@@ -274,7 +348,13 @@ export default function Conversations() {
   const getInitial = n => (n||"?")[0].toUpperCase()
   const getColor = n => { const c=["#00d084","#38bdf8","#a78bfa","#f59e0b","#fb7185"]; return c[(n||"").charCodeAt(0)%c.length] }
   const formatTime = ts => { if (!ts) return ""; const d=Date.now()-new Date(ts); if (d<3600000) return `${Math.floor(d/60000)}m ago`; if (d<86400000) return `${Math.floor(d/3600000)}h ago`; return new Date(ts).toLocaleDateString() }
-  const getMsgText = m => m.content || m.message_text || ""
+  const getMsgText = m => {
+    const t = (m.content || m.message_text || "").trim()
+    if (t && t !== "[media message]") return t
+    if (t === "[media message]") return "📎 Media"
+    if (m.message_type && m.message_type !== "text") return `📎 ${m.message_type}`
+    return ""
+  }
   const getMsgTime = m => m.created_at ? new Date(m.created_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}) : ""
 
   const filtered = convos.filter(c => {
@@ -398,8 +478,8 @@ export default function Conversations() {
                 {loading ? <div className="empty-state" style={{height:200}}><span style={{fontSize:12}}>Loading...</span></div>
                 : filtered.length===0 ? <div className="empty-state" style={{height:200}}><span style={{fontSize:26}}>💬</span><span style={{fontSize:12}}>No conversations yet</span></div>
                 : filtered.map(c => {
-                  const name = c.customers?.name || c.phone
-                  const color = getColor(name)
+                  const name = c._displayName || c.customers?.name || c.phone
+                  const color = getColor(c._displayName || name)
                   return (
                     <div key={c.id} className={`c-item${selected?.id===c.id?" sel":""}`} onClick={()=>{ setSelected(c); setMessages([]) }}>
                       <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}>
@@ -430,11 +510,11 @@ export default function Conversations() {
                 {/* Chat Header */}
                 <div className="chat-head">
                   <div style={{display:"flex",alignItems:"center",gap:11}}>
-                    <div style={{width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${getColor(selected.customers?.name||selected.phone)}88,${getColor(selected.customers?.name||selected.phone)}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:"#fff"}}>
-                      {getInitial(selected.customers?.name||selected.phone)}
+                    <div style={{width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${getColor(selected._displayName||selected.customers?.name||selected.phone)}88,${getColor(selected._displayName||selected.customers?.name||selected.phone)}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:"#fff"}}>
+                      {getInitial(selected._displayName||selected.customers?.name||selected.phone)}
                     </div>
                     <div>
-                      <div style={{fontWeight:700,fontSize:14,color:text}}>{selected.customers?.name||selected.phone}</div>
+                      <div style={{fontWeight:700,fontSize:14,color:text}}>{selected._displayName||selected.customers?.name||selected.phone}</div>
                       <div style={{fontSize:11,color:textMuted}}>{selected.phone}</div>
                     </div>
                   </div>
@@ -465,15 +545,16 @@ export default function Conversations() {
                     const dir = m.direction || "inbound"
                     const isAI = m.is_ai
                     const bubbleClass = dir==="inbound" ? "inbound" : isAI ? "outbound-ai" : "outbound-human"
-                    const fromLabel = dir==="inbound" ? (selected.customers?.name||selected.phone) : isAI ? "◈ AI" : "👤 You"
+                    const fromLabel = dir==="inbound" ? (selected._displayName||selected.customers?.name||selected.phone) : isAI ? "◈ AI" : "👤 You"
                     const fromColor = dir==="inbound" ? textFaint : isAI ? accent : "#a78bfa"
                     const msgText = getMsgText(m)
-                    if (!msgText) return null
+                    if (!msgText && !m.message_type) return null
+                    const displayText = msgText || `📎 ${m.message_type || 'Media'}`
                     return (
                       <div key={m.id||i} className={`msg-row ${dir}`}>
                         <div style={{maxWidth:"68%"}}>
                           <div className="msg-from" style={{color:fromColor,textAlign:dir==="inbound"?"left":"right"}}>{fromLabel}</div>
-                          <div className={`msg-bubble ${bubbleClass}`}>{msgText}</div>
+                          <div className={`msg-bubble ${bubbleClass}`}>{displayText}</div>
                           <div className="msg-time" style={{textAlign:dir==="inbound"?"left":"right"}}>{getMsgTime(m)}</div>
                         </div>
                       </div>
