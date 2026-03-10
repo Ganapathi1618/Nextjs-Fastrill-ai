@@ -153,6 +153,9 @@ export default function Bookings() {
         .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
         .content{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px;background:${bg};}
         .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:8px;color:${textFaint};}
+        select{color-scheme:dark;background-color:inherit;}
+        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
+        select:focus{outline:none;}
       `}</style>
 
       <div className="wrap">
