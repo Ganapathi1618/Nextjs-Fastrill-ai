@@ -165,6 +165,9 @@ export default function Campaigns() {
         .toggle-pill{width:30px;height:16px;border-radius:100px;background:${dark?accent:"#d1d5db"};position:relative;flex-shrink:0;}
         .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
         .content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};}
+        select{color-scheme:dark;background-color:inherit;}
+        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
+        select:focus{outline:none;}
       `}</style>
 
       <div className="wrap">
