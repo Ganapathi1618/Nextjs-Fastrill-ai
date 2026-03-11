@@ -74,7 +74,7 @@ export default function Conversations() {
             if (prev.find(m => m.id === payload.new.id)) return prev
             return [...prev, payload.new]
           })
-          setConvos(prev => prev.map(c => c.id === selected.id ? { ...c, last_message: payload.new.content || payload.new.message_text, unread_count: 0 } : c))
+          setConvos(prev => prev.map(c => c.id === selected.id ? { ...c, last_message: payload.new.message_text, unread_count: 0 } : c))
         })
       .subscribe()
     return () => supabase.removeChannel(ch)
@@ -203,7 +203,6 @@ export default function Conversations() {
         direction:       "outbound",
         message_type:    "text",
         message_text:    text,
-        content:         text,
         status:          "sent",
         is_ai:           false,
         user_id:         userId,
@@ -293,7 +292,6 @@ export default function Conversations() {
             direction:       "outbound",
             message_type:    "text",
             message_text:    confirmMsg,
-            content:         confirmMsg,
             status:          whatsappSent ? "sent" : "failed",
             is_ai:           false,
             user_id:         userId,
@@ -344,7 +342,7 @@ export default function Conversations() {
   const getColor = n => { const c=["#00d084","#38bdf8","#a78bfa","#f59e0b","#fb7185"]; return c[(n||"").charCodeAt(0)%c.length] }
   const formatTime = ts => { if (!ts) return ""; const d=Date.now()-new Date(ts); if (d<3600000) return `${Math.floor(d/60000)}m ago`; if (d<86400000) return `${Math.floor(d/3600000)}h ago`; return new Date(ts).toLocaleDateString() }
   const getMsgText = m => {
-    const t = (m.content || m.message_text || "").trim()
+    const t = (m.message_text || "").trim()
     if (t && t !== "[media message]") return t
     if (t === "[media message]") return "📎 Media"
     if (m.message_type && m.message_type !== "text") return `📎 ${m.message_type}`
