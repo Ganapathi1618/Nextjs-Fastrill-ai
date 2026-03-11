@@ -121,8 +121,27 @@ export default function Conversations() {
   }
 
   async function loadMessages(convoId, customerPhone) {
-    // Primary: load by conversation_id
-    const { data: byConvoId } = await supabase
+    const { data: byConvoId, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", convoId)
+      .order("created_at", { ascending: true })
+
+    console.log("📨 loadMessages:", convoId, "count:", byConvoId?.length, "error:", error?.message)
+
+    if (error) {
+      console.error("❌ RLS or query error:", error.message)
+      setMessages([])
+      return
+    }
+
+    if (byConvoId && byConvoId.length > 0) {
+      setMessages(byConvoId)
+      return
+    }
+
+    setMessages([])
+  }
       .from("messages")
       .select("*")
       .eq("conversation_id", convoId)
