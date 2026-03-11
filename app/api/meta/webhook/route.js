@@ -151,17 +151,20 @@ export async function POST(req) {
       // ── 4. UPSERT LEAD ──
       if (messageText) {
         if (!existingCustomer && customer) {
-          await supabaseAdmin.from("leads").insert({
-            user_id:userId, customer_id:customer.id, phone:formattedPhone,
-            name:contactName, source:"whatsapp", status:"open",
-            last_message:messageText, last_message_at:timestamp,
-            ai_score:60, estimated_value:600
-          }).catch(e => console.warn("Lead insert warn:", e.message))
+          try {
+            await supabaseAdmin.from("leads").insert({
+              user_id:userId, customer_id:customer.id, phone:formattedPhone,
+              name:contactName, source:"whatsapp", status:"open",
+              last_message:messageText, last_message_at:timestamp,
+              ai_score:60, estimated_value:600
+            })
+          } catch(e) { console.warn("Lead insert warn:", e.message) }
         } else if (existingCustomer) {
-          await supabaseAdmin.from("leads")
-            .update({ last_message:messageText, last_message_at:timestamp })
-            .eq("customer_id", existingCustomer.id).eq("status","open")
-            .catch(() => {})
+          try {
+            await supabaseAdmin.from("leads")
+              .update({ last_message:messageText, last_message_at:timestamp })
+              .eq("customer_id", existingCustomer.id).eq("status","open")
+          } catch(e) { console.warn("Lead update warn:", e.message) }
         }
       }
 
