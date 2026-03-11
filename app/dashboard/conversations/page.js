@@ -285,24 +285,25 @@ export default function Conversations() {
             console.error("WA send error:", waData.error.message)
           } else {
             whatsappSent = true
-            const { data: savedMsg } = await supabase.from("messages").insert({
-              conversation_id: selected.id,
-              customer_phone:  customerPhone,
-              direction:       "outbound",
-              message_type:    "text",
-              message_text:    confirmMsg,
-              content:         confirmMsg,
-              status:          "sent",
-              is_ai:           false,
-              user_id:         userId,
-              wa_message_id:   waData?.messages?.[0]?.id || null,
-              created_at:      new Date().toISOString()
-            }).select().single()
-            if (savedMsg) setMessages(prev => [...prev, savedMsg])
-            await supabase.from("conversations")
-              .update({ last_message: confirmMsg, last_message_at: new Date().toISOString() })
-              .eq("id", selected.id)
           }
+          // Always save confirmation message to DB regardless of WhatsApp status
+          const { data: savedMsg } = await supabase.from("messages").insert({
+            conversation_id: selected.id,
+            customer_phone:  customerPhone,
+            direction:       "outbound",
+            message_type:    "text",
+            message_text:    confirmMsg,
+            content:         confirmMsg,
+            status:          whatsappSent ? "sent" : "failed",
+            is_ai:           false,
+            user_id:         userId,
+            wa_message_id:   waData?.messages?.[0]?.id || null,
+            created_at:      new Date().toISOString()
+          }).select().single()
+          if (savedMsg) setMessages(prev => [...prev, savedMsg])
+          await supabase.from("conversations")
+            .update({ last_message: confirmMsg, last_message_at: new Date().toISOString() })
+            .eq("id", selected.id)
         } catch(waErr) {
           console.error("WA send failed:", waErr.message)
         }
