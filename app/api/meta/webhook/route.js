@@ -23,7 +23,6 @@ export async function POST(req) {
   try {
     const body = await req.json()
 
-    // Status updates (delivered/read) — return ok, don't process
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
     if (statuses && !body?.entry?.[0]?.changes?.[0]?.value?.messages) {
       return NextResponse.json({ status: "status_update" }, { status: 200 })
@@ -44,11 +43,8 @@ export async function POST(req) {
       const timestamp     = new Date(parseInt(message.timestamp) * 1000).toISOString()
       const contact       = contacts.find(c => c.wa_id === fromNumber)
       const contactName   = contact?.profile?.name || "Customer"
-      // Normalize phone: always store as digits only (e.g. 919876543210)
-      // This prevents +91 vs 91 mismatches across tables
       const formattedPhone = fromNumber.replace(/[^0-9]/g, "")
 
-      // Extract text from all message types
       let messageText = ""
       if (messageType === "text")        messageText = message.text?.body || ""
       else if (messageType === "button") messageText = message.button?.text || ""
@@ -59,7 +55,6 @@ export async function POST(req) {
 
       console.log(`📩 [${phoneNumberId}] From ${fromNumber} (${contactName}): "${messageText}"`)
 
-      // ── Find which business owns this WhatsApp number ──
       const { data: connection } = await supabaseAdmin
         .from("whatsapp_connections")
         .select("user_id, access_token")
@@ -103,7 +98,7 @@ export async function POST(req) {
         .select("*")
         .eq("phone", formattedPhone)
         .eq("user_id", userId)
-        .maybeSingle() // Don't filter by status — find ANY conversation for this number
+        .maybeSingle()
 
       if (existingConvo) {
         const { data: updatedConvo } = await supabaseAdmin
@@ -113,7 +108,7 @@ export async function POST(req) {
             last_message_at: timestamp,
             unread_count:    (existingConvo.unread_count || 0) + 1,
             customer_id:     customer?.id || existingConvo.customer_id,
-            status:          "open" // Reopen if it was resolved
+            status:          "open"
           })
           .eq("id", existingConvo.id)
           .select().single()
@@ -136,13 +131,12 @@ export async function POST(req) {
         conversation = newConvo
       }
 
-      // ── 3. SAVE INBOUND MESSAGE ──
+      // ── 3. SAVE INBOUND MESSAGE ── (removed content: column — doesn't exist)
       const { error: msgErr } = await supabaseAdmin.from("messages").insert({
         user_id:         userId,
         phone_number_id: phoneNumberId,
         from_number:     fromNumber,
         message_text:    messageText || "[media message]",
-        content:         messageText || "[media message]",
         direction:       "inbound",
         conversation_id: conversation?.id || null,
         customer_phone:  formattedPhone,
@@ -157,7 +151,6 @@ export async function POST(req) {
       // ── 4. UPSERT LEAD ──
       if (messageText) {
         if (!existingCustomer && customer) {
-          // New customer = new lead
           await supabaseAdmin.from("leads").insert({
             user_id:userId, customer_id:customer.id, phone:formattedPhone,
             name:contactName, source:"whatsapp", status:"open",
@@ -165,7 +158,6 @@ export async function POST(req) {
             ai_score:60, estimated_value:600
           }).catch(e => console.warn("Lead insert warn:", e.message))
         } else if (existingCustomer) {
-          // Update existing open lead
           await supabaseAdmin.from("leads")
             .update({ last_message:messageText, last_message_at:timestamp })
             .eq("customer_id", existingCustomer.id).eq("status","open")
@@ -179,7 +171,6 @@ export async function POST(req) {
         continue
       }
 
-      // Skip AI for non-text messages
       if (!messageText) {
         console.log("Non-text message — skipping AI reply")
         continue
@@ -189,7 +180,7 @@ export async function POST(req) {
       const [{ data: knowledgeRows }, { data: bizSettings }, { data: history }] = await Promise.all([
         supabaseAdmin.from("business_knowledge").select("category,content").eq("user_id", userId),
         supabaseAdmin.from("business_settings").select("*").eq("user_id", userId).maybeSingle(),
-        supabaseAdmin.from("messages").select("content,message_text,direction,is_ai")
+        supabaseAdmin.from("messages").select("message_text,direction,is_ai")
           .eq("conversation_id", conversation?.id)
           .order("created_at", { ascending: false })
           .limit(10)
@@ -198,9 +189,10 @@ export async function POST(req) {
       const knowledge = {}
       ;(knowledgeRows || []).forEach(r => { knowledge[r.category] = r.content })
 
+      // Fix: use only message_text (no content column)
       const conversationHistory = (history || []).reverse().map(m => ({
         role:    m.direction === "inbound" ? "user" : "assistant",
-        content: (m.content || m.message_text || "").trim()
+        content: (m.message_text || "").trim()
       })).filter(m => m.content)
 
       // ── 7. GENERATE AI REPLY ──
@@ -220,13 +212,12 @@ export async function POST(req) {
       })
       console.log("📤 Sent reply:", aiReply.substring(0, 80))
 
-      // ── 9. SAVE OUTBOUND MESSAGE ──
+      // ── 9. SAVE OUTBOUND MESSAGE ── (removed content: column — doesn't exist)
       await supabaseAdmin.from("messages").insert({
         user_id:         userId,
         phone_number_id: phoneNumberId,
         from_number:     phoneNumberId,
         message_text:    aiReply,
-        content:         aiReply,
         direction:       "outbound",
         conversation_id: conversation?.id || null,
         customer_phone:  formattedPhone,
@@ -237,7 +228,7 @@ export async function POST(req) {
         created_at:      new Date().toISOString()
       })
 
-      // ── 10. UPDATE CONVERSATION with last AI reply ──
+      // ── 10. UPDATE CONVERSATION ──
       await supabaseAdmin.from("conversations")
         .update({ last_message:aiReply, last_message_at:new Date().toISOString() })
         .eq("id", conversation?.id)
@@ -250,17 +241,9 @@ export async function POST(req) {
   }
 }
 
-// ─────────────────────────────────────────
-// GENERATE AI REPLY
-// Priority: Sarvam AI → Claude → Smart Fallback
-// ─────────────────────────────────────────
 async function generateAIReply({ customerMessage, knowledge, bizSettings, history, customerName }) {
   const firstName    = customerName?.split(" ")[0] || "there"
-
-  const businessName = bizSettings?.business_name
-    || (knowledge?.business_info?.match(/Business:\s*(.+)/)?.[1])
-    || "our salon"
-
+  const businessName = bizSettings?.business_name || (knowledge?.business_info?.match(/Business:\s*(.+)/)?.[1]) || "our salon"
   const businessType   = bizSettings?.business_type || "salon"
   const location       = bizSettings?.location || (knowledge?.business_info?.match(/Location:\s*(.+)/)?.[1]) || ""
   const mapsLink       = bizSettings?.maps_link || (knowledge?.business_info?.match(/Maps:\s*(.+)/)?.[1]) || ""
@@ -293,7 +276,7 @@ RULES (follow strictly):
 - If unsure: "I'll check that and our team will confirm shortly 🙌"
 ${greetingStyle ? `\nWhen greeting new customers, use this style: "${greetingStyle}"` : ""}`
 
-  // ── 1. Try Sarvam AI (free, great for Indian languages) ──
+  // ── 1. Try Sarvam AI ──
   if (process.env.SARVAM_API_KEY) {
     try {
       console.log("🔄 Trying Sarvam AI...")
@@ -304,30 +287,16 @@ ${greetingStyle ? `\nWhen greeting new customers, use this style: "${greetingSty
       ]
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method: "POST",
-        headers: {
-          "Content-Type":         "application/json",
-          "api-subscription-key": process.env.SARVAM_API_KEY,
-        },
-        body: JSON.stringify({
-          model:       "sarvam-m",
-          messages:    sarvamMessages,
-          max_tokens:  300,
-          temperature: 0.7,
-        }),
+        headers: { "Content-Type": "application/json", "api-subscription-key": process.env.SARVAM_API_KEY },
+        body: JSON.stringify({ model: "sarvam-m", messages: sarvamMessages, max_tokens: 300, temperature: 0.7 }),
       })
       const raw = await response.text()
-      console.log("Sarvam raw response:", raw.substring(0, 300))
       const data = JSON.parse(raw)
       if (data?.choices?.[0]?.message?.content) {
         let reply = data.choices[0].message.content.trim()
-        // sarvam-m is a reasoning model — strip <think>...</think> block
         reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, "").trim()
-        // Also handle unclosed <think> tag (model cut off mid-think)
         reply = reply.replace(/<think>[\s\S]*/gi, "").trim()
-        // If nothing left after stripping, fall through to next AI
-        if (!reply) {
-          console.warn("Sarvam reply was only thinking, no actual response")
-        } else {
+        if (reply) {
           console.log("✅ Sarvam replied:", reply.substring(0, 80))
           return reply
         }
@@ -336,106 +305,68 @@ ${greetingStyle ? `\nWhen greeting new customers, use this style: "${greetingSty
     } catch (err) {
       console.error("Sarvam API error:", err.message)
     }
-  } else {
-    console.warn("⚠️ SARVAM_API_KEY not set in environment variables")
   }
 
-  // ── 2. Try Claude (if API key set) ──
+  // ── 2. Try Claude ──
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: {
-          "Content-Type":      "application/json",
-          "x-api-key":         process.env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model:      "claude-haiku-20240307",
-          max_tokens: 300,
-          system:     systemPrompt,
-          messages:   [...history, { role: "user", content: customerMessage }],
-        }),
+        headers: { "Content-Type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({ model: "claude-haiku-20240307", max_tokens: 300, system: systemPrompt, messages: [...history, { role: "user", content: customerMessage }] }),
       })
       const data = await response.json()
       if (data?.content?.[0]?.text) {
         console.log("✅ Claude replied")
         return data.content[0].text.trim()
       }
-      console.error("Claude unexpected response:", JSON.stringify(data).substring(0, 200))
     } catch (err) {
       console.error("Claude API error:", err.message)
     }
   }
 
-  // ── 3. Smart keyword fallback ──
-  console.warn("⚠️ No AI key set or both failed — using keyword fallback")
+  // ── 3. Smart fallback ──
   return smartFallback(customerMessage, businessName, servicesText, firstName, location, mapsLink)
 }
 
-// ─────────────────────────────────────────
-// SMART FALLBACK REPLIES
-// ─────────────────────────────────────────
 function smartFallback(msg, businessName, servicesText, firstName, location, mapsLink) {
   const m = msg.toLowerCase().trim()
-
-  // Greeting
   if (m.match(/^(hi|hello|hey|hii|helo|hai|hiya|gm|good morning|good afternoon|good evening|namaste|नमस्ते)[\s!.]*$/)) {
     return `Hi ${firstName}! 👋 Welcome to ${businessName}!\n\nHow can I help you today? 😊\n✂️ Book appointment\n💰 Prices & services\n📍 Location & timings`
   }
-  // Booking intent
   if (m.includes("book") || m.includes("appointment") || m.includes("slot") || m.includes("availab") || m.includes("schedule")) {
     return `I'd love to help you book! 📅\n\nWhich service are you looking for, and what date & time works best for you?`
   }
-  // Price inquiry
   if (m.includes("price") || m.includes("cost") || m.includes("rate") || m.includes("how much") || m.includes("charges") || m.includes("kitna")) {
     if (servicesText) return `Here are our services & prices 💰\n\n${servicesText}\n\nWant to book? Just let me know! 😊`
     return `I'll have our team share the latest prices with you right away 🙌`
   }
-  // Timings
   if (m.includes("time") || m.includes("open") || m.includes("hours") || m.includes("timing") || m.includes("close") || m.includes("kab")) {
     return `We're open Monday–Saturday, 9 AM to 7 PM 🕐\n\nWould you like to book a slot?`
   }
-  // Location
   if (m.includes("location") || m.includes("address") || m.includes("where") || m.includes("kahan") || m.includes("direction")) {
     if (location && mapsLink) return `📍 We're at ${location}\n\nGoogle Maps: ${mapsLink}\n\nSee you soon! 😊`
     if (location) return `📍 We're at ${location}\n\nWould you like to book an appointment?`
     return `I'll share our location with you shortly! Our team will send the address 📍`
   }
-  // Cancel/reschedule
   if (m.includes("cancel") || m.includes("reschedule") || m.includes("change appointment")) {
     return `No problem! I'll note your request 🙌\n\nOur team will reach out to reschedule your appointment. What date works better for you?`
   }
-  // Thanks/confirmation
   if (m.match(/(thank|thanks|ok|okay|great|perfect|good|noted|sure|done|alright|thx|👍)/)) {
     return `You're most welcome! 😊\n\nLooking forward to seeing you at ${businessName}! Let us know if you need anything else 🙌`
   }
-  // Human request
   if (m.includes("speak") || m.includes("human") || m.includes("owner") || m.includes("manager") || m.includes("call me")) {
     return `Of course! 🙌 I'll notify our team right away and someone will reach out to you shortly.\n\nThank you for your patience! 😊`
   }
-
-  // Default
   return `Thanks for reaching out to ${businessName}! 😊\n\nHow can I help you today? You can ask about:\n✂️ Services & prices\n📅 Book appointment\n📍 Our location`
 }
 
-// ─────────────────────────────────────────
-// SEND WHATSAPP MESSAGE
-// ─────────────────────────────────────────
 async function sendWhatsAppMessage({ phoneNumberId, accessToken, toNumber, message }) {
   try {
     const res = await fetch(`https://graph.facebook.com/v18.0/${phoneNumberId}/messages`, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type":  "application/json"
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to:   toNumber,
-        type: "text",
-        text: { body: message, preview_url: false }
-      })
+      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to: toNumber, type: "text", text: { body: message, preview_url: false } })
     })
     const data = await res.json()
     if (data.error) console.error("❌ WhatsApp send error:", data.error)
