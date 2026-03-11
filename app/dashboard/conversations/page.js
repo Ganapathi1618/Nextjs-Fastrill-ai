@@ -267,6 +267,7 @@ export default function Conversations() {
       ].filter(Boolean).join("\n")
 
       let whatsappSent = false
+      // Try to send via WhatsApp
       if (waConn && phoneForWA.length >= 10) {
         try {
           const waRes = await fetch(`https://graph.facebook.com/v18.0/${waConn.phone_number_id}/messages`, {
@@ -280,32 +281,30 @@ export default function Conversations() {
             })
           })
           const waData = await waRes.json()
-          if (waData.error) {
-            console.error("WA send error:", waData.error.message)
-          } else {
-            whatsappSent = true
-          }
-          // Always save confirmation message to DB regardless of WhatsApp status
-          const { data: savedMsg } = await supabase.from("messages").insert({
-            conversation_id: selected.id,
-            customer_phone:  customerPhone,
-            direction:       "outbound",
-            message_type:    "text",
-            message_text:    confirmMsg,
-            status:          whatsappSent ? "sent" : "failed",
-            is_ai:           false,
-            user_id:         userId,
-            wa_message_id:   waData?.messages?.[0]?.id || null,
-            created_at:      new Date().toISOString()
-          }).select().single()
-          if (savedMsg) setMessages(prev => [...prev, savedMsg])
-          await supabase.from("conversations")
-            .update({ last_message: confirmMsg, last_message_at: new Date().toISOString() })
-            .eq("id", selected.id)
+          if (!waData.error) whatsappSent = true
+          else console.error("WA send error:", waData.error.message)
         } catch(waErr) {
           console.error("WA send failed:", waErr.message)
         }
       }
+
+      // ALWAYS save confirmation message to DB (regardless of WhatsApp)
+      const { data: savedMsg, error: msgSaveErr } = await supabase.from("messages").insert({
+        conversation_id: selected.id,
+        customer_phone:  customerPhone,
+        direction:       "outbound",
+        message_type:    "text",
+        message_text:    confirmMsg,
+        status:          whatsappSent ? "sent" : "saved",
+        is_ai:           false,
+        user_id:         userId,
+        created_at:      new Date().toISOString()
+      }).select().single()
+      console.log("💾 Booking msg save:", savedMsg?.id, "error:", msgSaveErr?.message)
+      if (savedMsg) setMessages(prev => [...prev, savedMsg])
+      await supabase.from("conversations")
+        .update({ last_message: confirmMsg, last_message_at: new Date().toISOString() })
+        .eq("id", selected.id)
 
       setShowBooking(false)
       setBookingForm({ service:"", date:"", time:"", amount:"", staff:"", notes:"" })
