@@ -54,7 +54,6 @@ export default function Conversations() {
     loadWaConn()
     loadServices()
 
-    // Real-time: new conversations or updates
     const ch = supabase.channel("convos-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations", filter: `user_id=eq.${userId}` },
         () => loadConvos())
@@ -66,19 +65,15 @@ export default function Conversations() {
     if (!selected?.id) return
     loadMessages(selected.id, selected.phone)
 
-    // Mark as read
     supabase.from("conversations").update({ unread_count: 0 }).eq("id", selected.id)
 
-    // Real-time messages for this conversation
     const ch = supabase.channel("msgs-" + selected.id)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${selected.id}` },
         (payload) => {
           setMessages(prev => {
-            // avoid duplicates
             if (prev.find(m => m.id === payload.new.id)) return prev
             return [...prev, payload.new]
           })
-          // Update convo list last message
           setConvos(prev => prev.map(c => c.id === selected.id ? { ...c, last_message: payload.new.content || payload.new.message_text, unread_count: 0 } : c))
         })
       .subscribe()
@@ -99,7 +94,6 @@ export default function Conversations() {
 
   async function loadConvos() {
     setLoading(true)
-    // Load conversations with optional customer join
     const { data, error } = await supabase
       .from("conversations")
       .select("*, customers(name, phone)")
@@ -108,7 +102,6 @@ export default function Conversations() {
 
     if (error) console.error("loadConvos error:", error.message)
 
-    // For any conversation missing customer info, patch display name from phone
     const enriched = (data || []).map(c => ({
       ...c,
       _displayName: c.customers?.name || c.phone || "Unknown",
@@ -121,16 +114,19 @@ export default function Conversations() {
   }
 
   async function loadMessages(convoId, customerPhone) {
+    console.log("📨 loadMessages called:", convoId, customerPhone)
+
+    // Primary: load by conversation_id
     const { data: byConvoId, error } = await supabase
       .from("messages")
       .select("*")
       .eq("conversation_id", convoId)
       .order("created_at", { ascending: true })
 
-    console.log("📨 loadMessages:", convoId, "count:", byConvoId?.length, "error:", error?.message)
+    console.log("📨 result count:", byConvoId?.length, "error:", error?.message)
 
     if (error) {
-      console.error("❌ RLS or query error:", error.message)
+      console.error("❌ messages query error:", error.message)
       setMessages([])
       return
     }
@@ -140,48 +136,15 @@ export default function Conversations() {
       return
     }
 
-    setMessages([])
-  }
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", convoId)
-      .order("created_at", { ascending: true })
-
-    if (byConvoId && byConvoId.length > 0) {
-      // Also fix any messages saved with null conversation_id for this phone
-      if (customerPhone) {
-        const { data: orphaned } = await supabase
-          .from("messages")
-          .select("*")
-          .eq("customer_phone", customerPhone)
-          .is("conversation_id", null)
-          .eq("user_id", userId)
-          .order("created_at", { ascending: true })
-        if (orphaned?.length) {
-          // Backfill conversation_id on orphaned messages
-          const ids = orphaned.map(m => m.id)
-          await supabase.from("messages").update({ conversation_id: convoId }).in("id", ids)
-          // Merge and sort all messages
-          const all = [...byConvoId, ...orphaned].sort((a,b) => new Date(a.created_at) - new Date(b.created_at))
-          const unique = all.filter((m,i,arr) => arr.findIndex(x=>x.id===m.id)===i)
-          setMessages(unique)
-          return
-        }
-      }
-      setMessages(byConvoId)
-      return
-    }
-
-    // Fallback: load by customer_phone — try multiple formats
+    // Fallback: load by customer_phone (multiple formats)
     if (customerPhone) {
-      // Generate all phone variants to search for
       const digits = customerPhone.replace(/[^0-9]/g, "")
       const variants = [...new Set([
-        customerPhone,           // original: +919876543210
-        digits,                  // digits only: 919876543210
-        "+" + digits,            // with plus: +919876543210
-        digits.slice(-10),       // last 10: 9876543210
-        "91" + digits.slice(-10) // with country: 919876543210
+        customerPhone,
+        digits,
+        "+" + digits,
+        digits.slice(-10),
+        "91" + digits.slice(-10)
       ])]
 
       let byPhone = []
@@ -196,13 +159,15 @@ export default function Conversations() {
       }
 
       if (byPhone.length) {
-        // Backfill conversation_id so this never happens again
+        // Backfill conversation_id
         const ids = byPhone.map(m => m.id)
         await supabase.from("messages").update({ conversation_id: convoId }).in("id", ids)
         setMessages(byPhone)
         return
       }
     }
+
+    console.warn("⚠️ No messages found for convoId:", convoId)
     setMessages([])
   }
 
@@ -224,7 +189,6 @@ export default function Conversations() {
     const phone = (selected.phone || selected.customers?.phone || "").replace("+","").replace(/\s/g,"")
 
     try {
-      // Send via WhatsApp
       const res = await fetch(`https://graph.facebook.com/v18.0/${waConn.phone_number_id}/messages`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${waConn.access_token}`, "Content-Type": "application/json" },
@@ -233,7 +197,6 @@ export default function Conversations() {
       const waData = await res.json()
       if (waData.error) { alert("WhatsApp error: " + waData.error.message); setSending(false); return }
 
-      // Save to DB
       const { data: savedMsg } = await supabase.from("messages").insert({
         conversation_id: selected.id,
         customer_phone:  selected.phone,
@@ -262,11 +225,9 @@ export default function Conversations() {
 
     const customerName  = selected?._displayName || selected?.customers?.name || selected?.phone || "Customer"
     const customerPhone = selected?.phone || selected?.customers?.phone || ""
-    // Clean phone: remove +, spaces, dashes — WhatsApp needs digits only with country code
     const phoneForWA = customerPhone.replace(/[^0-9]/g, "")
 
     try {
-      // ── Save booking to DB ──
       const { data: booking, error: bookErr } = await supabase
         .from("bookings")
         .insert({
@@ -294,7 +255,6 @@ export default function Conversations() {
         return
       }
 
-      // ── Build confirmation message ──
       const confirmMsg = [
         "✅ *Booking Confirmed!*",
         "",
@@ -307,7 +267,6 @@ export default function Conversations() {
         `See you soon at ${selected?._displayName ? "" : "our salon"}! 😊`
       ].filter(Boolean).join("\n")
 
-      // ── Send WhatsApp confirmation ──
       let whatsappSent = false
       if (waConn && phoneForWA.length >= 10) {
         try {
@@ -326,7 +285,6 @@ export default function Conversations() {
             console.error("WA send error:", waData.error.message)
           } else {
             whatsappSent = true
-            // Save the confirmation message to the chat
             const { data: savedMsg } = await supabase.from("messages").insert({
               conversation_id: selected.id,
               customer_phone:  customerPhone,
@@ -341,7 +299,6 @@ export default function Conversations() {
               created_at:      new Date().toISOString()
             }).select().single()
             if (savedMsg) setMessages(prev => [...prev, savedMsg])
-            // Update conversation last message
             await supabase.from("conversations")
               .update({ last_message: confirmMsg, last_message_at: new Date().toISOString() })
               .eq("id", selected.id)
@@ -493,7 +450,6 @@ export default function Conversations() {
           </div>
 
           <div className="inbox-wrap">
-            {/* Conversation List */}
             <div className="clist">
               <div className="clist-top">
                 <div className="search-box">
@@ -538,10 +494,8 @@ export default function Conversations() {
               </div>
             </div>
 
-            {/* Chat Panel */}
             {selected ? (
               <div className="chat-area">
-                {/* Chat Header */}
                 <div className="chat-head">
                   <div style={{display:"flex",alignItems:"center",gap:11}}>
                     <div style={{width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${getColor(selected._displayName||selected.customers?.name||selected.phone)}88,${getColor(selected._displayName||selected.customers?.name||selected.phone)}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:"#fff"}}>
@@ -553,12 +507,10 @@ export default function Conversations() {
                     </div>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    {/* Book button */}
                     <button onClick={()=>setShowBooking(true)}
                       style={{display:"flex",alignItems:"center",gap:5,background:accentDim,border:`1px solid ${accent}44`,borderRadius:8,padding:"6px 12px",fontWeight:700,fontSize:12,color:accent,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                       📅 Book
                     </button>
-                    {/* AI Toggle */}
                     <div style={{display:"flex",alignItems:"center",gap:7,fontSize:12,fontWeight:600,color:textMuted}}>
                       <span>AI</span>
                       <button
@@ -571,7 +523,6 @@ export default function Conversations() {
                   </div>
                 </div>
 
-                {/* Messages */}
                 <div className="chat-msgs">
                   {messages.length===0 ? (
                     <div className="empty-state"><span style={{fontSize:22}}>💬</span><span style={{fontSize:12}}>No messages yet</span></div>
@@ -597,7 +548,6 @@ export default function Conversations() {
                   <div ref={msgsEndRef}/>
                 </div>
 
-                {/* Input */}
                 <div className="chat-input">
                   {selected.ai_enabled ? (
                     <div className="ai-note">◈ AI is handling this conversation — toggle AI OFF to send manually</div>
@@ -622,7 +572,6 @@ export default function Conversations() {
         </div>
       </div>
 
-      {/* ── BOOKING MODAL ── */}
       {showBooking && selected && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20}}>
           <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:16,padding:28,width:"100%",maxWidth:440,display:"flex",flexDirection:"column",gap:14}}>
