@@ -313,6 +313,9 @@ export default function Conversations() {
       setBookingForm({ service:"", date:"", time:"", amount:"", staff:"", notes:"" })
       setSavingBooking(false)
 
+      // Force reload messages to show booking confirmation
+      await loadMessages(selected.id, selected.phone)
+
       const msg = whatsappSent
         ? `✅ Booking saved! Confirmation sent to ${customerName} on WhatsApp.`
         : `✅ Booking saved! (WhatsApp confirmation not sent — check connection)`
