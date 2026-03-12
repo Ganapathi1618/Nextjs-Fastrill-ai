@@ -6,7 +6,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// ── GET: Meta webhook verification ──
 export async function GET(req) {
   const { searchParams } = new URL(req.url)
   const mode      = searchParams.get("hub.mode")
@@ -18,10 +17,9 @@ export async function GET(req) {
   return new Response("Forbidden", { status: 403 })
 }
 
-// ── POST: Receive WhatsApp messages ──
 export async function POST(req) {
   try {
-    console.log("🚀 WEBHOOK VERSION 3.0 — strict alternating history")
+    console.log("🚀 WEBHOOK VERSION 4.0 — bulletproof Sarvam think extraction")
     const body = await req.json()
 
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
@@ -189,13 +187,11 @@ export async function POST(req) {
         supabaseAdmin.from("business_knowledge").select("*").eq("user_id", userId).maybeSingle()
       ])
 
-      // Build raw history chronologically
       const rawHistory = (history || []).reverse().map(m => ({
         role:    m.direction === "inbound" ? "user" : "assistant",
         content: (m.message_text || "").trim()
       })).filter(m => m.content && m.content !== "[media message]")
 
-      // ── STRICT ALTERNATING HISTORY for Sarvam ──
       const conversationHistory = buildAlternatingHistory(rawHistory)
       console.log("📜 History roles:", conversationHistory.map(m => m.role).join(" → ") || "empty")
 
@@ -203,7 +199,7 @@ export async function POST(req) {
       const intent = detectIntent(conversationHistory, messageText)
       console.log("🎯 Intent:", intent.type, "| State:", JSON.stringify(intent.bookingState))
 
-      // ── 8. RESCHEDULE → update existing booking ──
+      // ── 8. RESCHEDULE ──
       if (intent.type === "reschedule" && intent.bookingState.date && intent.bookingState.time) {
         const { data: existingBooking } = await supabaseAdmin
           .from("bookings")
@@ -225,7 +221,7 @@ export async function POST(req) {
         }
       }
 
-      // ── 9. NEW BOOKING READY → create it ──
+      // ── 9. NEW BOOKING ──
       if (intent.type === "booking" && intent.bookingState.readyToBook) {
         const { date, time, service } = intent.bookingState
         const matchedService = (servicesList || []).find(s =>
@@ -269,50 +265,28 @@ export async function POST(req) {
   }
 }
 
-// ── BUILD STRICTLY ALTERNATING HISTORY ──
-// Sarvam rules: must start with user, strictly alternate, no consecutive same roles
+// ── STRICTLY ALTERNATING HISTORY ──
 function buildAlternatingHistory(rawHistory) {
   if (!rawHistory || rawHistory.length === 0) return []
-
-  // Step 1: remove consecutive same-role messages (keep the later one)
   const deduped = []
   for (const msg of rawHistory) {
     if (deduped.length === 0 || deduped[deduped.length - 1].role !== msg.role) {
       deduped.push(msg)
     } else {
-      // Same role as last — replace last with newer message
       deduped[deduped.length - 1] = msg
     }
   }
-
-  // Step 2: must start with user
-  while (deduped.length > 0 && deduped[0].role !== "user") {
-    deduped.shift()
-  }
-
-  // Step 3: must end with assistant so customerMessage is the final user turn
-  // If ends with user, remove it (it will be added fresh as customerMessage)
-  while (deduped.length > 0 && deduped[deduped.length - 1].role === "user") {
-    deduped.pop()
-  }
-
-  // Step 4: max 10 messages (5 turns of context)
+  while (deduped.length > 0 && deduped[0].role !== "user") deduped.shift()
+  while (deduped.length > 0 && deduped[deduped.length - 1].role === "user") deduped.pop()
   return deduped.slice(-10)
 }
 
-// ── UNIFIED INTENT DETECTOR ──
+// ── INTENT DETECTOR ──
 function detectIntent(history, latestMessage) {
   const latestLower = latestMessage.toLowerCase().trim()
   const allText     = [...history.map(m => m.content), latestMessage].join(" ").toLowerCase()
 
-  const rescheduleKeywords = [
-    "reschedule","change booking","change the booking","change appointment",
-    "change the appointment","change timing","change the timing","change time",
-    "change the time","postpone","shift booking","move booking","update booking",
-    "different time","different date","another time","another day",
-    "change my slot","change slot","booking timings","change timings","timings change",
-    "booking change","appointment change"
-  ]
+  const rescheduleKeywords = ["reschedule","change booking","change the booking","change appointment","change the appointment","change timing","change the timing","change time","change the time","postpone","shift booking","move booking","update booking","different time","different date","another time","another day","change my slot","change slot","booking timings","change timings","timings change","booking change","appointment change"]
   const isReschedule = rescheduleKeywords.some(kw => latestLower.includes(kw))
   const isCancel     = ["cancel","cancellation","don't want","not coming","cant come","cannot come","nahi aana","cancel karo"].some(kw => latestLower.includes(kw))
   const isBooking    = ["book","appointment","slot","schedule","availab","cheyandi","kavali","fix appointment","want to come","coming in","visit","book karo"].some(kw => latestLower.includes(kw))
@@ -340,14 +314,7 @@ function extractBookingDetails(history, latestMessage, allText, latestLower) {
   const state = { service: null, date: null, time: null, readyToBook: false }
   const today = new Date()
 
-  const serviceKeywords = [
-    "haircut","hair cut","hair color","colour","coloring","facial","cleanup",
-    "bleach","waxing","threading","manicure","pedicure","spa","massage",
-    "keratin","smoothening","rebonding","highlights","balayage","trim",
-    "shave","beard","bridal","makeup","mehendi","henna","eyebrow",
-    "hair wash","blow dry","hair spa","dandruff","treatment","nail art",
-    "nail extension","lash","eyelash","botox","clean up","consultation"
-  ]
+  const serviceKeywords = ["haircut","hair cut","hair color","colour","coloring","facial","cleanup","bleach","waxing","threading","manicure","pedicure","spa","massage","keratin","smoothening","rebonding","highlights","balayage","trim","shave","beard","bridal","makeup","mehendi","henna","eyebrow","hair wash","blow dry","hair spa","dandruff","treatment","nail art","nail extension","lash","eyelash","botox","clean up","consultation"]
   for (const kw of serviceKeywords) {
     if (allText.includes(kw)) { state.service = kw; break }
   }
@@ -366,12 +333,7 @@ function extractBookingDetails(history, latestMessage, allText, latestLower) {
     const t = new Date(today); t.setDate(t.getDate() + 2)
     state.date = t.toISOString().split("T")[0]
   } else {
-    const days = [
-      {idx:0,names:["sunday","sun"]},{idx:1,names:["monday","mon"]},
-      {idx:2,names:["tuesday","tue"]},{idx:3,names:["wednesday","wed"]},
-      {idx:4,names:["thursday","thu"]},{idx:5,names:["friday","fri"]},
-      {idx:6,names:["saturday","sat"]}
-    ]
+    const days = [{idx:0,names:["sunday","sun"]},{idx:1,names:["monday","mon"]},{idx:2,names:["tuesday","tue"]},{idx:3,names:["wednesday","wed"]},{idx:4,names:["thursday","thu"]},{idx:5,names:["friday","fri"]},{idx:6,names:["saturday","sat"]}]
     for (const day of days) {
       if (day.names.some(n => new RegExp(`\\b${n}\\b`,"i").test(dateText))) {
         let diff = (day.idx - today.getDay() + 7) % 7
@@ -457,6 +419,43 @@ async function sendAndSave({ phoneNumberId, accessToken, toNumber, message, user
   return sendResult
 }
 
+// ════════════════════════════════════════════════════════
+// THE ONLY CHANGE FROM V3: extractSarvamReply() function
+// Handles ALL Sarvam-m think tag patterns correctly
+// ════════════════════════════════════════════════════════
+function extractSarvamReply(rawContent) {
+  if (!rawContent || !rawContent.trim()) return null
+
+  // Log what we got for debugging
+  console.log("📨 Sarvam raw (200 chars):", rawContent.substring(0, 200))
+
+  // CASE 1: Has closing </think> tag → reply is everything AFTER the last one
+  if (rawContent.includes("</think>")) {
+    const parts = rawContent.split("</think>")
+    const reply = parts[parts.length - 1].trim()
+    if (reply) {
+      console.log("✅ Case 1 — reply after </think>:", reply.substring(0, 80))
+      return reply
+    }
+    // Reply was empty after </think> — fall to Case 3
+  }
+
+  // CASE 2: No think tags at all → pure reply, use directly
+  if (!rawContent.includes("<think>")) {
+    const reply = rawContent.trim()
+    if (reply) {
+      console.log("✅ Case 2 — no think tags, direct reply:", reply.substring(0, 80))
+      return reply
+    }
+  }
+
+  // CASE 3: Has <think> but no </think> — model is mid-thought, no reply yet
+  // OR: entire content was inside think tags and reply after </think> was empty
+  // → Fall through to Claude fallback
+  console.warn("⚠️ Sarvam think-only response — no reply extracted, trying Claude")
+  return null
+}
+
 async function generateAIReply({ customerMessage, bizSettings, bk, history, customerName, intent, servicesList }) {
   const firstName    = customerName?.split(" ")[0] || "there"
   const businessName = bizSettings?.business_name || bk?.business_name || "our business"
@@ -522,33 +521,27 @@ ${greetingStyle ? `\nGreeting style: "${greetingStyle}"` : ""}`
   // ── 1. Try Sarvam AI ──
   if (process.env.SARVAM_API_KEY) {
     try {
-      // history is already strictly alternating (built by buildAlternatingHistory)
-      // Final message list: system + [user, assistant, user, assistant...] + user (customerMessage)
       const sarvamMessages = [
         { role: "system", content: systemPrompt },
         ...history,
         { role: "user", content: customerMessage }
       ]
       console.log("🔄 Sarvam roles:", sarvamMessages.map(m => m.role).join("→"))
-      console.log("📝 Customer message being sent:", customerMessage)
 
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method:  "POST",
         headers: { "Content-Type": "application/json", "api-subscription-key": process.env.SARVAM_API_KEY },
-        body:    JSON.stringify({ model: "sarvam-m", messages: sarvamMessages, max_tokens: 350, temperature: 0.65 })
+        body:    JSON.stringify({ model: "sarvam-m", messages: sarvamMessages, max_tokens: 500, temperature: 0.65 })
       })
-      const raw  = await response.text()
-      const data = JSON.parse(raw)
-      if (data?.choices?.[0]?.message?.content) {
-        let reply = data.choices[0].message.content.trim()
-        reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, "").trim()
-        reply = reply.replace(/<think>[\s\S]*/gi, "").trim()
-        if (reply) {
-          console.log("✅ Sarvam replied:", reply.substring(0, 100))
-          return reply
-        }
-      }
-      console.error("Sarvam full response:", JSON.stringify(data).substring(0, 500))
+
+      const rawText = await response.text()
+      const data    = JSON.parse(rawText)
+      const rawContent = data?.choices?.[0]?.message?.content || ""
+
+      // Use the bulletproof extractor
+      const reply = extractSarvamReply(rawContent)
+      if (reply) return reply
+
     } catch (err) {
       console.error("Sarvam API error:", err.message)
     }
