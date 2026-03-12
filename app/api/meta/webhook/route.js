@@ -611,11 +611,17 @@ ${greetingStyle ? `\nGreeting style: "${greetingStyle}"` : ""}`
   if (process.env.SARVAM_API_KEY) {
     try {
       console.log("🔄 Trying Sarvam AI...")
-      const sarvamMessages = [
-        { role: "system", content: systemPrompt },
-        ...history,
-        { role: "user", content: customerMessage }
-      ]
+      // Sarvam requires: first message must be user, no consecutive same roles
+const cleanHistory = history.filter((m, i) => {
+  if (i === 0 && m.role === "assistant") return false // can't start with assistant
+  return true
+})
+
+const sarvamMessages = [
+  { role: "system", content: systemPrompt },
+  ...cleanHistory,
+  { role: "user", content: customerMessage }
+]
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method:  "POST",
         headers: { "Content-Type": "application/json", "api-subscription-key": process.env.SARVAM_API_KEY },
