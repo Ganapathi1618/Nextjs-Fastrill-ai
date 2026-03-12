@@ -21,6 +21,7 @@ export async function GET(req) {
 // ── POST: Receive WhatsApp messages ──
 export async function POST(req) {
   try {
+    console.log("🚀 WEBHOOK VERSION 2.0 — intent detection active")
     const body = await req.json()
 
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
