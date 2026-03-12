@@ -530,6 +530,7 @@ ${greetingStyle ? `\nGreeting style: "${greetingStyle}"` : ""}`
         { role: "user", content: customerMessage }
       ]
       console.log("🔄 Sarvam roles:", sarvamMessages.map(m => m.role).join("→"))
+      console.log("📝 Customer message being sent:", customerMessage)
 
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method:  "POST",
@@ -547,7 +548,7 @@ ${greetingStyle ? `\nGreeting style: "${greetingStyle}"` : ""}`
           return reply
         }
       }
-      console.error("Sarvam bad response:", JSON.stringify(data).substring(0, 300))
+      console.error("Sarvam full response:", JSON.stringify(data).substring(0, 500))
     } catch (err) {
       console.error("Sarvam API error:", err.message)
     }
