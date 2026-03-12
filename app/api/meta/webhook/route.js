@@ -343,37 +343,55 @@ function detectBookingState(history, latestMessage) {
     if (allText.includes(kw)) { state.service = kw; break }
   }
 
-  // ── Extract DATE ──
+  // ── Extract DATE ── (always prioritize latest message over history)
   const today = new Date()
   const todayStr = today.toISOString().split("T")[0]
+  // Use latest message for date if it has date info, otherwise fall back to allText
+  const hasDateInLatest = /\b(today|tomorrow|kal|sun|mon|tue|wed|thu|fri|sat|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i.test(latestMessage) ||
+    /\d{1,2}[\/\-]\d{1,2}/.test(latestMessage) ||
+    /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(latestMessage)
+  const dateSearchText = hasDateInLatest ? latestLower : allText
 
   // "today"
-  if (latestLower.includes("today") || allText.includes("today")) {
+  if (dateSearchText.includes("today")) {
     state.date = todayStr
   }
   // "tomorrow"
-  else if (latestLower.includes("tomorrow") || latestLower.includes("kal") || allText.includes("tomorrow")) {
+  else if (dateSearchText.includes("tomorrow") || dateSearchText.includes("kal")) {
     const tom = new Date(today); tom.setDate(tom.getDate() + 1)
     state.date = tom.toISOString().split("T")[0]
   }
-  // day names
+  // day names (full and abbreviated)
   else {
-    const days = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"]
-    for (let i = 0; i < days.length; i++) {
-      if (allText.includes(days[i])) {
-        const diff = (i - today.getDay() + 7) % 7 || 7
+    const days = [
+      { idx:0, names:["sunday","sun"] },
+      { idx:1, names:["monday","mon"] },
+      { idx:2, names:["tuesday","tue"] },
+      { idx:3, names:["wednesday","wed"] },
+      { idx:4, names:["thursday","thu"] },
+      { idx:5, names:["friday","fri"] },
+      { idx:6, names:["saturday","sat"] },
+    ]
+    for (const day of days) {
+      if (day.names.some(n => {
+        const re = new RegExp(`\\b${n}\\b`, "i")
+        return re.test(dateSearchText)
+      })) {
+        // Always go to NEXT occurrence of that day (never today)
+        let diff = (day.idx - today.getDay() + 7) % 7
+        if (diff === 0) diff = 7 // if same day, go to next week
         const d = new Date(today); d.setDate(d.getDate() + diff)
         state.date = d.toISOString().split("T")[0]
         break
       }
     }
   }
-  // explicit date like "12-03" or "12/3" or "march 12" or "12 march"
+  // explicit date like "march 12" or "12 march"
   if (!state.date) {
     const monthNames = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
     for (let i = 0; i < monthNames.length; i++) {
       const re = new RegExp(`(\\d{1,2})\\s*${monthNames[i]}|${monthNames[i]}\\s*(\\d{1,2})`)
-      const m = allText.match(re)
+      const m = dateSearchText.match(re)
       if (m) {
         const day = parseInt(m[1] || m[2])
         const year = today.getFullYear()
@@ -384,15 +402,17 @@ function detectBookingState(history, latestMessage) {
   }
   // "DD/MM" or "DD-MM"
   if (!state.date) {
-    const m = allText.match(/(\d{1,2})[\/\-](\d{1,2})/)
+    const m = dateSearchText.match(/(\d{1,2})[\/\-](\d{1,2})/)
     if (m) {
       const year = today.getFullYear()
       state.date = `${year}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`
     }
   }
 
-  // ── Extract TIME ──
-  const timeMatch = allText.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i)
+  // ── Extract TIME (prioritize latest message) ──
+  const timeSearchText = /\d{1,2}(:\d{2})?\s*(am|pm)/i.test(latestMessage) || /\d{1,2}:\d{2}/.test(latestMessage) || /\b\d{1,2}(pm|am)\b/i.test(latestMessage)
+    ? latestLower : allText
+  const timeMatch = timeSearchText.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i)
   if (timeMatch) {
     let hour = parseInt(timeMatch[1])
     const min = timeMatch[2] ? timeMatch[2] : "00"
