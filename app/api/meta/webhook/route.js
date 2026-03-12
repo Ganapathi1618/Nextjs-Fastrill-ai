@@ -19,7 +19,7 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    console.log("🚀 WEBHOOK VERSION 4.0 — bulletproof Sarvam think extraction")
+    console.log("🚀 WEBHOOK VERSION 5.0 — sarvam-2, no Claude, clean")
     const body = await req.json()
 
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
@@ -531,7 +531,7 @@ ${greetingStyle ? `\nGreeting style: "${greetingStyle}"` : ""}`
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method:  "POST",
         headers: { "Content-Type": "application/json", "api-subscription-key": process.env.SARVAM_API_KEY },
-        body:    JSON.stringify({ model: "sarvam-m", messages: sarvamMessages, max_tokens: 500, temperature: 0.65 })
+        body:    JSON.stringify({ model: "sarvam-2", messages: sarvamMessages, max_tokens: 500, temperature: 0.65 })
       })
 
       const rawText = await response.text()
@@ -547,26 +547,8 @@ ${greetingStyle ? `\nGreeting style: "${greetingStyle}"` : ""}`
     }
   }
 
-  // ── 2. Try Claude fallback ──
-  if (process.env.ANTHROPIC_API_KEY) {
-    try {
-      console.log("🔄 Trying Claude fallback...")
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body:    JSON.stringify({ model: "claude-haiku-20240307", max_tokens: 350, system: systemPrompt, messages: [...history, { role: "user", content: customerMessage }] })
-      })
-      const data = await response.json()
-      if (data?.content?.[0]?.text) {
-        console.log("✅ Claude replied")
-        return data.content[0].text.trim()
-      }
-    } catch (err) {
-      console.error("Claude API error:", err.message)
-    }
-  }
-
-  // ── 3. Rule-based fallback ──
+  // ── 2. Rule-based fallback (only if Sarvam fails) ──
+  console.warn("⚠️ Sarvam failed — using rule-based fallback")
   return smartFallback({ msg: customerMessage, intent, businessName, servicesText, firstName, location, mapsLink, bookingState: bs })
 }
 
