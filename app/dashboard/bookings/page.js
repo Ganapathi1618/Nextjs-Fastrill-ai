@@ -1,74 +1,78 @@
-I'll refactor this large component into smaller, more manageable pieces. Here's the refactored version:
-
-```jsx
 "use client"
 import { useEffect, useState, useCallback, createContext, useContext } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 
-// ─── Data Models ─────────────────────────────────
+// ─── Data Models & Constants ─────────────────────────────────
 const NAV = [
-  { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
-  { id:"inbox",     label:"Conversations",  icon:"◎", path:"/dashboard/conversations" },
-  { id:"bookings",  label:"Bookings",       icon:"◷", path:"/dashboard/bookings" },
-  { id:"campaigns", label:"Campaigns",      icon:"◆", path:"/dashboard/campaigns" },
-  { id:"leads",     label:"Lead Recovery",  icon:"◉", path:"/dashboard/leads" },
-  { id:"contacts",  label:"Customers",      icon:"◑", path:"/dashboard/contacts" },
-  { id:"analytics", label:"Analytics",      icon:"▦", path:"/dashboard/analytics" },
-  { id:"settings",  label:"Settings",       icon:"◌", path:"/dashboard/settings" },
+  { id:"overview", label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
+  { id:"inbox", label:"Conversations", icon:"◎", path:"/dashboard/conversations" },
+  { id:"bookings", label:"Bookings", icon:"◷", path:"/dashboard/bookings" },
+  { id:"campaigns", label:"Campaigns", icon:"◆", path:"/dashboard/campaigns" },
+  { id:"leads", label:"Lead Recovery", icon:"◉", path:"/dashboard/leads" },
+  { id:"contacts", label:"Customers", icon:"◑", path:"/dashboard/contacts" },
+  { id:"analytics", label:"Analytics", icon:"▦", path:"/dashboard/analytics" },
+  { id:"settings", label:"Settings", icon:"◌", path:"/dashboard/settings" },
 ]
 
 const TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30"]
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
-// ─── Constants & Helpers ───────────────────────────
+// ─── Helper Functions ─────────────────────────────────
 const toDateStr = (v) => (v || "").substring(0, 10)
 const getTodayStr = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
 }
+const formatDate = (raw, now = new Date()) => {
+  if (!raw) return "—"
+  const d = toDateStr(raw)
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate()+1)
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`
+  const prefix = d === getTodayStr() ? "Today · " : d === tomorrowStr ? "Tomorrow · " : ""
+  try { 
+    return prefix + new Date(d+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"}) 
+  } catch { 
+    return raw 
+  }
+}
 
-// ─── Auth Context ──────────────────────────────────
+// ─── Context Providers ─────────────────────────────────
 const AuthContext = createContext(null)
+const ThemeContext = createContext({ dark: true, toggle: () => {} })
 
-export function AuthProvider({ children }) {
+// ─── Custom Hooks ──────────────────────────────────
+function useAuth() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    const saved = localStorage.getItem("fastrill-theme")
-    if (saved) setDark(saved === "dark")
+    if (typeof window === 'undefined') return
+    
+    const savedTheme = localStorage.getItem("fastrill-theme")
     
     supabase.auth.getUser().then(({ data }) => {
       if (!data?.user) router.push("/login")
       else { 
-        setUser(data.user); 
-        setUserEmail(data.user.email || ""); 
-        setUserId(data.user.id)
+        setUser(data.user)
+        setLoading(false)
       }
+    }).catch(() => {
+      router.push("/login")
       setLoading(false)
     })
-  }, [])
+  }, [router])
 
   const signOut = async () => {
     await supabase.auth.signOut()
     router.push("/login")
   }
 
-  return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return { user, loading, signOut, themeState: { savedTheme } }
 }
 
-export function useAuth() {
-  return useContext(AuthContext)
-}
-
-// ─── Custom Hooks ──────────────────────────────────
 function useBookings(userId) {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -162,16 +166,8 @@ function useServices(userId) {
   return { services, loading, load }
 }
 
-// ─── Components ─────────────────────────────────────
-const ThemeContext = createContext({ dark: true, toggle: () => {} })
-
-export function ThemeProvider({ children }) {
-  const [dark, setDark] = useState(true)
-
-  useEffect(() => {
-    const saved = localStorage.getItem("fastrill-theme")
-    if (saved) setDark(saved === "dark")
-  }, [])
+function useTheme(savedTheme) {
+  const [dark, setDark] = useState(savedTheme === "dark")
 
   const toggle = () => {
     const next = !dark
@@ -179,30 +175,15 @@ export function ThemeProvider({ children }) {
     localStorage.setItem("fastrill-theme", next ? "dark" : "light")
   }
 
-  const theme = { dark, toggle }
-  return (
-    <ThemeContext.Provider value={theme}>
-      {children}
-    </ThemeContext.Provider>
-  )
+  return { dark, toggle }
 }
 
-export function useTheme() {
-  return useContext(ThemeContext)
-}
-
-const Sidebar = ({ userEmail, userInitial, onLogout }) => {
+// ─── Components ─────────────────────────────────────
+const Sidebar = ({ user, onLogout }) => {
   const router = useRouter()
+  const userInitial = user?.email ? user.email[0].toUpperCase() : "G"
   
+  if (!user) return null
+
   return (
-    <aside className="sidebar">
-      <a href="/dashboard" className="logo">fast<span>rill</span></a>
-      <div className="nav-section">Platform</div>
-      {NAV.map(item => (
-        <button
-          key={item.id}
-          className={`nav-item ${item.id === "bookings" ? "active" : ""}`}
-          onClick={() => router.push(item.path)}
-        >
-          <span className="nav-icon">{item.icon}</span>
-          <span>{
+    <aside className
