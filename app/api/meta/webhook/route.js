@@ -19,7 +19,7 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    console.log("🚀 WEBHOOK VERSION 5.3 — extract reply from inside think block")
+    console.log("🚀 WEBHOOK VERSION 5.4 — fixed regex build error")
     const body = await req.json()
 
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
@@ -439,9 +439,7 @@ function extractSarvamReply(rawContent) {
     if (insideMatch) {
       const insideThink = insideMatch[1].trim()
       // The reply is the last non-empty paragraph inside think
-      const paragraphs = insideThink.split(/
-
-+/).map(p => p.trim()).filter(p => p.length > 5)
+      const paragraphs = insideThink.split('\n\n').map(p => p.trim()).filter(p => p.length > 5)
       if (paragraphs.length > 0) {
         const reply = paragraphs[paragraphs.length - 1]
         console.log("✅ Case 1b — last para inside think:", reply.substring(0, 100))
@@ -462,9 +460,7 @@ function extractSarvamReply(rawContent) {
   // CASE 3: Has <think> but no </think> — still thinking, grab last paragraph
   if (rawContent.includes("<think>")) {
     const insideThink = rawContent.replace(/<think>/g, "").trim()
-    const paragraphs = insideThink.split(/
-
-+/).map(p => p.trim()).filter(p => p.length > 5)
+    const paragraphs = insideThink.split('\n\n').map(p => p.trim()).filter(p => p.length > 5)
     if (paragraphs.length > 0) {
       const reply = paragraphs[paragraphs.length - 1]
       console.log("✅ Case 3 — last para unclosed think:", reply.substring(0, 100))
