@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseAdmin = createClient(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
 export async function GET(req) {
+
   const { searchParams } = new URL(req.url)
 
   const mode = searchParams.get("hub.mode")
@@ -21,6 +22,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
+
   try {
 
     const body = await req.json()
@@ -28,91 +30,74 @@ export async function POST(req) {
     const value = body?.entry?.[0]?.changes?.[0]?.value
 
     if (!value?.messages) {
-      return NextResponse.json({ status: "no_message" }, { status: 200 })
+      return NextResponse.json({ status: "no_message" })
     }
 
     const phoneNumberId = value.metadata.phone_number_id
     const messages = value.messages
     const contacts = value.contacts || []
 
-    for (const message of messages) {
+    for (const msg of messages) {
 
-      const fromNumber = message.from
-      const messageId = message.id
-      const timestamp = new Date(parseInt(message.timestamp) * 1000).toISOString()
+      const messageId = msg.id
+      const from = msg.from
+      const type = msg.type
 
-      let messageText = ""
+      let text = ""
 
-      if (message.type === "text") {
-        messageText = message.text.body
-      }
+      if (type === "text") text = msg.text.body
 
-      const formattedPhone = fromNumber.replace(/[^0-9]/g, "")
+      const phone = from.replace(/[^0-9]/g, "")
 
-      const contact = contacts.find(c => c.wa_id === fromNumber)
-      const contactName = contact?.profile?.name || "Customer"
+      const contact = contacts.find(c => c.wa_id === from)
+      const name = contact?.profile?.name || "Customer"
 
-      /* -------------------------------- */
-      /* DUPLICATE PROTECTION */
-      /* -------------------------------- */
+      const timestamp = new Date(parseInt(msg.timestamp) * 1000).toISOString()
 
-      const { data: existingMsg } = await supabaseAdmin
+      const { data: existingMsg } = await supabase
         .from("messages")
         .select("id")
         .eq("wa_message_id", messageId)
         .maybeSingle()
 
-      if (existingMsg) {
-        console.log("Duplicate webhook ignored")
-        continue
-      }
+      if (existingMsg) continue
 
-      /* -------------------------------- */
-      /* GET WHATSAPP CONNECTION */
-      /* -------------------------------- */
-
-      const { data: connection } = await supabaseAdmin
+      const { data: conn } = await supabase
         .from("whatsapp_connections")
-        .select("user_id, access_token")
+        .select("user_id,access_token")
         .eq("phone_number_id", phoneNumberId)
         .single()
 
-      if (!connection) continue
+      if (!conn) continue
 
-      const userId = connection.user_id
+      const userId = conn.user_id
 
-      /* -------------------------------- */
-      /* CUSTOMER UPSERT */
-      /* -------------------------------- */
+      let customer
 
-      let customer = null
-
-      const { data: existingCustomer } = await supabaseAdmin
+      const { data: existingCustomer } = await supabase
         .from("customers")
         .select("*")
-        .eq("phone", formattedPhone)
+        .eq("phone", phone)
         .eq("user_id", userId)
         .maybeSingle()
 
       if (existingCustomer) {
 
-        await supabaseAdmin
+        await supabase
           .from("customers")
-          .update({
-            last_visit_at: timestamp
-          })
+          .update({ last_visit_at: timestamp })
           .eq("id", existingCustomer.id)
 
         customer = existingCustomer
 
       } else {
 
-        const { data: newCustomer } = await supabaseAdmin
+        const { data: newCustomer } = await supabase
           .from("customers")
           .insert({
             user_id: userId,
-            phone: formattedPhone,
-            name: contactName,
+            phone,
+            name,
             tag: "new_lead",
             created_at: timestamp
           })
@@ -120,30 +105,24 @@ export async function POST(req) {
           .single()
 
         customer = newCustomer
-
       }
 
-      /* -------------------------------- */
-      /* CONVERSATION UPSERT */
-      /* -------------------------------- */
+      let conversation
 
-      let conversation = null
-
-      const { data: existingConvo } = await supabaseAdmin
+      const { data: existingConvo } = await supabase
         .from("conversations")
         .select("*")
-        .eq("phone", formattedPhone)
+        .eq("phone", phone)
         .eq("user_id", userId)
         .maybeSingle()
 
       if (existingConvo) {
 
-        const { data: updated } = await supabaseAdmin
+        const { data: updated } = await supabase
           .from("conversations")
           .update({
-            last_message: messageText,
-            last_message_at: timestamp,
-            unread_count: (existingConvo.unread_count || 0) + 1
+            last_message: text,
+            last_message_at: timestamp
           })
           .eq("id", existingConvo.id)
           .select()
@@ -153,127 +132,47 @@ export async function POST(req) {
 
       } else {
 
-        const { data: newConvo } = await supabaseAdmin
+        const { data: newConvo } = await supabase
           .from("conversations")
           .insert({
             user_id: userId,
-            phone: formattedPhone,
+            phone,
             customer_id: customer?.id,
             status: "open",
             ai_enabled: true,
-            last_message: messageText,
-            last_message_at: timestamp,
-            unread_count: 1
+            last_message: text,
+            last_message_at: timestamp
           })
           .select()
           .single()
 
         conversation = newConvo
-
       }
 
-      /* -------------------------------- */
-      /* SAVE INBOUND MESSAGE */
-      /* -------------------------------- */
-
-      await supabaseAdmin.from("messages").insert({
+      await supabase.from("messages").insert({
         user_id: userId,
         phone_number_id: phoneNumberId,
-        from_number: fromNumber,
-        message_text: messageText,
+        from_number: from,
+        message_text: text,
         direction: "inbound",
         conversation_id: conversation?.id,
-        customer_phone: formattedPhone,
-        message_type: message.type,
+        customer_phone: phone,
+        message_type: type,
         status: "delivered",
-        is_ai: false,
         wa_message_id: messageId,
         created_at: timestamp
       })
 
-      /* -------------------------------- */
-      /* BOOKING INTENT SIMPLE DETECTION */
-      /* -------------------------------- */
-
-      const lower = messageText.toLowerCase()
-
-      if (lower.includes("book")) {
-
-        const { data: services } = await supabaseAdmin
-          .from("services")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("is_active", true)
-
-        const matchedService = services?.[0]
-
-        if (!matchedService) continue
-
-        const serviceDuration = matchedService.duration_minutes || 30
-        const serviceCapacity = matchedService.capacity || 1
-
-        const date = new Date().toISOString().split("T")[0]
-        const time = "17:00"
-
-        const { data: existingBookings } = await supabaseAdmin
-          .from("bookings")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("booking_date", date)
-          .eq("booking_time", time)
-          .eq("service", matchedService.name)
-          .in("status", ["confirmed","pending"])
-
-        const currentCount = existingBookings?.length || 0
-
-        if (currentCount >= serviceCapacity) {
-
-          const slotMsg = `That slot is fully booked 😔
-
-Available slots:
-${generateNextSlots(time)}`
-
-          await sendWhatsAppMessage({
-            phoneNumberId,
-            accessToken: connection.access_token,
-            toNumber: fromNumber,
-            message: slotMsg
-          })
-
-          continue
-        }
-
-        await supabaseAdmin
-          .from("bookings")
-          .insert({
-            user_id: userId,
-            customer_id: customer?.id,
-            customer_name: contactName,
-            customer_phone: formattedPhone,
-            service: matchedService.name,
-            booking_date: date,
-            booking_time: time,
-            duration_minutes: serviceDuration,
-            amount: matchedService.price,
-            status: "confirmed",
-            ai_booked: true,
-            created_at: new Date().toISOString()
-          })
-
-        const confirmMsg = `✅ Booking Confirmed
-
-Service: ${matchedService.name}
-Date: ${date}
-Time: ${time}`
-
-        await sendWhatsAppMessage({
-          phoneNumberId,
-          accessToken: connection.access_token,
-          toNumber: fromNumber,
-          message: confirmMsg
-        })
-
-      }
+      await processAI({
+        userId,
+        phoneNumberId,
+        accessToken: conn.access_token,
+        message: text,
+        phone,
+        from,
+        name,
+        conversation
+      })
 
     }
 
@@ -290,53 +189,211 @@ Time: ${time}`
   }
 }
 
-/* -------------------------------- */
-/* NEXT SLOT GENERATOR */
-/* -------------------------------- */
+async function processAI({
+  userId,
+  phoneNumberId,
+  accessToken,
+  message,
+  phone,
+  from,
+  name,
+  conversation
+}) {
 
-function generateNextSlots(time) {
+  const { data: services } = await supabase
+    .from("services")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_active", true)
 
-  const [h, m] = time.split(":").map(Number)
+  const { data: biz } = await supabase
+    .from("business_settings")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle()
 
-  const slots = []
+  const historyRes = await supabase
+    .from("messages")
+    .select("message_text,direction")
+    .eq("conversation_id", conversation.id)
+    .order("created_at", { ascending: false })
+    .limit(10)
 
-  for (let i = 1; i <= 3; i++) {
+  const history = historyRes.data || []
 
-    const next = new Date()
-    next.setHours(h)
-    next.setMinutes(m + (i * 30))
+  const intent = detectIntent(message)
 
-    const hh = String(next.getHours()).padStart(2, "0")
-    const mm = String(next.getMinutes()).padStart(2, "0")
+  if (intent.type === "booking") {
 
-    slots.push(`${hh}:${mm}`)
+    const slot = await findAvailableSlot({
+      userId,
+      services,
+      serviceName: intent.service,
+      date: intent.date,
+      time: intent.time
+    })
+
+    if (slot.available) {
+
+      await supabase.from("bookings").insert({
+        user_id: userId,
+        customer_name: name,
+        customer_phone: phone,
+        service: intent.service,
+        booking_date: slot.date,
+        booking_time: slot.time,
+        amount: slot.price,
+        status: "confirmed",
+        ai_booked: true
+      })
+
+      const reply = `✅ Booking confirmed\n${intent.service}\n${slot.date} ${slot.time}`
+
+      await sendWA(phoneNumberId, accessToken, from, reply)
+
+      return
+
+    } else {
+
+      const next = await suggestNextSlot({
+        userId,
+        service: intent.service,
+        date: intent.date,
+        services
+      })
+
+      const reply = `That slot is full.\nNext available: ${next}`
+
+      await sendWA(phoneNumberId, accessToken, from, reply)
+
+      return
+    }
   }
 
-  return slots.join("\n")
+  const aiReply = await generateAI(message, history, services, biz)
+
+  await sendWA(phoneNumberId, accessToken, from, aiReply)
+
 }
 
-/* -------------------------------- */
-/* SEND WHATSAPP MESSAGE */
-/* -------------------------------- */
+function detectIntent(text) {
 
-async function sendWhatsAppMessage({ phoneNumberId, accessToken, toNumber, message }) {
+  const t = text.toLowerCase()
 
-  const res = await fetch(
-    `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: toNumber,
-        type: "text",
-        text: { body: message }
-      })
+  if (t.includes("book") || t.includes("appointment")) {
+    return {
+      type: "booking",
+      service: "appointment",
+      date: new Date().toISOString().slice(0, 10),
+      time: "17:00"
     }
+  }
+
+  return { type: "general" }
+}
+
+async function findAvailableSlot({ userId, services, serviceName, date, time }) {
+
+  const service = services.find(s =>
+    serviceName?.toLowerCase().includes(s.name.toLowerCase())
   )
 
-  return res.json()
+  const capacity = service?.capacity || 1
+
+  const { data: existing } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("booking_date", date)
+    .eq("booking_time", time)
+    .eq("service", serviceName)
+
+  if ((existing?.length || 0) >= capacity) {
+    return { available: false }
+  }
+
+  return {
+    available: true,
+    date,
+    time,
+    price: service?.price || 0
+  }
+}
+
+async function suggestNextSlot({ userId, service, date, services }) {
+
+  const svc = services.find(s => s.name === service)
+
+  const duration = svc?.duration_minutes || 30
+
+  let start = 10 * 60
+
+  while (start < 20 * 60) {
+
+    const h = Math.floor(start / 60)
+    const m = start % 60
+
+    const time = `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`
+
+    const slot = await findAvailableSlot({
+      userId,
+      services,
+      serviceName: service,
+      date,
+      time
+    })
+
+    if (slot.available) return `${date} ${time}`
+
+    start += duration
+  }
+
+  return "No slots available"
+}
+
+async function generateAI(message, history, services, biz) {
+
+  try {
+
+    const res = await fetch("https://api.sarvam.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-subscription-key": process.env.SARVAM_API_KEY
+      },
+      body: JSON.stringify({
+        model: "sarvam-m",
+        messages: [
+          { role: "system", content: `You are assistant for ${biz?.business_name}` },
+          { role: "user", content: message }
+        ]
+      })
+    })
+
+    const data = await res.json()
+
+    const reply = data?.choices?.[0]?.message?.content
+
+    if (reply) return reply
+
+  } catch (e) {}
+
+  return "How can I help you?"
+}
+
+async function sendWA(phoneNumberId, accessToken, to, text) {
+
+  await fetch(`https://graph.facebook.com/v18.0/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "text",
+      text: { body: text }
+    })
+  })
+
 }
