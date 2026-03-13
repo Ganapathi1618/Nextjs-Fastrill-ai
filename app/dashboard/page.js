@@ -23,7 +23,6 @@ export default function Dashboard() {
   const [dark, setDark] = useState(true)
   const [loading, setLoading] = useState(true)
 
-  // Real stats
   const [stats, setStats] = useState({ revenue:0, leads:0, bookings:0, missedLeads:0, aiHandled:0, aiBookings:0, aiRevenue:0 })
   const [funnel, setFunnel] = useState({ leads:0, convos:0, booked:0, completed:0, revenue:0 })
   const [todayBookings, setTodayBookings] = useState([])
@@ -44,7 +43,6 @@ export default function Dashboard() {
   async function loadAll() {
     setLoading(true)
 
-    // Date range
     const now = new Date()
     let from = new Date()
     if (period==="today") from.setHours(0,0,0,0)
@@ -53,35 +51,39 @@ export default function Dashboard() {
     const fromISO = from.toISOString()
     const todayStr = now.toISOString().split("T")[0]
 
+    // FIX: bookings query uses NO date filter so all bookings show
+    // leads/messages still filtered by period
     const [{ data: wa }, { data: msgs }, { data: bks }, { data: leads }, { data: customers }] = await Promise.all([
       supabase.from("whatsapp_connections").select("id").eq("user_id", userId).single(),
-      supabase.from("messages").select("direction, is_ai, created_at").eq("user_id", userId).gte("created_at", fromISO),
-      supabase.from("bookings").select("status, amount, ai_booked, booking_date, customer_name, service, booking_time").eq("user_id", userId).gte("created_at", fromISO),
-      supabase.from("leads").select("status, source, estimated_value, created_at").eq("user_id", userId).gte("created_at", fromISO),
-      supabase.from("customers").select("tag, source, total_spend").eq("user_id", userId)
+      supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id", userId).gte("created_at", fromISO),
+      supabase.from("bookings").select("status,amount,ai_booked,booking_date,customer_name,service,booking_time,created_at").eq("user_id", userId),
+      supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id", userId).gte("created_at", fromISO),
+      supabase.from("customers").select("tag,source,total_spend").eq("user_id", userId)
     ])
 
     setConnected(!!wa)
 
-    const completedBks = (bks||[]).filter(b=>b.status==="completed"||b.status==="confirmed")
+    // Filter bookings by period for stats
+    const periodBks = (bks||[]).filter(b => new Date(b.created_at) >= from)
+    const completedBks = periodBks.filter(b=>b.status==="completed"||b.status==="confirmed")
     const revenue = completedBks.reduce((s,b)=>s+(b.amount||0),0)
     const aiHandled = (msgs||[]).filter(m=>m.is_ai&&m.direction==="outbound").length
-    const aiBookings = (bks||[]).filter(b=>b.ai_booked).length
+    const aiBookings = periodBks.filter(b=>b.ai_booked).length
     const missedLeads = (leads||[]).filter(l=>l.status==="open").length
-    const convos = [...new Set((msgs||[]).map(m=>m.conversation_id))].length
+    const uniqueConvos = [...new Set((msgs||[]).map(m=>m.conversation_id).filter(Boolean))].length
 
-    setStats({ revenue, leads:(leads||[]).length, bookings:(bks||[]).length, missedLeads, aiHandled, aiBookings, aiRevenue: Math.round(revenue*0.7) })
-    setFunnel({ leads:(leads||[]).length, convos: convos||Math.round((leads||[]).length*0.72), booked:(bks||[]).length, completed:completedBks.length, revenue })
+    setStats({ revenue, leads:(leads||[]).length, bookings:periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue: Math.round(revenue*0.7) })
+    setFunnel({ leads:(leads||[]).length, convos:uniqueConvos||Math.round((leads||[]).length*0.72), booked:periodBks.length, completed:completedBks.length, revenue })
+
+    // Today's bookings — from ALL bookings, filter by today's date
     setTodayBookings((bks||[]).filter(b=>b.booking_date===todayStr).slice(0,4))
 
-    // Source breakdown
     const srcMap = {}
     ;(leads||[]).forEach(l=>{ srcMap[l.source||"Organic"] = (srcMap[l.source||"Organic"]||0)+1 })
     setSources(Object.entries(srcMap).map(([name,count])=>({ name, count, color:{ whatsapp:"#25d366", instagram:"#e1306c", google:"#ea4335", referral:"#f59e0b", organic:"#38bdf8" }[name.toLowerCase()]||"#a78bfa" })).slice(0,4))
 
-    // Health score
     const score = Math.min(100, Math.round(
-      (wa?20:0) + (aiHandled>5?20:aiHandled*4) + ((bks||[]).length>0?15:0) + ((leads||[]).length>0?10:0) + ((customers||[]).length>2?15:0) + 20
+      (wa?20:0) + (aiHandled>5?20:aiHandled*4) + (periodBks.length>0?15:0) + ((leads||[]).length>0?10:0) + ((customers||[]).length>2?15:0) + 20
     ))
     setHealthScore(score)
     setLoading(false)
@@ -155,9 +157,6 @@ export default function Dashboard() {
         .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
         @media(max-width:1200px){.three-col{grid-template-columns:1fr 1fr;}}
         @media(max-width:960px){.two-col,.three-col{grid-template-columns:1fr;}}
-        select{color-scheme:dark;background-color:inherit;}
-        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
-        select:focus{outline:none;}
       `}</style>
 
       <div className="wrap">
@@ -231,7 +230,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div style={{fontWeight:700,fontSize:13,color:hColor,marginBottom:3}}>{hLabel}</div>
-                <div style={{fontSize:11,color:textMuted,lineHeight:1.5}}>{loading?"Calculating...":connected?"AI is active":"Connect WhatsApp\nto get started"}</div>
+                <div style={{fontSize:11,color:textMuted,lineHeight:1.5}}>{loading?"Calculating...":connected?"AI is active":"Connect WhatsApp to get started"}</div>
               </div>
 
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11}}>
@@ -280,10 +279,16 @@ export default function Dashboard() {
                     <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"2px 9px",fontSize:10,color:"#a78bfa",fontWeight:700,letterSpacing:"0.5px"}}>◈ AI PERFORMANCE</div>
                     <div className="card-title" style={{marginTop:8}}>What your AI achieved</div>
                   </div>
-                  <div className="card-sub">Powered by Claude</div>
+                  {/* FIX: was "Powered by Claude" — now Sarvam */}
+                  <div className="card-sub">Powered by Sarvam AI</div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-                  {[{l:"Conversations Handled",v:stats.aiHandled,s:"by AI"},{l:"Avg Response Time",v:"< 3s",s:"seconds"},{l:"Bookings by AI",v:stats.aiBookings,s:"appointments"},{l:"Revenue Attributed",v:`₹${stats.aiRevenue.toLocaleString()}`,s:"to AI replies"}].map(m=>(
+                  {[
+                    {l:"Conversations Handled",v:stats.aiHandled,s:"by AI"},
+                    {l:"Avg Response Time",v:"< 3s",s:"seconds"},
+                    {l:"Bookings by AI",v:stats.aiBookings,s:"appointments"},
+                    {l:"Revenue Attributed",v:`₹${stats.aiRevenue.toLocaleString()}`,s:"to AI replies"}
+                  ].map(m=>(
                     <div key={m.l} style={{background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:9,padding:12}}>
                       <div style={{fontWeight:700,fontSize:22,color:text,lineHeight:1,marginBottom:3}}>{loading?"—":m.v}</div>
                       <div style={{fontSize:11,color:textMuted,lineHeight:1.4}}>{m.l}<br/><span style={{opacity:0.7}}>{m.s}</span></div>
@@ -299,7 +304,11 @@ export default function Dashboard() {
                 </div>
                 <div style={{fontWeight:800,fontSize:38,color:"#fb7185",letterSpacing:"-1.5px",lineHeight:1,marginBottom:2}}>₹{(stats.missedLeads*600).toLocaleString()}</div>
                 <div style={{fontSize:11.5,color:textMuted,marginBottom:13}}>potential revenue lost this {period}</div>
-                {[{l:"Unanswered leads",v:stats.missedLeads},{l:"No follow-up sent",v:Math.round(stats.missedLeads*0.6)},{l:"Abandoned convos",v:Math.round(stats.leads*0.2)}].map(r=>(
+                {[
+                  {l:"Unanswered leads",v:stats.missedLeads},
+                  {l:"No follow-up sent",v:Math.round(stats.missedLeads*0.6)},
+                  {l:"Abandoned convos",v:Math.round(stats.leads*0.2)}
+                ].map(r=>(
                   <div key={r.l} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 10px",background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:7,marginBottom:5}}>
                     <span style={{fontSize:12,color:textMuted}}>{r.l}</span>
                     <span style={{fontSize:12,fontWeight:700,color:"#fb7185"}}>{loading?"—":r.v} leads</span>
