@@ -14,6 +14,9 @@ const NAV = [
   { id:"settings", label:"Settings", icon:"◌", path:"/dashboard/settings" },
 ]
 
+// FIX: 3-day cooldown — don't show leads that already got recovery msg in last 3 days
+const COOLDOWN_DAYS = 3
+
 export default function Leads() {
   const router = useRouter()
   const [userEmail, setUserEmail] = useState("")
@@ -25,7 +28,7 @@ export default function Leads() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [recoveryMsg, setRecoveryMsg] = useState("")
-  const [stats, setStats] = useState({ total:0, hot:0, warm:0, recovered:0, value:0 })
+  const [stats, setStats] = useState({ total:0, hot:0, warm:0, value:0 })
 
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
@@ -39,19 +42,35 @@ export default function Leads() {
   useEffect(() => { if (userId) loadLeads() }, [userId])
 
   useEffect(() => {
-    if (selected) setRecoveryMsg(selected.recovery_message || generateRecoveryMsg(selected))
+    if (selected) setRecoveryMsg(generateRecoveryMsg(selected))
   }, [selected?.id])
 
   async function loadLeads() {
     setLoading(true)
-    const { data } = await supabase.from("leads").select("*, customers(name,phone)").eq("user_id", userId).in("status",["open","contacted"]).order("ai_score", { ascending: false })
-    const list = data || []
+
+    // FIX: filter out leads that got recovery message within last COOLDOWN_DAYS days
+    const cooldownDate = new Date()
+    cooldownDate.setDate(cooldownDate.getDate() - COOLDOWN_DAYS)
+
+    const { data } = await supabase
+      .from("leads")
+      .select("*, customers(name,phone)")
+      .eq("user_id", userId)
+      .eq("status", "open")  // FIX: only show "open" leads, not "contacted"
+      .order("ai_score", { ascending: false })
+
+    // FIX: also filter out leads where recovery was sent recently (within cooldown)
+    const list = (data || []).filter(l => {
+      if (!l.recovery_sent_at) return true  // never contacted — always show
+      const sentAt = new Date(l.recovery_sent_at)
+      return sentAt < cooldownDate  // only show again after cooldown
+    })
+
     setLeads(list)
     setStats({
       total: list.length,
       hot: list.filter(l=>l.ai_score>=85).length,
       warm: list.filter(l=>l.ai_score>=65&&l.ai_score<85).length,
-      recovered: 0,
       value: list.reduce((s,l)=>s+(l.estimated_value||600),0)
     })
     if (list.length && !selected) setSelected(list[0])
@@ -65,32 +84,46 @@ export default function Leads() {
       `Hey ${name}! It's been a while since we chatted. We have some great offers this week — want to book a slot? 😊`,
       `Hi ${name}! Just checking in — we have availability this week and would love to have you visit us! 🌟`,
     ]
-    return msgs[Math.floor(Math.random() * msgs.length)]
+    // Use lead id to pick consistent message per lead
+    return msgs[(lead.id||"").charCodeAt(0) % msgs.length] || msgs[0]
   }
 
   async function sendRecovery() {
     if (!selected || !recoveryMsg || sending) return
     setSending(true)
     try {
-      const { data: conn } = await supabase.from("whatsapp_connections").select("access_token, phone_number_id").eq("user_id", userId).single()
+      const { data: conn } = await supabase.from("whatsapp_connections").select("access_token,phone_number_id").eq("user_id", userId).single()
       if (!conn) { alert("WhatsApp not connected"); setSending(false); return }
       const phone = (selected.phone||selected.customers?.phone||"").replace("+","")
-      await fetch(`https://graph.facebook.com/v18.0/${conn.phone_number_id}/messages`, {
+      const res = await fetch(`https://graph.facebook.com/v18.0/${conn.phone_number_id}/messages`, {
         method:"POST",
         headers:{"Authorization":`Bearer ${conn.access_token}`,"Content-Type":"application/json"},
         body:JSON.stringify({messaging_product:"whatsapp",to:phone,type:"text",text:{body:recoveryMsg}})
       })
-      await supabase.from("leads").update({ status:"contacted", recovery_message:recoveryMsg, recovery_sent_at:new Date().toISOString() }).eq("id", selected.id)
-      setLeads(prev=>prev.filter(l=>l.id!==selected.id))
-      setSelected(leads.find(l=>l.id!==selected.id)||null)
-    } catch(e) { console.error(e) }
+      const result = await res.json()
+      if (result.error) { alert("Failed to send: " + result.error.message); setSending(false); return }
+
+      // FIX: set recovery_sent_at timestamp, keep status as "open" so it can re-appear after cooldown
+      await supabase.from("leads").update({
+        recovery_message: recoveryMsg,
+        recovery_sent_at: new Date().toISOString()
+        // NOT changing status to "contacted" — it stays "open" and re-appears after 3 days
+      }).eq("id", selected.id)
+
+      // Remove from current view (it'll come back after cooldown)
+      const remaining = leads.filter(l=>l.id!==selected.id)
+      setLeads(remaining)
+      setSelected(remaining[0] || null)
+    } catch(e) { console.error(e); alert("Error sending message") }
     setSending(false)
   }
 
   async function dismissLead(id) {
+    // FIX: dismissed = never show again (status = "dismissed")
     await supabase.from("leads").update({ status:"dismissed" }).eq("id", id)
-    setLeads(prev=>prev.filter(l=>l.id!==id))
-    setSelected(leads.find(l=>l.id!==id)||null)
+    const remaining = leads.filter(l=>l.id!==id)
+    setLeads(remaining)
+    setSelected(remaining[0] || null)
   }
 
   const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
@@ -179,7 +212,6 @@ export default function Leads() {
             </div>
           </div>
 
-          {/* Opportunity Banner */}
           {stats.total>0 && (
             <div style={{padding:"12px 24px",borderBottom:`1px solid ${border}`,background:`linear-gradient(135deg,rgba(251,113,133,0.08),rgba(245,158,11,0.05))`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div style={{fontSize:13,fontWeight:600,color:text}}>💰 <span style={{color:"#fb7185"}}>₹{stats.value.toLocaleString()}</span> in unconverted leads — <span style={{color:textMuted}}>{stats.hot} hot, {stats.warm} warm</span></div>
@@ -191,7 +223,6 @@ export default function Leads() {
           )}
 
           <div className="content">
-            {/* Lead List */}
             <div style={{width:380,flexShrink:0,borderRight:`1px solid ${border}`,display:"flex",flexDirection:"column",background:sidebar}}>
               <div style={{padding:"10px 12px",borderBottom:`1px solid ${border}`,display:"flex",gap:4}}>
                 {["all","hot","warm","cold"].map(f=>(
@@ -202,11 +233,17 @@ export default function Leads() {
               </div>
               <div style={{flex:1,overflowY:"auto"}}>
                 {loading ? <div className="empty-state"><span>Loading...</span></div>
-                : filtered.length===0 ? <div className="empty-state"><span style={{fontSize:28}}>◉</span><span>No leads to recover</span><span style={{fontSize:11}}>New leads appear automatically</span></div>
-                : filtered.map(l=>{
+                : filtered.length===0 ? (
+                  <div className="empty-state">
+                    <span style={{fontSize:28}}>◉</span>
+                    <span style={{fontWeight:600}}>No leads to recover</span>
+                    <span style={{fontSize:11,textAlign:"center",padding:"0 20px"}}>Leads reappear after {COOLDOWN_DAYS} days if not converted</span>
+                  </div>
+                ) : filtered.map(l=>{
                   const name = l.name||l.customers?.name||l.phone
                   const color = getColor(name)
                   const scoreColor = getScoreColor(l.ai_score||50)
+                  const sentRecently = l.recovery_sent_at && (Date.now()-new Date(l.recovery_sent_at)) < COOLDOWN_DAYS*86400000
                   return (
                     <div key={l.id} onClick={()=>setSelected(l)}
                       style={{padding:"12px 16px",borderBottom:`1px solid ${border}`,cursor:"pointer",background:selected?.id===l.id?accentDim:"transparent",borderLeft:selected?.id===l.id?`2px solid ${accent}`:"2px solid transparent",transition:"background 0.1s"}}>
@@ -230,10 +267,8 @@ export default function Leads() {
               </div>
             </div>
 
-            {/* Detail Panel */}
             {selected ? (
               <div style={{flex:1,overflowY:"auto",padding:24,display:"flex",flexDirection:"column",gap:16}}>
-                {/* Score */}
                 <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:20,display:"flex",alignItems:"center",gap:20}}>
                   <div style={{position:"relative",width:70,height:70,flexShrink:0}}>
                     <svg width="70" height="70" viewBox="0 0 70 70" style={{transform:"rotate(-90deg)"}}>
@@ -247,10 +282,12 @@ export default function Leads() {
                     <div style={{fontWeight:800,fontSize:17,color:text,marginBottom:3}}>{selected.name||selected.customers?.name||selected.phone}</div>
                     <div style={{fontSize:12,color:textMuted,marginBottom:6}}>{selected.phone} · {selected.source}</div>
                     <div style={{fontSize:12,fontWeight:700,color:getScoreColor(selected.ai_score||50)}}>{getScoreLabel(selected.ai_score||50)} Lead</div>
+                    {selected.recovery_sent_at && (
+                      <div style={{fontSize:11,color:textFaint,marginTop:4}}>Last recovery: {formatTime(selected.recovery_sent_at)}</div>
+                    )}
                   </div>
                 </div>
 
-                {/* Last Message */}
                 {selected.last_message && (
                   <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:18}}>
                     <div style={{fontSize:11,color:textFaint,fontWeight:600,marginBottom:8,textTransform:"uppercase",letterSpacing:"1px"}}>Last Message</div>
@@ -259,14 +296,14 @@ export default function Leads() {
                   </div>
                 )}
 
-                {/* Recovery Message */}
                 <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:18}}>
                   <div style={{fontSize:11,color:textFaint,fontWeight:600,marginBottom:8,textTransform:"uppercase",letterSpacing:"1px"}}>Recovery Message</div>
                   <textarea value={recoveryMsg} onChange={e=>setRecoveryMsg(e.target.value)}
                     style={{width:"100%",background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:9,padding:"10px 13px",fontSize:13,color:text,fontFamily:"'Plus Jakarta Sans',sans-serif",outline:"none",resize:"vertical",minHeight:90,lineHeight:1.5}}/>
+                  <div style={{fontSize:11,color:textFaint,marginTop:6}}>After sending, this lead won't appear again for {COOLDOWN_DAYS} days</div>
                   <div style={{display:"flex",gap:8,marginTop:10}}>
-                    <button onClick={()=>dismissLead(selected.id)} style={{padding:"9px 16px",background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:8,color:textMuted,fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Dismiss</button>
-                    <button onClick={sendRecovery} disabled={sending} style={{flex:1,padding:"9px",background:accent,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                    <button onClick={()=>dismissLead(selected.id)} style={{padding:"9px 16px",background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:8,color:textMuted,fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Dismiss Forever</button>
+                    <button onClick={sendRecovery} disabled={sending} style={{flex:1,padding:"9px",background:accent,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",opacity:sending?0.7:1}}>
                       {sending?"Sending...":"📲 Send on WhatsApp"}
                     </button>
                   </div>
