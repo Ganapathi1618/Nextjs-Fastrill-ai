@@ -16,6 +16,7 @@ const NAV = [
 
 const TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30"]
 const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
 export default function Bookings() {
   const router = useRouter()
@@ -26,13 +27,16 @@ export default function Bookings() {
   const [bookings, setBookings] = useState([])
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState("all")
+  const [filter, setFilter] = useState("upcoming")
   const [showAdd, setShowAdd] = useState(false)
   const [services, setServices] = useState([])
   const [stats, setStats] = useState({ total:0, confirmed:0, pending:0, revenue:0, ai:0 })
-  const [today] = useState(new Date())
+  const [weekOffset, setWeekOffset] = useState(0) // 0 = current week, 1 = next week, etc
   const [newBooking, setNewBooking] = useState({ customer_name:"", customer_phone:"", service:"", staff:"", booking_date:"", booking_time:"", amount:"" })
   const [saving, setSaving] = useState(false)
+
+  const today = new Date()
+  const todayStr = today.toISOString().split("T")[0]
 
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
@@ -47,26 +51,25 @@ export default function Bookings() {
 
   async function loadBookings() {
     setLoading(true)
-    // FIX: removed .gte("booking_date", today) — load ALL bookings, no date filter
-    // This ensures past bookings and AI-created bookings always show
     const { data, error } = await supabase
-      .from("bookings")
-      .select("*")
-      .eq("user_id", userId)
-      .order("booking_date", { ascending: false })
+      .from("bookings").select("*").eq("user_id", userId)
+      .order("booking_date", { ascending: true })
       .order("booking_time", { ascending: true })
-
-    if (error) console.error("Bookings load error:", error.message)
+    if (error) console.error("Bookings error:", error.message)
     const list = data || []
     setBookings(list)
+    const confirmed = list.filter(b=>b.status==="confirmed"||b.status==="completed")
     setStats({
       total: list.length,
       confirmed: list.filter(b=>b.status==="confirmed").length,
       pending: list.filter(b=>b.status==="pending").length,
-      revenue: list.filter(b=>b.status==="confirmed"||b.status==="completed").reduce((s,b)=>s+(b.amount||0),0),
+      revenue: confirmed.reduce((s,b)=>s+(b.amount||0),0),
       ai: list.filter(b=>b.ai_booked).length
     })
-    if (list.length > 0 && !selected) setSelected(list[0])
+    // Auto-select today's first booking or first upcoming
+    const upcoming = list.filter(b=>b.booking_date >= todayStr)
+    if (upcoming.length > 0) setSelected(upcoming[0])
+    else if (list.length > 0) setSelected(list[0])
     setLoading(false)
   }
 
@@ -79,21 +82,30 @@ export default function Bookings() {
     await supabase.from("bookings").update({ status }).eq("id", id)
     setBookings(prev => prev.map(b => b.id===id ? {...b, status} : b))
     if (selected?.id===id) setSelected(prev=>({...prev, status}))
+    // Update stats
+    setStats(prev => {
+      const old = bookings.find(b=>b.id===id)
+      return {
+        ...prev,
+        confirmed: prev.confirmed + (status==="confirmed"?1:0) - (old?.status==="confirmed"?1:0),
+        pending: prev.pending + (status==="pending"?1:0) - (old?.status==="pending"?1:0),
+      }
+    })
   }
 
   async function addBooking() {
     if (!newBooking.customer_name || !newBooking.service || !newBooking.booking_date) return
     setSaving(true)
     const { data, error } = await supabase.from("bookings").insert({
-      ...newBooking, user_id: userId, status: "pending", ai_booked: false,
-      amount: parseInt(newBooking.amount)||0,
-      created_at: new Date().toISOString()
+      ...newBooking, user_id: userId, status: "confirmed", ai_booked: false,
+      amount: parseInt(newBooking.amount)||0, created_at: new Date().toISOString()
     }).select().single()
     if (error) console.error("Add booking error:", error.message)
     if (data) {
-      setBookings(prev=>[data, ...prev])
+      const updated = [...bookings, data].sort((a,b)=>a.booking_date>b.booking_date?1:-1)
+      setBookings(updated)
       setSelected(data)
-      setStats(prev=>({...prev, total:prev.total+1, pending:prev.pending+1}))
+      setStats(prev=>({...prev, total:prev.total+1, confirmed:prev.confirmed+1}))
       setShowAdd(false)
       setNewBooking({ customer_name:"", customer_phone:"", service:"", staff:"", booking_date:"", booking_time:"", amount:"" })
     }
@@ -113,34 +125,68 @@ export default function Bookings() {
   const userInitial=userEmail?userEmail[0].toUpperCase():"G"
 
   const statusColor = { confirmed:accent, pending:"#f59e0b", "in-progress":"#38bdf8", completed:"#a78bfa", cancelled:"#fb7185" }
-  const weekDays = Array.from({length:7}, (_,i) => { const d=new Date(today); d.setDate(today.getDate()-today.getDay()+i); return d })
-  const filtered = filter==="all" ? bookings : bookings.filter(b=>b.status===filter)
-  const inp = { background:inputBg, border:`1px solid ${cardBorder}`, borderRadius:8, padding:"9px 12px", fontSize:13, color:text, fontFamily:"'Plus Jakarta Sans',sans-serif", outline:"none", width:"100%" }
+
+  // Week view: offset weeks from current
+  const weekStart = new Date(today)
+  weekStart.setDate(today.getDate() - today.getDay() + (weekOffset * 7))
+  const weekDays = Array.from({length:7}, (_,i) => {
+    const d = new Date(weekStart); d.setDate(weekStart.getDate()+i); return d
+  })
+  const weekLabel = `${weekDays[0].getDate()} ${MONTHS[weekDays[0].getMonth()]} – ${weekDays[6].getDate()} ${MONTHS[weekDays[6].getMonth()]}`
 
   const formatDate = (d) => {
     if (!d) return "—"
-    try { return new Date(d+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",year:"numeric"}) }
-    catch { return d }
+    try {
+      const dt = new Date(d+"T12:00:00")
+      const isToday = d === todayStr
+      const isTomorrow = d === new Date(new Date().setDate(today.getDate()+1)).toISOString().split("T")[0]
+      const prefix = isToday ? "Today · " : isTomorrow ? "Tomorrow · " : ""
+      return prefix + dt.toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})
+    } catch { return d }
   }
 
-  const BookingCard = ({b}) => (
-    <div onClick={()=>setSelected(selected?.id===b.id?null:b)}
-      style={{background:selected?.id===b.id?accentDim:card, border:`1px solid ${selected?.id===b.id?accent+"55":statusColor[b.status]||textFaint}44`,
-        borderRadius:10, padding:"11px 13px", cursor:"pointer", borderLeft:`3px solid ${statusColor[b.status]||textFaint}`, marginBottom:8, transition:"background 0.1s"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-        <span style={{fontWeight:700,fontSize:13,color:text}}>{b.customer_name}</span>
-        <span style={{fontSize:10.5,fontWeight:700,color:statusColor[b.status],background:statusColor[b.status]+"15",border:`1px solid ${statusColor[b.status]}33`,borderRadius:100,padding:"2px 8px"}}>{b.status}</span>
-      </div>
-      <div style={{fontSize:12,color:textMuted,marginBottom:3}}>{b.service}{b.booking_time?` · ${b.booking_time}`:""}</div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <span style={{fontSize:11,color:textFaint}}>{formatDate(b.booking_date)}</span>
-        <div style={{display:"flex",alignItems:"center",gap:6}}>
-          {b.ai_booked && <span style={{fontSize:9.5,fontWeight:700,color:"#a78bfa",background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"1px 7px"}}>◈ AI</span>}
-          {b.amount>0 && <span style={{fontWeight:700,fontSize:12.5,color:accent}}>₹{b.amount.toLocaleString()}</span>}
+  // Smart filter
+  const todayBookings = bookings.filter(b=>b.booking_date===todayStr)
+  const filteredBookings = {
+    upcoming: bookings.filter(b=>b.booking_date >= todayStr && b.status!=="cancelled"),
+    today: todayBookings,
+    all: bookings,
+    confirmed: bookings.filter(b=>b.status==="confirmed"),
+    pending: bookings.filter(b=>b.status==="pending"),
+    completed: bookings.filter(b=>b.status==="completed"),
+    cancelled: bookings.filter(b=>b.status==="cancelled"),
+  }
+  const filtered = filteredBookings[filter] || bookings
+
+  const inp = { background:inputBg, border:`1px solid ${cardBorder}`, borderRadius:8, padding:"9px 12px", fontSize:13, color:text, fontFamily:"'Plus Jakarta Sans',sans-serif", outline:"none", width:"100%" }
+
+  const BookingCard = ({b}) => {
+    const isToday = b.booking_date === todayStr
+    return (
+      <div onClick={()=>setSelected(selected?.id===b.id?null:b)}
+        style={{background:selected?.id===b.id?accentDim:isToday?`${accent}08`:card,
+          border:`1px solid ${selected?.id===b.id?accent+"66":isToday?accent+"33":statusColor[b.status]+"33"}`,
+          borderRadius:10, padding:"11px 13px", cursor:"pointer",
+          borderLeft:`3px solid ${isToday?accent:statusColor[b.status]||textFaint}`,
+          marginBottom:8, transition:"all 0.1s"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontWeight:700,fontSize:13,color:text}}>{b.customer_name}</span>
+            {isToday && <span style={{fontSize:9,fontWeight:800,color:accent,background:accentDim,border:`1px solid ${accent}44`,borderRadius:100,padding:"1px 6px"}}>TODAY</span>}
+          </div>
+          <span style={{fontSize:10.5,fontWeight:700,color:statusColor[b.status],background:statusColor[b.status]+"15",border:`1px solid ${statusColor[b.status]}33`,borderRadius:100,padding:"2px 8px"}}>{b.status}</span>
+        </div>
+        <div style={{fontSize:12,color:textMuted,marginBottom:4}}>{b.service}{b.booking_time?` · ⏰ ${b.booking_time}`:""}</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontSize:11,color:isToday?accent:textFaint,fontWeight:isToday?600:400}}>{formatDate(b.booking_date)}</span>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            {b.ai_booked && <span style={{fontSize:9.5,fontWeight:700,color:"#a78bfa",background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"1px 7px"}}>◈ AI</span>}
+            {b.amount>0 && <span style={{fontWeight:700,fontSize:12.5,color:accent}}>₹{b.amount.toLocaleString()}</span>}
+          </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <>
@@ -171,9 +217,11 @@ export default function Bookings() {
         .toggle-pill{width:30px;height:16px;border-radius:100px;background:${dark?accent:"#d1d5db"};position:relative;flex-shrink:0;}
         .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
         .content{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px;background:${bg};}
-        .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:8px;color:${textFaint};}
+        .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:8px;color:${textFaint};text-align:center;}
         select option{background-color:#0c0c15!important;color:#eeeef5!important;}
         select:focus{outline:none;}
+        .nav-btn{padding:5px 10px;border-radius:7px;border:1px solid ${cardBorder};background:${inputBg};color:${textMuted};cursor:pointer;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;}
+        .nav-btn:hover{color:${text};border-color:${accent}44;}
       `}</style>
 
       <div className="wrap">
@@ -213,7 +261,7 @@ export default function Bookings() {
           </div>
 
           <div className="content">
-            {/* Stats — FIX: "Upcoming" → "Total" */}
+            {/* Stats */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
               {[
                 {l:"Total",v:stats.total,c:text},
@@ -224,34 +272,66 @@ export default function Bookings() {
               ].map(s=>(
                 <div key={s.l} style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:11,padding:"13px 15px"}}>
                   <div style={{fontSize:11,color:textMuted,marginBottom:5}}>{s.l}</div>
-                  <div style={{fontSize:22,fontWeight:700,color:s.c}}>{s.v}</div>
+                  <div style={{fontSize:22,fontWeight:700,color:s.c}}>{loading?"—":s.v}</div>
                 </div>
               ))}
             </div>
 
+            {/* Today's snapshot banner if there are bookings today */}
+            {todayBookings.length > 0 && (
+              <div style={{background:`linear-gradient(135deg,${accent}12,${accent}06)`,border:`1px solid ${accent}33`,borderRadius:11,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:20}}>📅</span>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13,color:text}}>{todayBookings.length} booking{todayBookings.length>1?"s":""} today</div>
+                    <div style={{fontSize:11.5,color:textMuted}}>{todayBookings.map(b=>`${b.customer_name} at ${b.booking_time||"TBD"}`).join(" · ")}</div>
+                  </div>
+                </div>
+                <button onClick={()=>setFilter("today")} style={{padding:"5px 12px",borderRadius:7,background:accent,border:"none",color:"#000",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>View Today</button>
+              </div>
+            )}
+
             {view==="week" ? (
               <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,overflow:"hidden"}}>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${border}`}}>
-                  {weekDays.map((d,i)=>(
-                    <div key={i} style={{padding:"12px 8px",textAlign:"center",borderRight:i<6?`1px solid ${border}`:"none"}}>
-                      <div style={{fontSize:10.5,color:textFaint,fontWeight:600,marginBottom:5}}>{DAYS[d.getDay()]}</div>
-                      <div style={{width:30,height:30,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",fontWeight:700,fontSize:13,background:d.toDateString()===today.toDateString()?accent:"transparent",color:d.toDateString()===today.toDateString()?"#fff":textMuted}}>
-                        {d.getDate()}
-                      </div>
-                    </div>
-                  ))}
+                {/* Week navigation — can go forward/back */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",borderBottom:`1px solid ${border}`}}>
+                  <button className="nav-btn" onClick={()=>setWeekOffset(w=>w-1)}>← Prev</button>
+                  <span style={{fontWeight:700,fontSize:13,color:text}}>{weekLabel}</span>
+                  <button className="nav-btn" onClick={()=>setWeekOffset(w=>w+1)}>Next →</button>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",minHeight:200,padding:8,gap:6}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${border}`}}>
+                  {weekDays.map((d,i)=>{
+                    const isToday = d.toDateString()===today.toDateString()
+                    const dayStr = d.toISOString().split("T")[0]
+                    const count = bookings.filter(b=>b.booking_date===dayStr).length
+                    return (
+                      <div key={i} style={{padding:"12px 8px",textAlign:"center",borderRight:i<6?`1px solid ${border}`:"none",background:isToday?`${accent}08`:"transparent"}}>
+                        <div style={{fontSize:10.5,color:textFaint,fontWeight:600,marginBottom:5}}>{DAYS[d.getDay()]}</div>
+                        <div style={{width:30,height:30,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto",fontWeight:700,fontSize:13,background:isToday?accent:"transparent",color:isToday?"#000":textMuted}}>
+                          {d.getDate()}
+                        </div>
+                        {count>0 && <div style={{marginTop:4,fontSize:9,fontWeight:700,color:accent}}>{count} booking{count>1?"s":""}</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",minHeight:220,padding:8,gap:4}}>
                   {weekDays.map((d,i)=>{
                     const dayStr = d.toISOString().split("T")[0]
                     const dayBookings = bookings.filter(b=>b.booking_date===dayStr)
+                    const isToday = d.toDateString()===today.toDateString()
                     return (
-                      <div key={i} style={{borderRight:i<6?`1px solid ${border}`:"none",paddingRight:i<6?6:0}}>
+                      <div key={i} style={{borderRight:i<6?`1px solid ${border}`:"none",paddingRight:i<6?4:0,background:isToday?`${accent}04`:"transparent",borderRadius:6}}>
                         {dayBookings.map(b=>(
-                          <div key={b.id} onClick={()=>setSelected(b)} style={{fontSize:10.5,fontWeight:600,color:statusColor[b.status],background:statusColor[b.status]+"15",border:`1px solid ${statusColor[b.status]}33`,borderRadius:5,padding:"3px 6px",marginBottom:3,cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                            {b.booking_time} {b.customer_name}
+                          <div key={b.id} onClick={()=>setSelected(b)}
+                            style={{fontSize:10.5,fontWeight:600,color:statusColor[b.status],background:statusColor[b.status]+"18",border:`1px solid ${statusColor[b.status]}33`,borderRadius:5,padding:"4px 6px",marginBottom:4,cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:1.4}}>
+                            {b.booking_time && <span style={{opacity:0.7}}>{b.booking_time} </span>}
+                            {b.customer_name}
                           </div>
                         ))}
+                        {dayBookings.length===0 && isToday && (
+                          <div style={{fontSize:10,color:textFaint,textAlign:"center",marginTop:8}}>No bookings</div>
+                        )}
                       </div>
                     )
                   })}
@@ -260,34 +340,49 @@ export default function Bookings() {
             ) : (
               <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:14}}>
                 <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,overflow:"hidden"}}>
-                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${border}`,display:"flex",gap:6,flexWrap:"wrap"}}>
-                    {["all","confirmed","pending","completed","cancelled"].map(f=>(
-                      <button key={f} onClick={()=>setFilter(f)} style={{padding:"3px 10px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",border:`1px solid ${filter===f?(statusColor[f]||accent)+"44":cardBorder}`,background:filter===f?(statusColor[f]||accent)+"15":"transparent",color:filter===f?(statusColor[f]||accent):textMuted,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                        {f.charAt(0).toUpperCase()+f.slice(1)}
+                  {/* Smart filters with counts */}
+                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${border}`,display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+                    {[
+                      {k:"upcoming",label:"Upcoming"},
+                      {k:"today",label:`Today${todayBookings.length>0?` (${todayBookings.length})`:""}`,highlight:todayBookings.length>0},
+                      {k:"all",label:"All"},
+                      {k:"confirmed",label:"Confirmed"},
+                      {k:"pending",label:"Pending"},
+                      {k:"completed",label:"Done"},
+                      {k:"cancelled",label:"Cancelled"},
+                    ].map(f=>(
+                      <button key={f.k} onClick={()=>setFilter(f.k)} style={{padding:"3px 10px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",border:`1px solid ${filter===f.k?(f.highlight?accent:statusColor[f.k]||accent)+"55":cardBorder}`,background:filter===f.k?(f.highlight?accent:statusColor[f.k]||accent)+"18":"transparent",color:filter===f.k?(f.highlight?accent:statusColor[f.k]||accent):textMuted,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                        {f.label}
                       </button>
                     ))}
                   </div>
-                  <div style={{padding:14,overflowY:"auto",maxHeight:"calc(100vh - 280px)"}}>
+                  <div style={{padding:14,overflowY:"auto",maxHeight:"calc(100vh - 320px)"}}>
                     {loading
                       ? <div className="empty-state"><span>Loading...</span></div>
                       : filtered.length===0
                       ? <div className="empty-state">
                           <span style={{fontSize:28}}>◷</span>
-                          <span style={{fontWeight:600}}>No bookings yet</span>
-                          <span style={{fontSize:11,textAlign:"center"}}>Bookings appear when customers message your WhatsApp or you add them manually</span>
+                          <span style={{fontWeight:600,fontSize:13}}>No {filter} bookings</span>
+                          <span style={{fontSize:11,color:textFaint}}>AI creates bookings automatically from WhatsApp chats</span>
+                          <button onClick={()=>setShowAdd(true)} style={{marginTop:4,padding:"6px 14px",borderRadius:8,background:accentDim,border:`1px solid ${accent}44`,color:accent,fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>+ Add manually</button>
                         </div>
                       : filtered.map(b=><BookingCard key={b.id} b={b}/>)
                     }
                   </div>
                 </div>
 
-                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:18}}>
+                {/* Detail panel */}
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:18,position:"sticky",top:0}}>
                   {selected ? (
                     <>
                       <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         Booking Details
                         <button onClick={()=>setSelected(null)} style={{background:"transparent",border:"none",color:textFaint,cursor:"pointer",fontSize:18,lineHeight:1}}>×</button>
                       </div>
+                      {/* Highlight today */}
+                      {selected.booking_date===todayStr && (
+                        <div style={{background:accentDim,border:`1px solid ${accent}44`,borderRadius:8,padding:"7px 11px",marginBottom:12,fontSize:12,fontWeight:600,color:accent}}>📅 This booking is TODAY</div>
+                      )}
                       {[
                         ["Customer", selected.customer_name],
                         ["Phone", selected.customer_phone||"—"],
@@ -333,7 +428,7 @@ export default function Bookings() {
           <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:16,padding:28,width:420,display:"flex",flexDirection:"column",gap:12}}>
             <div style={{fontWeight:800,fontSize:16,color:text}}>New Booking</div>
             <input placeholder="Customer name *" value={newBooking.customer_name} onChange={e=>setNewBooking(p=>({...p,customer_name:e.target.value}))} style={inp}/>
-            <input placeholder="Phone" value={newBooking.customer_phone} onChange={e=>setNewBooking(p=>({...p,customer_phone:e.target.value}))} style={inp}/>
+            <input placeholder="Phone (with country code)" value={newBooking.customer_phone} onChange={e=>setNewBooking(p=>({...p,customer_phone:e.target.value}))} style={inp}/>
             <select value={newBooking.service} onChange={e=>{
               const svc = services.find(s=>s.name===e.target.value)
               setNewBooking(p=>({...p,service:e.target.value,amount:svc?.price?.toString()||p.amount}))
@@ -342,18 +437,19 @@ export default function Bookings() {
               {services.map(s=><option key={s.name} value={s.name}>{s.name} — ₹{s.price}</option>)}
               <option value="Other">Other</option>
             </select>
-            <input placeholder="Staff" value={newBooking.staff} onChange={e=>setNewBooking(p=>({...p,staff:e.target.value}))} style={inp}/>
+            <input placeholder="Staff member" value={newBooking.staff} onChange={e=>setNewBooking(p=>({...p,staff:e.target.value}))} style={inp}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <input type="date" value={newBooking.booking_date} onChange={e=>setNewBooking(p=>({...p,booking_date:e.target.value}))} style={inp}/>
+              <input type="date" value={newBooking.booking_date} min={todayStr} onChange={e=>setNewBooking(p=>({...p,booking_date:e.target.value}))} style={inp}/>
               <select value={newBooking.booking_time} onChange={e=>setNewBooking(p=>({...p,booking_time:e.target.value}))} style={inp}>
                 <option value="">Time</option>
                 {TIMES.map(t=><option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <input placeholder="Amount (₹)" type="number" value={newBooking.amount} onChange={e=>setNewBooking(p=>({...p,amount:e.target.value}))} style={inp}/>
+            <input placeholder="Amount (₹) — auto-filled from service" type="number" value={newBooking.amount} onChange={e=>setNewBooking(p=>({...p,amount:e.target.value}))} style={inp}/>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:"9px",background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:8,color:textMuted,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Cancel</button>
-              <button onClick={addBooking} disabled={saving||!newBooking.customer_name||!newBooking.service||!newBooking.booking_date} style={{flex:1,padding:"9px",background:accent,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",opacity:(saving||!newBooking.customer_name||!newBooking.service||!newBooking.booking_date)?0.5:1}}>
+              <button onClick={addBooking} disabled={saving||!newBooking.customer_name||!newBooking.service||!newBooking.booking_date}
+                style={{flex:1,padding:"9px",background:accent,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",opacity:(saving||!newBooking.customer_name||!newBooking.service||!newBooking.booking_date)?0.5:1}}>
                 {saving?"Saving...":"Add Booking"}
               </button>
             </div>
