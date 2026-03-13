@@ -296,6 +296,24 @@ export default function Bookings() {
               ))}
             </div>
 
+            {/* ── DEBUG: raw booking dates from DB (remove after fix) ── */}
+            {bookings.length > 0 && (
+              <div style={{background:"rgba(251,113,133,0.08)",border:"1px solid rgba(251,113,133,0.3)",borderRadius:10,padding:"12px 16px"}}>
+                <div style={{fontWeight:700,fontSize:11,color:"#fb7185",marginBottom:8}}>🔍 DEBUG — Raw booking_date values in database (remove this after confirming)</div>
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  {bookings.map(b=>(
+                    <div key={b.id} style={{fontSize:11,fontFamily:"monospace",color:textMuted,display:"flex",gap:16}}>
+                      <span style={{color:text,fontWeight:600,minWidth:160}}>{b.customer_name}</span>
+                      <span style={{color:"#fb7185",minWidth:140}}>booking_date: "{b.booking_date}"</span>
+                      <span style={{color:"#f59e0b",minWidth:100}}>status: {b.status}</span>
+                      <span style={{color:"#a78bfa"}}>ai: {b.ai_booked?"yes":"no"}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{marginTop:8,fontSize:11,color:textFaint}}>Today is: <span style={{color:accent,fontWeight:700}}>{todayStr}</span></div>
+              </div>
+            )}
+
             {/* ── Today banner ── */}
             {todayBks.length > 0 && (
               <div style={{background:`linear-gradient(135deg,${accent}14,${accent}06)`,border:`1px solid ${accent}33`,borderRadius:11,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
