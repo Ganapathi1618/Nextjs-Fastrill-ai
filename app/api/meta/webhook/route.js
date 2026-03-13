@@ -23,58 +23,53 @@ export async function GET(req) {
 export async function POST(req) {
   try {
 
-    console.log("🚀 WEBHOOK RUNNING")
-
     const body = await req.json()
 
-    const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
+    const value = body?.entry?.[0]?.changes?.[0]?.value
 
-    if (statuses && !body?.entry?.[0]?.changes?.[0]?.value?.messages) {
-      return NextResponse.json({ status: "status_update" }, { status: 200 })
-    }
-
-    if (!body?.entry?.[0]?.changes?.[0]?.value?.messages) {
+    if (!value?.messages) {
       return NextResponse.json({ status: "no_message" }, { status: 200 })
     }
 
-    const value = body.entry[0].changes[0].value
-    const phoneNumberId = value?.metadata?.phone_number_id
-    const messages = value?.messages || []
-    const contacts = value?.contacts || []
+    const phoneNumberId = value.metadata.phone_number_id
+    const messages = value.messages
+    const contacts = value.contacts || []
 
     for (const message of messages) {
 
       const fromNumber = message.from
-      const messageType = message.type
-
-      const timestamp = new Date(
-        parseInt(message.timestamp) * 1000
-      ).toISOString()
-
-      const contact = contacts.find(c => c.wa_id === fromNumber)
-
-      const contactName =
-        contact?.profile?.name || "Customer"
-
-      const formattedPhone =
-        fromNumber.replace(/[^0-9]/g, "")
+      const messageId = message.id
+      const timestamp = new Date(parseInt(message.timestamp) * 1000).toISOString()
 
       let messageText = ""
 
-      if (messageType === "text") {
-        messageText = message.text?.body || ""
-      }
-      else if (messageType === "button") {
-        messageText = message.button?.text || ""
-      }
-      else if (messageType === "interactive") {
-        messageText =
-          message.interactive?.button_reply?.title ||
-          message.interactive?.list_reply?.title ||
-          ""
+      if (message.type === "text") {
+        messageText = message.text.body
       }
 
-      console.log(`📩 ${formattedPhone}: ${messageText}`)
+      const formattedPhone = fromNumber.replace(/[^0-9]/g, "")
+
+      const contact = contacts.find(c => c.wa_id === fromNumber)
+      const contactName = contact?.profile?.name || "Customer"
+
+      /* -------------------------------- */
+      /* DUPLICATE PROTECTION */
+      /* -------------------------------- */
+
+      const { data: existingMsg } = await supabaseAdmin
+        .from("messages")
+        .select("id")
+        .eq("wa_message_id", messageId)
+        .maybeSingle()
+
+      if (existingMsg) {
+        console.log("Duplicate webhook ignored")
+        continue
+      }
+
+      /* -------------------------------- */
+      /* GET WHATSAPP CONNECTION */
+      /* -------------------------------- */
 
       const { data: connection } = await supabaseAdmin
         .from("whatsapp_connections")
@@ -82,31 +77,13 @@ export async function POST(req) {
         .eq("phone_number_id", phoneNumberId)
         .single()
 
-      if (!connection) {
-        console.log("❌ No connection found")
-        continue
-      }
+      if (!connection) continue
 
       const userId = connection.user_id
 
-      /* ------------------------------------------------ */
-      /* DUPLICATE MESSAGE PROTECTION (NEW FEATURE) */
-      /* ------------------------------------------------ */
-
-      const { data: existingMessage } = await supabaseAdmin
-        .from("messages")
-        .select("id")
-        .eq("wa_message_id", message.id)
-        .maybeSingle()
-
-      if (existingMessage) {
-        console.log("⚠️ Duplicate webhook ignored:", message.id)
-        continue
-      }
-
-      /* ------------------------------------------------ */
+      /* -------------------------------- */
       /* CUSTOMER UPSERT */
-      /* ------------------------------------------------ */
+      /* -------------------------------- */
 
       let customer = null
 
@@ -136,7 +113,6 @@ export async function POST(req) {
             user_id: userId,
             phone: formattedPhone,
             name: contactName,
-            source: "whatsapp",
             tag: "new_lead",
             created_at: timestamp
           })
@@ -145,13 +121,11 @@ export async function POST(req) {
 
         customer = newCustomer
 
-        console.log("✅ New customer created")
-
       }
 
-      /* ------------------------------------------------ */
+      /* -------------------------------- */
       /* CONVERSATION UPSERT */
-      /* ------------------------------------------------ */
+      /* -------------------------------- */
 
       let conversation = null
 
@@ -167,11 +141,9 @@ export async function POST(req) {
         const { data: updated } = await supabaseAdmin
           .from("conversations")
           .update({
-            last_message: messageText || "[media]",
+            last_message: messageText,
             last_message_at: timestamp,
-            unread_count: (existingConvo.unread_count || 0) + 1,
-            customer_id: customer?.id || existingConvo.customer_id,
-            status: "open"
+            unread_count: (existingConvo.unread_count || 0) + 1
           })
           .eq("id", existingConvo.id)
           .select()
@@ -185,11 +157,11 @@ export async function POST(req) {
           .from("conversations")
           .insert({
             user_id: userId,
-            customer_id: customer?.id,
             phone: formattedPhone,
+            customer_id: customer?.id,
             status: "open",
             ai_enabled: true,
-            last_message: messageText || "[media]",
+            last_message: messageText,
             last_message_at: timestamp,
             unread_count: 1
           })
@@ -200,122 +172,171 @@ export async function POST(req) {
 
       }
 
-      /* ------------------------------------------------ */
-      /* SAVE MESSAGE */
-      /* ------------------------------------------------ */
+      /* -------------------------------- */
+      /* SAVE INBOUND MESSAGE */
+      /* -------------------------------- */
 
-      await supabaseAdmin
-        .from("messages")
-        .insert({
-          user_id: userId,
-          phone_number_id: phoneNumberId,
-          from_number: fromNumber,
-          message_text: messageText || "[media]",
-          direction: "inbound",
-          conversation_id: conversation?.id,
-          customer_phone: formattedPhone,
-          message_type: messageType || "text",
-          status: "delivered",
-          is_ai: false,
-          wa_message_id: message.id,
-          created_at: timestamp
-        })
-
-      /* ------------------------------------------------ */
-      /* AI REPLY */
-      /* ------------------------------------------------ */
-
-      if (!messageText) {
-        return
-      }
-
-      const aiReply = `Hi ${contactName.split(" ")[0]} 👋
-
-Thanks for your message.
-
-How can I help you today?
-
-📅 Book appointment
-💰 Services & prices
-📍 Location`
-
-      await sendWhatsAppMessage({
-        phoneNumberId,
-        accessToken: connection.access_token,
-        toNumber: fromNumber,
-        message: aiReply
+      await supabaseAdmin.from("messages").insert({
+        user_id: userId,
+        phone_number_id: phoneNumberId,
+        from_number: fromNumber,
+        message_text: messageText,
+        direction: "inbound",
+        conversation_id: conversation?.id,
+        customer_phone: formattedPhone,
+        message_type: message.type,
+        status: "delivered",
+        is_ai: false,
+        wa_message_id: messageId,
+        created_at: timestamp
       })
 
-      await supabaseAdmin
-        .from("messages")
-        .insert({
-          user_id: userId,
-          phone_number_id: phoneNumberId,
-          from_number: phoneNumberId,
-          message_text: aiReply,
-          direction: "outbound",
-          conversation_id: conversation?.id,
-          customer_phone: formattedPhone,
-          message_type: "text",
-          status: "sent",
-          is_ai: true,
-          created_at: new Date().toISOString()
+      /* -------------------------------- */
+      /* BOOKING INTENT SIMPLE DETECTION */
+      /* -------------------------------- */
+
+      const lower = messageText.toLowerCase()
+
+      if (lower.includes("book")) {
+
+        const { data: services } = await supabaseAdmin
+          .from("services")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("is_active", true)
+
+        const matchedService = services?.[0]
+
+        if (!matchedService) continue
+
+        const serviceDuration = matchedService.duration_minutes || 30
+        const serviceCapacity = matchedService.capacity || 1
+
+        const date = new Date().toISOString().split("T")[0]
+        const time = "17:00"
+
+        const { data: existingBookings } = await supabaseAdmin
+          .from("bookings")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("booking_date", date)
+          .eq("booking_time", time)
+          .eq("service", matchedService.name)
+          .in("status", ["confirmed","pending"])
+
+        const currentCount = existingBookings?.length || 0
+
+        if (currentCount >= serviceCapacity) {
+
+          const slotMsg = `That slot is fully booked 😔
+
+Available slots:
+${generateNextSlots(time)}`
+
+          await sendWhatsAppMessage({
+            phoneNumberId,
+            accessToken: connection.access_token,
+            toNumber: fromNumber,
+            message: slotMsg
+          })
+
+          continue
+        }
+
+        await supabaseAdmin
+          .from("bookings")
+          .insert({
+            user_id: userId,
+            customer_id: customer?.id,
+            customer_name: contactName,
+            customer_phone: formattedPhone,
+            service: matchedService.name,
+            booking_date: date,
+            booking_time: time,
+            duration_minutes: serviceDuration,
+            amount: matchedService.price,
+            status: "confirmed",
+            ai_booked: true,
+            created_at: new Date().toISOString()
+          })
+
+        const confirmMsg = `✅ Booking Confirmed
+
+Service: ${matchedService.name}
+Date: ${date}
+Time: ${time}`
+
+        await sendWhatsAppMessage({
+          phoneNumberId,
+          accessToken: connection.access_token,
+          toNumber: fromNumber,
+          message: confirmMsg
         })
+
+      }
 
     }
 
-    return NextResponse.json({ status: "ok" }, { status: 200 })
+    return NextResponse.json({ status: "ok" })
 
   } catch (err) {
 
-    console.error("❌ Webhook error:", err)
+    console.error("Webhook error:", err)
 
     return NextResponse.json({
       status: "error",
       message: err.message
-    }, { status: 200 })
+    })
   }
 }
 
-/* ------------------------------------------------ */
+/* -------------------------------- */
+/* NEXT SLOT GENERATOR */
+/* -------------------------------- */
+
+function generateNextSlots(time) {
+
+  const [h, m] = time.split(":").map(Number)
+
+  const slots = []
+
+  for (let i = 1; i <= 3; i++) {
+
+    const next = new Date()
+    next.setHours(h)
+    next.setMinutes(m + (i * 30))
+
+    const hh = String(next.getHours()).padStart(2, "0")
+    const mm = String(next.getMinutes()).padStart(2, "0")
+
+    slots.push(`${hh}:${mm}`)
+  }
+
+  return slots.join("\n")
+}
+
+/* -------------------------------- */
 /* SEND WHATSAPP MESSAGE */
-/* ------------------------------------------------ */
+/* -------------------------------- */
 
 async function sendWhatsAppMessage({ phoneNumberId, accessToken, toNumber, message }) {
 
-  try {
-
-    const res = await fetch(
-      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: toNumber,
-          type: "text",
-          text: {
-            body: message
-          }
-        })
-      }
-    )
-
-    const data = await res.json()
-
-    if (data.error) {
-      console.error("WhatsApp send error:", data.error)
+  const res = await fetch(
+    `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: toNumber,
+        type: "text",
+        text: { body: message }
+      })
     }
+  )
 
-    return data
-
-  } catch (err) {
-
-    console.error("WhatsApp send failed:", err.message)
-
-    return {}
-  }
+  return res.json()
 }
