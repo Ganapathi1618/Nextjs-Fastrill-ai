@@ -1,6 +1,3 @@
-I'll enhance your booking agent with powerful error handling, validation, and intelligent booking features. Here's the upgraded version:
-
-```jsx
 "use client"
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
