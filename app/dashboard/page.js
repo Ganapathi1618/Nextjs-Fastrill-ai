@@ -63,17 +63,26 @@ export default function Dashboard() {
 
     setConnected(!!wa)
 
-    // Filter bookings by period for stats
-    const periodBks = (bks||[]).filter(b => new Date(b.created_at) >= from)
+    // FIX: use booking_date (not created_at) so "Today" = today's appointments, not bookings made today
+    const allBks = bks||[]
+    const fromDateStr = from.toISOString().split("T")[0]
+    const periodBks = period==="today"
+      ? allBks.filter(b=>b.booking_date===todayStr)
+      : allBks.filter(b=>b.booking_date >= fromDateStr)
+
+    // Revenue = ALL confirmed+completed bookings (lifetime total — most meaningful for owner)
+    const allCompleted = allBks.filter(b=>b.status==="completed"||b.status==="confirmed")
+    const revenue = allCompleted.reduce((s,b)=>s+(b.amount||0),0)
     const completedBks = periodBks.filter(b=>b.status==="completed"||b.status==="confirmed")
-    const revenue = completedBks.reduce((s,b)=>s+(b.amount||0),0)
+
     const aiHandled = (msgs||[]).filter(m=>m.is_ai&&m.direction==="outbound").length
-    const aiBookings = periodBks.filter(b=>b.ai_booked).length
+    // AI bookings = total ever (shows AI's lifetime contribution)
+    const aiBookings = allBks.filter(b=>b.ai_booked).length
     const missedLeads = (leads||[]).filter(l=>l.status==="open").length
     const uniqueConvos = [...new Set((msgs||[]).map(m=>m.conversation_id).filter(Boolean))].length
 
     setStats({ revenue, leads:(leads||[]).length, bookings:periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue: Math.round(revenue*0.7) })
-    setFunnel({ leads:(leads||[]).length, convos:uniqueConvos||Math.round((leads||[]).length*0.72), booked:periodBks.length, completed:completedBks.length, revenue })
+    setFunnel({ leads:(leads||[]).length, convos:uniqueConvos||Math.round((leads||[]).length*0.72), booked:allBks.length, completed:allCompleted.length, revenue })
 
     // Today's bookings — from ALL bookings, filter by today's date
     setTodayBookings((bks||[]).filter(b=>b.booking_date===todayStr).slice(0,4))
@@ -83,7 +92,7 @@ export default function Dashboard() {
     setSources(Object.entries(srcMap).map(([name,count])=>({ name, count, color:{ whatsapp:"#25d366", instagram:"#e1306c", google:"#ea4335", referral:"#f59e0b", organic:"#38bdf8" }[name.toLowerCase()]||"#a78bfa" })).slice(0,4))
 
     const score = Math.min(100, Math.round(
-      (wa?20:0) + (aiHandled>5?20:aiHandled*4) + (periodBks.length>0?15:0) + ((leads||[]).length>0?10:0) + ((customers||[]).length>2?15:0) + 20
+      (wa?20:0) + (aiHandled>5?20:aiHandled*4) + (allBks.length>0?15:0) + ((leads||[]).length>0?10:0) + ((customers||[]).length>2?15:0) + 20
     ))
     setHealthScore(score)
     setLoading(false)
