@@ -87,20 +87,10 @@ const validateBooking = (booking, services) => {
     errors.amount = "Valid amount is required"
   }
   
-  // Check for duplicate bookings
-  if (booking.customer_phone && booking.booking_date && booking.booking_time) {
-    const checkDuplicate = {
-      customer_phone: booking.customer_phone,
-      booking_date: booking.booking_date,
-      booking_time: booking.booking_time
-    }
-    // This would be an API call in production
-  }
-  
   return errors
 }
 
-const BookingAgent = () => {
+const Bookings = () => {
   const router = useRouter()
   const [userEmail, setUserEmail]   = useState("")
   const [userId, setUserId]         = useState(null)
@@ -134,14 +124,7 @@ const BookingAgent = () => {
     const saved = localStorage.getItem("fastrill-theme")
     if (saved) setDark(saved === "dark")
     
-    // Clear any previous errors on mount
     clearErrors()
-    
-    if (window.confirm("Welcome back! Enable AI auto-booking from WhatsApp conversations?")) {
-      // Enable AI booking feature
-      localStorage.setItem("aiBookingEnabled", "true")
-      // Here you could load AI-enabled bookings
-    }
     
     supabase.auth.getUser().then(({ data }) => {
       if (!data?.user) {
@@ -164,4 +147,33 @@ const BookingAgent = () => {
         .from("services").select("name,price,duration").eq("user_id", userId)
       
       if (error) {
-        showError("services", "Failed to
+        showError("services", "Failed to load services")
+        console.error("Services load error:", error)
+      } else {
+        setServices(data || [])
+      }
+    } catch (error) {
+      showError("services", "Network error while loading services")
+      console.error("Services network error:", error)
+    }
+  }
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("*")
+        .eq("user_id", userId)
+        .order("booking_date", { ascending: true })
+        .order("booking_time", { ascending: true })
+      
+      if (error) {
+        showError("bookings", "Failed to load bookings")
+        console.error("Bookings load error:", error)
+      } else {
+        const list = (data || []).map(b => ({ ...b, booking_date: toDateStr(b.booking_date) }))
+        setBookings(list)
+        recalcStats(list)
+        
+        const upcoming = list.filter(b => b
