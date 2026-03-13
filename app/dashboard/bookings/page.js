@@ -1,3 +1,6 @@
+Here's the complete and properly formatted component:
+
+```jsx
 "use client"
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
@@ -176,4 +179,9 @@ const Bookings = () => {
         setBookings(list)
         recalcStats(list)
         
-        const upcoming = list.filter(b => b
+        const upcoming = list.filter(b => b.booking_date >= todayStr)
+        setSelected(upcoming[0] || list[0] || null)
+      }
+    } catch (error) {
+      showError("bookings", "Network error while loading bookings")
+      console.error("Bookings network error
