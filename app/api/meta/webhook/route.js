@@ -19,7 +19,7 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    console.log("🚀 WEBHOOK VERSION 5.1 — full Sarvam error logging")
+    console.log("🚀 WEBHOOK VERSION 5.3 — extract reply from inside think block")
     const body = await req.json()
 
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
@@ -420,39 +420,59 @@ async function sendAndSave({ phoneNumberId, accessToken, toNumber, message, user
 }
 
 // ════════════════════════════════════════════════════════
-// THE ONLY CHANGE FROM V3: extractSarvamReply() function
-// Handles ALL Sarvam-m think tag patterns correctly
-// ════════════════════════════════════════════════════════
+// extractSarvamReply — handles ALL sarvam-m think tag patterns
+// sarvam-m always wraps output in <think> tags. The actual customer reply
+// is the LAST short paragraph inside the think block (after all the reasoning).
 function extractSarvamReply(rawContent) {
   if (!rawContent || !rawContent.trim()) return null
+  console.log("📨 Sarvam raw (300 chars):", rawContent.substring(0, 300))
 
-  // Log what we got for debugging
-  console.log("📨 Sarvam raw (200 chars):", rawContent.substring(0, 200))
-
-  // CASE 1: Has closing </think> tag → reply is everything AFTER the last one
+  // CASE 1: Clean reply exists AFTER </think> tag — ideal case
   if (rawContent.includes("</think>")) {
-    const parts = rawContent.split("</think>")
-    const reply = parts[parts.length - 1].trim()
-    if (reply) {
-      console.log("✅ Case 1 — reply after </think>:", reply.substring(0, 80))
-      return reply
+    const afterThink = rawContent.split("</think>").pop().trim()
+    if (afterThink && afterThink.length > 3) {
+      console.log("✅ Case 1 — after </think>:", afterThink.substring(0, 100))
+      return afterThink
     }
-    // Reply was empty after </think> — fall to Case 3
+    // Nothing after </think> — extract from INSIDE think block
+    const insideMatch = rawContent.match(/<think>([\s\S]*)<\/think>/)
+    if (insideMatch) {
+      const insideThink = insideMatch[1].trim()
+      // The reply is the last non-empty paragraph inside think
+      const paragraphs = insideThink.split(/
+
++/).map(p => p.trim()).filter(p => p.length > 5)
+      if (paragraphs.length > 0) {
+        const reply = paragraphs[paragraphs.length - 1]
+        console.log("✅ Case 1b — last para inside think:", reply.substring(0, 100))
+        return reply
+      }
+    }
   }
 
-  // CASE 2: No think tags at all → pure reply, use directly
+  // CASE 2: No think tags — pure reply, use directly
   if (!rawContent.includes("<think>")) {
     const reply = rawContent.trim()
-    if (reply) {
-      console.log("✅ Case 2 — no think tags, direct reply:", reply.substring(0, 80))
+    if (reply.length > 3) {
+      console.log("✅ Case 2 — no think tags:", reply.substring(0, 100))
       return reply
     }
   }
 
-  // CASE 3: Has <think> but no </think> — model is mid-thought, no reply yet
-  // OR: entire content was inside think tags and reply after </think> was empty
-  // → Fall through to Claude fallback
-  console.warn("⚠️ Sarvam think-only response — no reply extracted, trying Claude")
+  // CASE 3: Has <think> but no </think> — still thinking, grab last paragraph
+  if (rawContent.includes("<think>")) {
+    const insideThink = rawContent.replace(/<think>/g, "").trim()
+    const paragraphs = insideThink.split(/
+
++/).map(p => p.trim()).filter(p => p.length > 5)
+    if (paragraphs.length > 0) {
+      const reply = paragraphs[paragraphs.length - 1]
+      console.log("✅ Case 3 — last para unclosed think:", reply.substring(0, 100))
+      return reply
+    }
+  }
+
+  console.warn("⚠️ Could not extract any reply from Sarvam content")
   return null
 }
 
@@ -531,7 +551,7 @@ ${greetingStyle ? `\nGreeting style: "${greetingStyle}"` : ""}`
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method:  "POST",
         headers: { "Content-Type": "application/json", "api-subscription-key": process.env.SARVAM_API_KEY },
-        body:    JSON.stringify({ model: "sarvam-2", messages: sarvamMessages, max_tokens: 500, temperature: 0.65 })
+        body:    JSON.stringify({ model: "sarvam-m", messages: sarvamMessages, max_tokens: 500, temperature: 0.65 })
       })
 
       const rawText = await response.text()
