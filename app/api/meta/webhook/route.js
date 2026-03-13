@@ -19,7 +19,7 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    console.log("🚀 WEBHOOK VERSION 5.0 — sarvam-2, no Claude, clean")
+    console.log("🚀 WEBHOOK VERSION 5.1 — full Sarvam error logging")
     const body = await req.json()
 
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
@@ -535,15 +535,22 @@ ${greetingStyle ? `\nGreeting style: "${greetingStyle}"` : ""}`
       })
 
       const rawText = await response.text()
-      const data    = JSON.parse(rawText)
-      const rawContent = data?.choices?.[0]?.message?.content || ""
+      console.log("📨 Sarvam HTTP status:", response.status)
+      console.log("📨 Sarvam raw response:", rawText.substring(0, 400))
 
-      // Use the bulletproof extractor
-      const reply = extractSarvamReply(rawContent)
-      if (reply) return reply
+      const data = JSON.parse(rawText)
+
+      // Check for API-level error
+      if (data?.error) {
+        console.error("❌ Sarvam API error:", JSON.stringify(data.error))
+      } else {
+        const rawContent = data?.choices?.[0]?.message?.content || ""
+        const reply = extractSarvamReply(rawContent)
+        if (reply) return reply
+      }
 
     } catch (err) {
-      console.error("Sarvam API error:", err.message)
+      console.error("Sarvam exception:", err.message)
     }
   }
 
