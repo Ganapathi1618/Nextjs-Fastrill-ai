@@ -47,17 +47,26 @@ export default function Bookings() {
 
   async function loadBookings() {
     setLoading(true)
-    const today = new Date().toISOString().split("T")[0]
-    const { data } = await supabase.from("bookings").select("*").eq("user_id", userId).gte("booking_date", today).order("booking_date").order("booking_time")
+    // FIX: removed .gte("booking_date", today) — load ALL bookings, no date filter
+    // This ensures past bookings and AI-created bookings always show
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("*")
+      .eq("user_id", userId)
+      .order("booking_date", { ascending: false })
+      .order("booking_time", { ascending: true })
+
+    if (error) console.error("Bookings load error:", error.message)
     const list = data || []
     setBookings(list)
     setStats({
       total: list.length,
       confirmed: list.filter(b=>b.status==="confirmed").length,
       pending: list.filter(b=>b.status==="pending").length,
-      revenue: list.reduce((s,b)=>s+(b.amount||0),0),
+      revenue: list.filter(b=>b.status==="confirmed"||b.status==="completed").reduce((s,b)=>s+(b.amount||0),0),
       ai: list.filter(b=>b.ai_booked).length
     })
+    if (list.length > 0 && !selected) setSelected(list[0])
     setLoading(false)
   }
 
@@ -70,20 +79,24 @@ export default function Bookings() {
     await supabase.from("bookings").update({ status }).eq("id", id)
     setBookings(prev => prev.map(b => b.id===id ? {...b, status} : b))
     if (selected?.id===id) setSelected(prev=>({...prev, status}))
-    setStats(prev => ({...prev,
-      confirmed: status==="confirmed" ? prev.confirmed+1 : prev.confirmed-(selected?.status==="confirmed"?1:0),
-      pending: status==="pending" ? prev.pending+1 : prev.pending-(selected?.status==="pending"?1:0)
-    }))
   }
 
   async function addBooking() {
     if (!newBooking.customer_name || !newBooking.service || !newBooking.booking_date) return
     setSaving(true)
-    const { data } = await supabase.from("bookings").insert({
+    const { data, error } = await supabase.from("bookings").insert({
       ...newBooking, user_id: userId, status: "pending", ai_booked: false,
-      amount: parseInt(newBooking.amount)||0
+      amount: parseInt(newBooking.amount)||0,
+      created_at: new Date().toISOString()
     }).select().single()
-    if (data) { setBookings(prev=>[...prev, data]); setShowAdd(false); setNewBooking({ customer_name:"", customer_phone:"", service:"", staff:"", booking_date:"", booking_time:"", amount:"" }) }
+    if (error) console.error("Add booking error:", error.message)
+    if (data) {
+      setBookings(prev=>[data, ...prev])
+      setSelected(data)
+      setStats(prev=>({...prev, total:prev.total+1, pending:prev.pending+1}))
+      setShowAdd(false)
+      setNewBooking({ customer_name:"", customer_phone:"", service:"", staff:"", booking_date:"", booking_time:"", amount:"" })
+    }
     setSaving(false)
   }
 
@@ -101,20 +114,26 @@ export default function Bookings() {
 
   const statusColor = { confirmed:accent, pending:"#f59e0b", "in-progress":"#38bdf8", completed:"#a78bfa", cancelled:"#fb7185" }
   const weekDays = Array.from({length:7}, (_,i) => { const d=new Date(today); d.setDate(today.getDate()-today.getDay()+i); return d })
-
   const filtered = filter==="all" ? bookings : bookings.filter(b=>b.status===filter)
-
   const inp = { background:inputBg, border:`1px solid ${cardBorder}`, borderRadius:8, padding:"9px 12px", fontSize:13, color:text, fontFamily:"'Plus Jakarta Sans',sans-serif", outline:"none", width:"100%" }
 
+  const formatDate = (d) => {
+    if (!d) return "—"
+    try { return new Date(d+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short",year:"numeric"}) }
+    catch { return d }
+  }
+
   const BookingCard = ({b}) => (
-    <div onClick={()=>setSelected(b===selected?null:b)} style={{background:card, border:`1px solid ${statusColor[b.status]||textFaint}44`, borderRadius:10, padding:"11px 13px", cursor:"pointer", borderLeft:`3px solid ${statusColor[b.status]||textFaint}`, marginBottom:8, transition:"transform 0.12s"}}>
+    <div onClick={()=>setSelected(selected?.id===b.id?null:b)}
+      style={{background:selected?.id===b.id?accentDim:card, border:`1px solid ${selected?.id===b.id?accent+"55":statusColor[b.status]||textFaint}44`,
+        borderRadius:10, padding:"11px 13px", cursor:"pointer", borderLeft:`3px solid ${statusColor[b.status]||textFaint}`, marginBottom:8, transition:"background 0.1s"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
         <span style={{fontWeight:700,fontSize:13,color:text}}>{b.customer_name}</span>
         <span style={{fontSize:10.5,fontWeight:700,color:statusColor[b.status],background:statusColor[b.status]+"15",border:`1px solid ${statusColor[b.status]}33`,borderRadius:100,padding:"2px 8px"}}>{b.status}</span>
       </div>
-      <div style={{fontSize:12,color:textMuted,marginBottom:3}}>{b.service} {b.staff?`· ${b.staff}`:""} {b.booking_time?`· ${b.booking_time}`:""}</div>
+      <div style={{fontSize:12,color:textMuted,marginBottom:3}}>{b.service}{b.booking_time?` · ${b.booking_time}`:""}</div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <span style={{fontSize:11,color:textFaint}}>{b.booking_date}</span>
+        <span style={{fontSize:11,color:textFaint}}>{formatDate(b.booking_date)}</span>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           {b.ai_booked && <span style={{fontSize:9.5,fontWeight:700,color:"#a78bfa",background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"1px 7px"}}>◈ AI</span>}
           {b.amount>0 && <span style={{fontWeight:700,fontSize:12.5,color:accent}}>₹{b.amount.toLocaleString()}</span>}
@@ -153,7 +172,6 @@ export default function Bookings() {
         .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
         .content{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px;background:${bg};}
         .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:8px;color:${textFaint};}
-        select{color-scheme:dark;background-color:inherit;}
         select option{background-color:#0c0c15!important;color:#eeeef5!important;}
         select:focus{outline:none;}
       `}</style>
@@ -195,9 +213,15 @@ export default function Bookings() {
           </div>
 
           <div className="content">
-            {/* Stats */}
+            {/* Stats — FIX: "Upcoming" → "Total" */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11}}>
-              {[{l:"Upcoming",v:stats.total,c:text},{l:"Confirmed",v:stats.confirmed,c:accent},{l:"Pending",v:stats.pending,c:"#f59e0b"},{l:"AI Booked",v:stats.ai,c:"#a78bfa"},{l:"Revenue",v:`₹${stats.revenue.toLocaleString()}`,c:accent}].map(s=>(
+              {[
+                {l:"Total",v:stats.total,c:text},
+                {l:"Confirmed",v:stats.confirmed,c:accent},
+                {l:"Pending",v:stats.pending,c:"#f59e0b"},
+                {l:"AI Booked",v:stats.ai,c:"#a78bfa"},
+                {l:"Revenue",v:`₹${stats.revenue.toLocaleString()}`,c:accent}
+              ].map(s=>(
                 <div key={s.l} style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:11,padding:"13px 15px"}}>
                   <div style={{fontSize:11,color:textMuted,marginBottom:5}}>{s.l}</div>
                   <div style={{fontSize:22,fontWeight:700,color:s.c}}>{s.v}</div>
@@ -206,7 +230,6 @@ export default function Bookings() {
             </div>
 
             {view==="week" ? (
-              /* Week view */
               <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,overflow:"hidden"}}>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:`1px solid ${border}`}}>
                   {weekDays.map((d,i)=>(
@@ -235,41 +258,61 @@ export default function Bookings() {
                 </div>
               </div>
             ) : (
-              /* List view */
               <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:14}}>
                 <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,overflow:"hidden"}}>
-                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${border}`,display:"flex",gap:6}}>
+                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${border}`,display:"flex",gap:6,flexWrap:"wrap"}}>
                     {["all","confirmed","pending","completed","cancelled"].map(f=>(
                       <button key={f} onClick={()=>setFilter(f)} style={{padding:"3px 10px",borderRadius:100,fontSize:11,fontWeight:600,cursor:"pointer",border:`1px solid ${filter===f?(statusColor[f]||accent)+"44":cardBorder}`,background:filter===f?(statusColor[f]||accent)+"15":"transparent",color:filter===f?(statusColor[f]||accent):textMuted,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                         {f.charAt(0).toUpperCase()+f.slice(1)}
                       </button>
                     ))}
                   </div>
-                  <div style={{padding:14}}>
-                    {loading ? <div className="empty-state"><span>Loading...</span></div>
-                    : filtered.length===0 ? <div className="empty-state"><span style={{fontSize:28}}>◷</span><span>No bookings yet</span><span style={{fontSize:11}}>Bookings will appear when customers message your WhatsApp</span></div>
-                    : filtered.map(b=><BookingCard key={b.id} b={b}/>)}
+                  <div style={{padding:14,overflowY:"auto",maxHeight:"calc(100vh - 280px)"}}>
+                    {loading
+                      ? <div className="empty-state"><span>Loading...</span></div>
+                      : filtered.length===0
+                      ? <div className="empty-state">
+                          <span style={{fontSize:28}}>◷</span>
+                          <span style={{fontWeight:600}}>No bookings yet</span>
+                          <span style={{fontSize:11,textAlign:"center"}}>Bookings appear when customers message your WhatsApp or you add them manually</span>
+                        </div>
+                      : filtered.map(b=><BookingCard key={b.id} b={b}/>)
+                    }
                   </div>
                 </div>
 
-                {/* Detail */}
                 <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:18}}>
                   {selected ? (
                     <>
-                      <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:14,display:"flex",justifyContent:"space-between"}}>
+                      <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         Booking Details
-                        <button onClick={()=>setSelected(null)} style={{background:"transparent",border:"none",color:textFaint,cursor:"pointer",fontSize:16}}>×</button>
+                        <button onClick={()=>setSelected(null)} style={{background:"transparent",border:"none",color:textFaint,cursor:"pointer",fontSize:18,lineHeight:1}}>×</button>
                       </div>
-                      {[["Customer",selected.customer_name],["Phone",selected.customer_phone||"—"],["Service",selected.service],["Staff",selected.staff||"—"],["Date",selected.booking_date],["Time",selected.booking_time||"—"],["Amount",selected.amount?`₹${selected.amount.toLocaleString()}`:"—"],["Booked by",selected.ai_booked?"◈ AI":"Manual"]].map(([l,v])=>(
-                        <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${border}`}}>
+                      {[
+                        ["Customer", selected.customer_name],
+                        ["Phone", selected.customer_phone||"—"],
+                        ["Service", selected.service],
+                        ["Date", formatDate(selected.booking_date)],
+                        ["Time", selected.booking_time||"—"],
+                        ["Amount", selected.amount?`₹${selected.amount.toLocaleString()}`:"—"],
+                        ["Booked by", selected.ai_booked?"◈ AI":"Manual"],
+                        ["Status", selected.status],
+                      ].map(([l,v])=>(
+                        <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${border}`}}>
                           <span style={{fontSize:11.5,color:textMuted}}>{l}</span>
-                          <span style={{fontSize:12,fontWeight:600,color:text}}>{v}</span>
+                          <span style={{fontSize:12,fontWeight:600,color:l==="Status"?(statusColor[v]||text):text}}>{v}</span>
                         </div>
                       ))}
-                      <div style={{display:"flex",gap:7,marginTop:14}}>
-                        {selected.status!=="confirmed" && <button onClick={()=>updateStatus(selected.id,"confirmed")} style={{flex:1,padding:"8px",background:accentDim,border:`1px solid ${accent}44`,borderRadius:8,color:accent,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>✓ Confirm</button>}
-                        {selected.status!=="completed" && <button onClick={()=>updateStatus(selected.id,"completed")} style={{flex:1,padding:"8px",background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:8,color:"#a78bfa",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>✓ Done</button>}
-                        {selected.status!=="cancelled" && <button onClick={()=>updateStatus(selected.id,"cancelled")} style={{padding:"8px 12px",background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",borderRadius:8,color:"#fb7185",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>✕</button>}
+                      <div style={{display:"flex",gap:7,marginTop:14,flexWrap:"wrap"}}>
+                        {selected.status!=="confirmed" && (
+                          <button onClick={()=>updateStatus(selected.id,"confirmed")} style={{flex:1,padding:"8px",background:accentDim,border:`1px solid ${accent}44`,borderRadius:8,color:accent,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>✓ Confirm</button>
+                        )}
+                        {selected.status!=="completed" && (
+                          <button onClick={()=>updateStatus(selected.id,"completed")} style={{flex:1,padding:"8px",background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:8,color:"#a78bfa",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>✓ Done</button>
+                        )}
+                        {selected.status!=="cancelled" && (
+                          <button onClick={()=>updateStatus(selected.id,"cancelled")} style={{padding:"8px 12px",background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",borderRadius:8,color:"#fb7185",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>✕ Cancel</button>
+                        )}
                       </div>
                     </>
                   ) : (
@@ -285,14 +328,16 @@ export default function Bookings() {
         </div>
       </div>
 
-      {/* Add Booking Modal */}
       {showAdd && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget)setShowAdd(false)}}>
           <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:16,padding:28,width:420,display:"flex",flexDirection:"column",gap:12}}>
             <div style={{fontWeight:800,fontSize:16,color:text}}>New Booking</div>
             <input placeholder="Customer name *" value={newBooking.customer_name} onChange={e=>setNewBooking(p=>({...p,customer_name:e.target.value}))} style={inp}/>
             <input placeholder="Phone" value={newBooking.customer_phone} onChange={e=>setNewBooking(p=>({...p,customer_phone:e.target.value}))} style={inp}/>
-            <select value={newBooking.service} onChange={e=>setNewBooking(p=>({...p,service:e.target.value}))} style={inp}>
+            <select value={newBooking.service} onChange={e=>{
+              const svc = services.find(s=>s.name===e.target.value)
+              setNewBooking(p=>({...p,service:e.target.value,amount:svc?.price?.toString()||p.amount}))
+            }} style={inp}>
               <option value="">Select service *</option>
               {services.map(s=><option key={s.name} value={s.name}>{s.name} — ₹{s.price}</option>)}
               <option value="Other">Other</option>
@@ -308,7 +353,9 @@ export default function Bookings() {
             <input placeholder="Amount (₹)" type="number" value={newBooking.amount} onChange={e=>setNewBooking(p=>({...p,amount:e.target.value}))} style={inp}/>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:"9px",background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:8,color:textMuted,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Cancel</button>
-              <button onClick={addBooking} disabled={saving} style={{flex:1,padding:"9px",background:accent,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>{saving?"Saving...":"Add Booking"}</button>
+              <button onClick={addBooking} disabled={saving||!newBooking.customer_name||!newBooking.service||!newBooking.booking_date} style={{flex:1,padding:"9px",background:accent,border:"none",borderRadius:8,color:"#000",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",opacity:(saving||!newBooking.customer_name||!newBooking.service||!newBooking.booking_date)?0.5:1}}>
+                {saving?"Saving...":"Add Booking"}
+              </button>
             </div>
           </div>
         </div>
