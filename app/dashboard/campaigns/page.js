@@ -224,7 +224,7 @@ export default function Campaigns() {
           }))
           // Replace [1] [2] with actual values for storage
           let bodyText = tmpl.body
-          tmpl.vars.forEach((_,i) => { bodyText = bodyText.replace(`[${i+1}]`, prebuiltVars[i]||tmpl.vars[i]) })
+          tmpl.vars.forEach((_,i) => { bodyText = bodyText.split("[" + (i+1) + "]").join(prebuiltVars[i] || tmpl.vars[i]) })
 
           body = JSON.stringify({
             messaging_product: "whatsapp", to: phone, type: "template",
@@ -258,7 +258,7 @@ export default function Campaigns() {
     try {
       await supabase.from("campaigns").insert({
         user_id: userId, name: campaignName, segment,
-        message: campaignMode==="template" ? `[Template: ${selectedPrebuilt}]` : message,
+        message: campaignMode==="template" ? "[Template: " + selectedPrebuilt + "]" : message,
         template_id: selectedPrebuilt || null,
         sent_count: sentCount, failed_count: failCount,
         status: "completed", sent_at: new Date().toISOString(), created_at: new Date().toISOString()
@@ -548,7 +548,7 @@ export default function Campaigns() {
                             {tmpl.vars.map((varName, i) => (
                               <div key={i} style={{marginBottom:10}}>
                                 <div style={{fontSize:11,color:textFaint,marginBottom:4}}>
-                                  <code style={{color:accent}}>{`[${i+1}]`}</code> — {varName}
+                                  <code style={{color:accent}}>{"[" + (i+1) + "]"}</code> — {varName}
                                 </div>
                                 <input
                                   placeholder={`Enter ${varName.toLowerCase()}`}
@@ -608,7 +608,7 @@ export default function Campaigns() {
                           {campaignMode==="template" && selectedPrebuilt ? (() => {
                             const tmpl = PRE_BUILT_TEMPLATES.find(t=>t.id===selectedPrebuilt)
                             let preview = tmpl.body
-                            tmpl.vars.forEach((_,i) => { preview = preview.replace(`[${i+1}]`, prebuiltVars[i]||`[${tmpl.vars[i]}]`) })
+                            tmpl.vars.forEach((_,i) => { preview = preview.split("[" + (i+1) + "]").join(prebuiltVars[i] || ("[" + tmpl.vars[i] + "]")) })
                             return preview
                           })() : buildMessage(previewCustomer) || <span style={{color:textFaint,fontStyle:"italic"}}>Select a template or type a message...</span>}
                         </div>
