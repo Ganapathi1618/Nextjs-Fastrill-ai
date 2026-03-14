@@ -39,9 +39,9 @@ const SEGMENTS = [
 const PRE_BUILT_TEMPLATES = [
   {
     id:"product_launch", label:"Product Launch 🚀", category:"MARKETING",
-    body:"Hi ⌊1⌋! 🚀 Exciting news from ⌊2⌋!
+    body:"Hi [1]! 🚀 Exciting news from [2]!
 
-⌊3⌋
+[3]
 
 Limited time offer — book now before it's gone!
 Reply BOOK or call us 😊",
@@ -50,7 +50,7 @@ Reply BOOK or call us 😊",
   },
   {
     id:"appointment_reminder", label:"Appointment Reminder ⏰", category:"UTILITY",
-    body:"Hi ⌊1⌋! ⏰ Reminder: You have an appointment at ⌊2⌋ on ⌊3⌋ at ⌊4⌋.
+    body:"Hi [1]! ⏰ Reminder: You have an appointment at [2] on [3] at [4].
 
 Reply CONFIRM to confirm or RESCHEDULE to change.",
     vars:["Customer Name","Business Name","Date","Time"],
@@ -58,19 +58,19 @@ Reply CONFIRM to confirm or RESCHEDULE to change.",
   },
   {
     id:"special_offer", label:"Special Offer 🎉", category:"MARKETING",
-    body:"Hi ⌊1⌋! 🎉 ⌊2⌋ has a special offer just for you!
+    body:"Hi [1]! 🎉 [2] has a special offer just for you!
 
-⌊3⌋
+[3]
 
-Valid till ⌊4⌋ only. Book now!",
+Valid till [4] only. Book now!",
     vars:["Customer Name","Business Name","Offer Details","Expiry Date"],
     footer:"Reply STOP to unsubscribe"
   },
   {
     id:"winback", label:"Win Back 💔", category:"MARKETING",
-    body:"Hi ⌊1⌋! We miss you at ⌊2⌋ 😊
+    body:"Hi [1]! We miss you at [2] 😊
 
-It's been a while! Come back this week and get ⌊3⌋ on your next visit.
+It's been a while! Come back this week and get [3] on your next visit.
 
 Reply BOOK to schedule.",
     vars:["Customer Name","Business Name","Special Discount/Gift"],
@@ -78,9 +78,9 @@ Reply BOOK to schedule.",
   },
   {
     id:"festival", label:"Festival Greeting 🪔", category:"MARKETING",
-    body:"Hi ⌊1⌋! 🪔 Warm wishes from ⌊2⌋!
+    body:"Hi [1]! 🪔 Warm wishes from [2]!
 
-This festive season, treat yourself — ⌊3⌋.
+This festive season, treat yourself — [3].
 
 Reply BOOK 😊",
     vars:["Customer Name","Business Name","Special Offer"],
@@ -88,10 +88,10 @@ Reply BOOK 😊",
   },
   {
     id:"review_request", label:"Review Request ⭐", category:"UTILITY",
-    body:"Hi ⌊1⌋! Thank you for visiting ⌊2⌋ 😊
+    body:"Hi [1]! Thank you for visiting [2] 😊
 
 We'd love your feedback! It only takes 2 minutes:
-⌊3⌋
+[3]
 
 Thank you 🙏",
     vars:["Customer Name","Business Name","Review Link"],
@@ -99,11 +99,11 @@ Thank you 🙏",
   },
   {
     id:"booking_confirmed", label:"Booking Confirmed ✅", category:"UTILITY",
-    body:"Hi ⌊1⌋! ✅ Your booking at ⌊2⌋ is confirmed!
+    body:"Hi [1]! ✅ Your booking at [2] is confirmed!
 
-📋 Service: ⌊3⌋
-📅 Date: ⌊4⌋
-⏰ Time: ⌊5⌋
+📋 Service: [3]
+📅 Date: [4]
+⏰ Time: [5]
 
 See you soon! 😊",
     vars:["Customer Name","Business Name","Service","Date","Time"],
@@ -111,9 +111,9 @@ See you soon! 😊",
   },
   {
     id:"referral", label:"Referral Program 🤝", category:"MARKETING",
-    body:"Hi ⌊1⌋! Loved your visit at ⌊2⌋? 😊
+    body:"Hi [1]! Loved your visit at [2]? 😊
 
-Refer a friend and BOTH of you get ⌊3⌋!
+Refer a friend and BOTH of you get [3]!
 
 Just ask them to mention your name when booking 🎁",
     vars:["Customer Name","Business Name","Reward/Discount"],
@@ -298,9 +298,9 @@ export default function Campaigns() {
             type: "text",
             text: prebuiltVars[i] || tmpl.vars[i]
           }))
-          // Replace ⌊1⌋ ⌊2⌋ with actual values for storage
+          // Replace [1] [2] with actual values for storage
           let bodyText = tmpl.body
-          tmpl.vars.forEach((_,i) => { bodyText = bodyText.replace(`⌊${i+1}⌋`, prebuiltVars[i]||tmpl.vars[i]) })
+          tmpl.vars.forEach((_,i) => { bodyText = bodyText.replace(`[${i+1}]`, prebuiltVars[i]||tmpl.vars[i]) })
 
           body = JSON.stringify({
             messaging_product: "whatsapp", to: phone, type: "template",
@@ -624,7 +624,7 @@ export default function Campaigns() {
                             {tmpl.vars.map((varName, i) => (
                               <div key={i} style={{marginBottom:10}}>
                                 <div style={{fontSize:11,color:textFaint,marginBottom:4}}>
-                                  <code style={{color:accent}}>{`⌊${i+1}⌋`}</code> — {varName}
+                                  <code style={{color:accent}}>{`[${i+1}]`}</code> — {varName}
                                 </div>
                                 <input
                                   placeholder={`Enter ${varName.toLowerCase()}`}
@@ -684,7 +684,7 @@ export default function Campaigns() {
                           {campaignMode==="template" && selectedPrebuilt ? (() => {
                             const tmpl = PRE_BUILT_TEMPLATES.find(t=>t.id===selectedPrebuilt)
                             let preview = tmpl.body
-                            tmpl.vars.forEach((_,i) => { preview = preview.replace(`⌊${i+1}⌋`, prebuiltVars[i]||`[${tmpl.vars[i]}]`) })
+                            tmpl.vars.forEach((_,i) => { preview = preview.replace(`[${i+1}]`, prebuiltVars[i]||`[${tmpl.vars[i]}]`) })
                             return preview
                           })() : buildMessage(previewCustomer) || <span style={{color:textFaint,fontStyle:"italic"}}>Select a template or type a message...</span>}
                         </div>
