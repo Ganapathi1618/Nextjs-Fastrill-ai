@@ -67,9 +67,21 @@ export async function POST(req) {
     console.log("🚀 FASTRILL WEBHOOK v6.0")
     const body = await req.json()
 
-    // Skip pure delivery status updates (no messages)
+    // Handle delivery/read status updates — track for campaign analytics
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
     if (statuses && !body?.entry?.[0]?.changes?.[0]?.value?.messages) {
+      // Process each status update
+      for (const status of statuses) {
+        const waMessageId = status.id
+        const statusType  = status.status // sent | delivered | read | failed
+        if (waMessageId && (statusType === "delivered" || statusType === "read" || statusType === "failed")) {
+          try {
+            await supabaseAdmin.from("messages")
+              .update({ status: statusType, [`${statusType}_at`]: new Date().toISOString() })
+              .eq("wa_message_id", waMessageId)
+          } catch(e) { /* non-fatal — columns may not exist yet */ }
+        }
+      }
       return NextResponse.json({ status: "status_update" }, { status: 200 })
     }
     if (!body?.entry?.[0]?.changes?.[0]?.value?.messages) {
