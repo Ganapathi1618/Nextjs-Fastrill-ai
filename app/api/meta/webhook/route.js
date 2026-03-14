@@ -237,6 +237,28 @@ export async function POST(req) {
       }
 
       // ══ 5. SAFETY CHECKS ════════════════════════════════════════
+      // Handle STOP / opt-out requests (Meta compliance requirement)
+      const stopKeywords = ["stop","unsubscribe","opt out","optout","don't message","dont message","remove me","no more messages","no more msgs"]
+      const isStopRequest = isTextMessage && stopKeywords.some(kw => (messageText||"").toLowerCase().trim() === kw || (messageText||"").toLowerCase().includes(kw))
+      if (isStopRequest) {
+        try {
+          await supabaseAdmin.from("campaign_optouts").upsert({ user_id: userId, phone: formattedPhone, created_at: new Date().toISOString() }, { onConflict: "user_id,phone" })
+          const stopReply = "You've been unsubscribed from our messages. Reply START to resubscribe anytime 🙏"
+          await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: stopReply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+          console.log("🚫 Opt-out recorded for:", formattedPhone)
+        } catch(e) { console.warn("Optout save failed:", e.message) }
+        continue
+      }
+      // Handle START / re-subscribe
+      if (isTextMessage && (messageText||"").toLowerCase().trim() === "start") {
+        try {
+          await supabaseAdmin.from("campaign_optouts").delete().eq("user_id", userId).eq("phone", formattedPhone)
+          const startReply = "You've been resubscribed! Welcome back 😊"
+          await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: startReply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+        } catch(e) { console.warn("Resubscribe failed:", e.message) }
+        continue
+      }
+
       // Skip AI if disabled for this conversation
       if (conversation?.ai_enabled === false) {
         console.log("⏸️ AI disabled for this conversation")
