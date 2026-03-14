@@ -75,7 +75,6 @@ export default function Conversations() {
   const msgsEndRef        = useRef(null)
   // FIX: track the convoId that messages are currently loaded for
   // prevents race condition where realtime sub adds msg then loadMessages overwrites
-  const loadedConvoId     = useRef(null)
   const selectedRef       = useRef(null)
 
   // Keep selectedRef in sync so realtime callbacks can access latest selected
@@ -96,34 +95,44 @@ export default function Conversations() {
     loadWaConn()
     loadServices()
 
-    const ch = supabase.channel("convos-live")
+    // Realtime: conversation list updates
+    const convoCh = supabase.channel("convos-" + userId)
       .on("postgres_changes", {
         event:  "*",
         schema: "public",
         table:  "conversations",
         filter: `user_id=eq.${userId}`
-      }, () => loadConvos())
-      .subscribe()
-    return () => supabase.removeChannel(ch)
+      }, (payload) => {
+        console.log("🔴 Convo realtime:", payload.eventType)
+        if (payload.eventType === "UPDATE" && payload.new) {
+          setConvos(prev => {
+            const updated = prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c)
+            return [...updated].sort((a,b) => new Date(b.last_message_at||0) - new Date(a.last_message_at||0))
+          })
+        } else {
+          loadConvos()
+        }
+      })
+      .subscribe(s => console.log("📡 Convos channel:", s))
+    return () => supabase.removeChannel(convoCh)
   }, [userId])
 
   useEffect(() => {
     if (!selected?.id) return
-    loadedConvoId.current = null // reset so fresh load happens
     loadMessages(selected.id, selected.phone)
     supabase.from("conversations").update({ unread_count: 0 }).eq("id", selected.id)
 
-    const ch = supabase.channel("msgs-" + selected.id)
+    // Realtime: new messages in selected conversation
+    const msgCh = supabase.channel("msgs-" + selected.id)
       .on("postgres_changes", {
         event:  "INSERT",
         schema: "public",
         table:  "messages",
         filter: `conversation_id=eq.${selected.id}`
       }, (payload) => {
-        // FIX: only add message if it's for the currently loaded convo
-        if (loadedConvoId.current !== selected.id) return
+        console.log("💬 Realtime msg:", payload.new?.direction, payload.new?.message_text?.substring(0,40))
+        if (selectedRef.current?.id !== selected.id) return
         setMessages(prev => {
-          // Dedup by id — prevent duplicates from race conditions
           if (prev.find(m => m.id === payload.new.id)) return prev
           return [...prev, payload.new]
         })
@@ -133,8 +142,8 @@ export default function Conversations() {
             : c
         ))
       })
-      .subscribe()
-    return () => supabase.removeChannel(ch)
+      .subscribe(s => console.log("📡 Messages channel:", s))
+    return () => supabase.removeChannel(msgCh)
   }, [selected?.id])
 
   useEffect(() => {
@@ -187,7 +196,6 @@ export default function Conversations() {
     if (error) {
       console.error("❌ messages query error:", error.message)
       setMessages([])
-      loadedConvoId.current = convoId
       return
     }
 
@@ -196,7 +204,6 @@ export default function Conversations() {
       // (user might have clicked a different convo while this was loading)
       if (selectedRef.current?.id === convoId) {
         setMessages(byConvoId)
-        loadedConvoId.current = convoId
       }
       return
     }
@@ -226,7 +233,6 @@ export default function Conversations() {
         supabase.from("messages").update({ conversation_id: convoId }).in("id", ids)
         if (selectedRef.current?.id === convoId) {
           setMessages(byPhone)
-          loadedConvoId.current = convoId
         }
         return
       }
@@ -235,7 +241,6 @@ export default function Conversations() {
     console.warn("⚠️ No messages found for convoId:", convoId)
     if (selectedRef.current?.id === convoId) {
       setMessages([])
-      loadedConvoId.current = convoId
     }
   }
 
