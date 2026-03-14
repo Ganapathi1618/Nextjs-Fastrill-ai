@@ -34,91 +34,16 @@ const SEGMENTS = [
   { id:"manual",    label:"Enter Numbers Manually", desc:"Type or paste phone numbers" },
 ]
 
-// Pre-built Meta-approved templates (submitted under Fastrill's WABA)
-// These work for ALL businesses without any approval needed
+// Pre-built Meta-approved templates
 const PRE_BUILT_TEMPLATES = [
-  {
-    id:"product_launch", label:"Product Launch 🚀", category:"MARKETING",
-    body:"Hi [1]! 🚀 Exciting news from [2]!
-
-[3]
-
-Limited time offer — book now before it's gone!
-Reply BOOK or call us 😊",
-    vars:["Customer Name","Business Name","Product/Service Description"],
-    footer:"Reply STOP to unsubscribe"
-  },
-  {
-    id:"appointment_reminder", label:"Appointment Reminder ⏰", category:"UTILITY",
-    body:"Hi [1]! ⏰ Reminder: You have an appointment at [2] on [3] at [4].
-
-Reply CONFIRM to confirm or RESCHEDULE to change.",
-    vars:["Customer Name","Business Name","Date","Time"],
-    footer:"Reply STOP to unsubscribe"
-  },
-  {
-    id:"special_offer", label:"Special Offer 🎉", category:"MARKETING",
-    body:"Hi [1]! 🎉 [2] has a special offer just for you!
-
-[3]
-
-Valid till [4] only. Book now!",
-    vars:["Customer Name","Business Name","Offer Details","Expiry Date"],
-    footer:"Reply STOP to unsubscribe"
-  },
-  {
-    id:"winback", label:"Win Back 💔", category:"MARKETING",
-    body:"Hi [1]! We miss you at [2] 😊
-
-It's been a while! Come back this week and get [3] on your next visit.
-
-Reply BOOK to schedule.",
-    vars:["Customer Name","Business Name","Special Discount/Gift"],
-    footer:"Reply STOP to unsubscribe"
-  },
-  {
-    id:"festival", label:"Festival Greeting 🪔", category:"MARKETING",
-    body:"Hi [1]! 🪔 Warm wishes from [2]!
-
-This festive season, treat yourself — [3].
-
-Reply BOOK 😊",
-    vars:["Customer Name","Business Name","Special Offer"],
-    footer:"Reply STOP to unsubscribe"
-  },
-  {
-    id:"review_request", label:"Review Request ⭐", category:"UTILITY",
-    body:"Hi [1]! Thank you for visiting [2] 😊
-
-We'd love your feedback! It only takes 2 minutes:
-[3]
-
-Thank you 🙏",
-    vars:["Customer Name","Business Name","Review Link"],
-    footer:"Reply STOP to unsubscribe"
-  },
-  {
-    id:"booking_confirmed", label:"Booking Confirmed ✅", category:"UTILITY",
-    body:"Hi [1]! ✅ Your booking at [2] is confirmed!
-
-📋 Service: [3]
-📅 Date: [4]
-⏰ Time: [5]
-
-See you soon! 😊",
-    vars:["Customer Name","Business Name","Service","Date","Time"],
-    footer:"Reply STOP to unsubscribe"
-  },
-  {
-    id:"referral", label:"Referral Program 🤝", category:"MARKETING",
-    body:"Hi [1]! Loved your visit at [2]? 😊
-
-Refer a friend and BOTH of you get [3]!
-
-Just ask them to mention your name when booking 🎁",
-    vars:["Customer Name","Business Name","Reward/Discount"],
-    footer:"Reply STOP to unsubscribe"
-  },
+  { id:"product_launch", label:"Product Launch", category:"MARKETING", body:"Hi [1]! Exciting news from [2]!\n\n[3]\n\nLimited time offer. Reply BOOK or call us.", vars:["Customer Name","Business Name","Product/Service Details"], footer:"Reply STOP to unsubscribe" },
+  { id:"appointment_reminder", label:"Appointment Reminder", category:"UTILITY", body:"Hi [1]! Reminder: You have an appointment at [2] on [3] at [4].\n\nReply CONFIRM to confirm or RESCHEDULE to change.", vars:["Customer Name","Business Name","Date","Time"], footer:"Reply STOP to unsubscribe" },
+  { id:"special_offer", label:"Special Offer", category:"MARKETING", body:"Hi [1]! [2] has a special offer just for you!\n\n[3]\n\nValid till [4] only. Book now!", vars:["Customer Name","Business Name","Offer Details","Expiry Date"], footer:"Reply STOP to unsubscribe" },
+  { id:"winback", label:"Win Back", category:"MARKETING", body:"Hi [1]! We miss you at [2].\n\nIt has been a while! Come back this week and get [3] on your next visit.\n\nReply BOOK to schedule.", vars:["Customer Name","Business Name","Special Discount"], footer:"Reply STOP to unsubscribe" },
+  { id:"festival", label:"Festival Greeting", category:"MARKETING", body:"Hi [1]! Warm wishes from [2]!\n\nThis festive season, treat yourself - [3].\n\nReply BOOK.", vars:["Customer Name","Business Name","Special Offer"], footer:"Reply STOP to unsubscribe" },
+  { id:"review_request", label:"Review Request", category:"UTILITY", body:"Hi [1]! Thank you for visiting [2].\n\nWe would love your feedback! It only takes 2 minutes:\n[3]\n\nThank you.", vars:["Customer Name","Business Name","Review Link"], footer:"Reply STOP to unsubscribe" },
+  { id:"booking_confirmed", label:"Booking Confirmed", category:"UTILITY", body:"Hi [1]! Your booking at [2] is confirmed!\n\nService: [3]\nDate: [4]\nTime: [5]\n\nSee you soon!", vars:["Customer Name","Business Name","Service","Date","Time"], footer:"Reply STOP to unsubscribe" },
+  { id:"referral", label:"Referral Program", category:"MARKETING", body:"Hi [1]! Loved your visit at [2]?\n\nRefer a friend and both of you get [3]!\n\nJust ask them to mention your name when booking.", vars:["Customer Name","Business Name","Reward"], footer:"Reply STOP to unsubscribe" },
 ]
 
 
