@@ -31,7 +31,96 @@ const SEGMENTS = [
   { id:"vip",       label:"VIP",                  desc:"Tagged as VIP" },
   { id:"inactive",  label:"Inactive 30d+",        desc:"Haven't visited in 30+ days" },
   { id:"csv",       label:"Upload CSV / Numbers", desc:"Custom phone number list" },
+  { id:"manual",    label:"Enter Numbers Manually", desc:"Type or paste phone numbers" },
 ]
+
+// Pre-built Meta-approved templates (submitted under Fastrill's WABA)
+// These work for ALL businesses without any approval needed
+const PRE_BUILT_TEMPLATES = [
+  {
+    id:"product_launch", label:"Product Launch 🚀", category:"MARKETING",
+    body:"Hi {{1}}! 🚀 Exciting news from {{2}}!
+
+{{3}}
+
+Limited time offer — book now before it's gone!
+Reply BOOK or call us 😊",
+    vars:["Customer Name","Business Name","Product/Service Description"],
+    footer:"Reply STOP to unsubscribe"
+  },
+  {
+    id:"appointment_reminder", label:"Appointment Reminder ⏰", category:"UTILITY",
+    body:"Hi {{1}}! ⏰ Reminder: You have an appointment at {{2}} on {{3}} at {{4}}.
+
+Reply CONFIRM to confirm or RESCHEDULE to change.",
+    vars:["Customer Name","Business Name","Date","Time"],
+    footer:"Reply STOP to unsubscribe"
+  },
+  {
+    id:"special_offer", label:"Special Offer 🎉", category:"MARKETING",
+    body:"Hi {{1}}! 🎉 {{2}} has a special offer just for you!
+
+{{3}}
+
+Valid till {{4}} only. Book now!",
+    vars:["Customer Name","Business Name","Offer Details","Expiry Date"],
+    footer:"Reply STOP to unsubscribe"
+  },
+  {
+    id:"winback", label:"Win Back 💔", category:"MARKETING",
+    body:"Hi {{1}}! We miss you at {{2}} 😊
+
+It's been a while! Come back this week and get {{3}} on your next visit.
+
+Reply BOOK to schedule.",
+    vars:["Customer Name","Business Name","Special Discount/Gift"],
+    footer:"Reply STOP to unsubscribe"
+  },
+  {
+    id:"festival", label:"Festival Greeting 🪔", category:"MARKETING",
+    body:"Hi {{1}}! 🪔 Warm wishes from {{2}}!
+
+This festive season, treat yourself — {{3}}.
+
+Reply BOOK 😊",
+    vars:["Customer Name","Business Name","Special Offer"],
+    footer:"Reply STOP to unsubscribe"
+  },
+  {
+    id:"review_request", label:"Review Request ⭐", category:"UTILITY",
+    body:"Hi {{1}}! Thank you for visiting {{2}} 😊
+
+We'd love your feedback! It only takes 2 minutes:
+{{3}}
+
+Thank you 🙏",
+    vars:["Customer Name","Business Name","Review Link"],
+    footer:"Reply STOP to unsubscribe"
+  },
+  {
+    id:"booking_confirmed", label:"Booking Confirmed ✅", category:"UTILITY",
+    body:"Hi {{1}}! ✅ Your booking at {{2}} is confirmed!
+
+📋 Service: {{3}}
+📅 Date: {{4}}
+⏰ Time: {{5}}
+
+See you soon! 😊",
+    vars:["Customer Name","Business Name","Service","Date","Time"],
+    footer:"Reply STOP to unsubscribe"
+  },
+  {
+    id:"referral", label:"Referral Program 🤝", category:"MARKETING",
+    body:"Hi {{1}}! Loved your visit at {{2}}? 😊
+
+Refer a friend and BOTH of you get {{3}}!
+
+Just ask them to mention your name when booking 🎁",
+    vars:["Customer Name","Business Name","Reward/Discount"],
+    footer:"Reply STOP to unsubscribe"
+  },
+]
+
 
 export default function Campaigns() {
   const router = useRouter()
@@ -63,6 +152,17 @@ export default function Campaigns() {
   const [testSending, setTestSending] = useState(false)
   const [testSent, setTestSent]     = useState(false)
   const [history, setHistory]       = useState([])
+  const [metaTemplates, setMetaTemplates] = useState([])
+  const [campaignMode, setCampaignMode] = useState("freetext") // freetext | template
+  const [manualNumbers, setManualNumbers] = useState("") // comma/newline separated numbers
+  const [selectedPrebuilt, setSelectedPrebuilt] = useState(null)
+  const [prebuiltVars, setPrebuiltVars] = useState({}) // {0: "val", 1: "val"} // freetext | template
+  const [selectedMetaTemplate, setSelectedMetaTemplate] = useState(null)
+  const [templateVars, setTemplateVars] = useState({}) // {1: "value", 2: "value"}
+  // Template manager state
+  const [newTemplate, setNewTemplate] = useState({ name:"", category:"MARKETING", language:"en", body_text:"", header_text:"", footer_text:"", button_text:"", button_url:"", has_buttons:false })
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [submittingTemplate, setSubmittingTemplate] = useState("")
 
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
@@ -77,18 +177,32 @@ export default function Campaigns() {
 
   async function loadData() {
     setLoading(true)
-    const [{ data: custs }, { data: wa }, { data: bizData }, { data: opts }, { data: hist }] = await Promise.all([
+    // Load critical data first (always exists)
+    const [{ data: custs }, { data: wa }, { data: bizData }] = await Promise.all([
       supabase.from("customers").select("id,name,phone,tag,last_visit_at,created_at").eq("user_id", userId),
       supabase.from("whatsapp_connections").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("business_settings").select("business_name").eq("user_id", userId).maybeSingle(),
-      supabase.from("campaign_optouts").select("phone").eq("user_id", userId),
-      supabase.from("campaigns").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(30),
     ])
     setCustomers(custs || [])
     setWhatsapp(wa || null)
     setBiz(bizData || null)
-    setOptouts((opts||[]).map(o => o.phone))
-    setHistory(hist || [])
+
+    // Load optional tables — may not exist yet if migration not run
+    try {
+      const { data: opts } = await supabase.from("campaign_optouts").select("phone").eq("user_id", userId)
+      setOptouts((opts||[]).map(o => o.phone))
+    } catch(e) { console.warn("campaign_optouts table missing — run migration-campaigns.sql") }
+
+    try {
+      const { data: hist } = await supabase.from("campaigns").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(30)
+      setHistory(hist || [])
+    } catch(e) { console.warn("campaigns table missing — run migration-campaigns.sql") }
+
+    try {
+      const { data: tmplData } = await supabase.from("wa_templates").select("*").eq("user_id", userId).order("created_at", { ascending: false })
+      setMetaTemplates(tmplData || [])
+    } catch(e) { console.warn("wa_templates table missing — run migration-templates.sql") }
+
     setLoading(false)
   }
 
@@ -102,8 +216,16 @@ export default function Campaigns() {
   function getAudience() {
     const now = new Date()
     const thirtyDaysAgo = new Date(now); thirtyDaysAgo.setDate(now.getDate()-30)
+
+    // Parse manually entered numbers
+    const manualList = manualNumbers.split(/[
+,;]+/).map(s=>s.trim()).filter(s=>s.length>=8)
+      .map((phone,i) => ({ id:`manual-${i}`, name:phone, phone }))
+
     let base = segment === "csv"
       ? csvNumbers.map((phone, i) => ({ id:`csv-${i}`, name:phone, phone }))
+      : segment === "manual"
+      ? manualList
       : customers.filter(c => {
           if (segment === "all")       return true
           if (segment === "new_lead")  return c.tag === "new_lead"
@@ -156,7 +278,9 @@ export default function Campaigns() {
   }
 
   async function sendCampaign() {
-    if (!message.trim() || !campaignName.trim()) return
+    if (!campaignName.trim()) return
+    if (campaignMode === "freetext" && !message.trim()) return
+    if (campaignMode === "template" && !selectedPrebuilt) return
     const audience = getAudience()
     if (!audience.length) return
     setSending(true); setSent(0); setFailed(0); setStep("sending")
@@ -164,12 +288,41 @@ export default function Campaigns() {
 
     for (const customer of audience) {
       try {
-        const text  = buildMessage(customer)
         const phone = customer.phone.replace(/[^0-9]/g, "")
+        let body
+
+        if (campaignMode === "template" && selectedPrebuilt) {
+          // Send as Meta template message (works outside 24hr window, to anyone)
+          const tmpl = PRE_BUILT_TEMPLATES.find(t=>t.id===selectedPrebuilt)
+          const params = tmpl.vars.map((_,i) => ({
+            type: "text",
+            text: prebuiltVars[i] || tmpl.vars[i]
+          }))
+          // Replace {{1}} {{2}} with actual values for storage
+          let bodyText = tmpl.body
+          tmpl.vars.forEach((_,i) => { bodyText = bodyText.replace(`{{${i+1}}}`, prebuiltVars[i]||tmpl.vars[i]) })
+
+          body = JSON.stringify({
+            messaging_product: "whatsapp", to: phone, type: "template",
+            template: {
+              name: tmpl.id,
+              language: { code: "en" },
+              components: [{
+                type: "body",
+                parameters: params
+              }]
+            }
+          })
+        } else {
+          // Free text (24hr window)
+          const text = buildMessage(customer)
+          body = JSON.stringify({ messaging_product:"whatsapp", to:phone, type:"text", text:{ body:text, preview_url:false } })
+        }
+
         const res = await fetch(`https://graph.facebook.com/v18.0/${whatsapp.phone_number_id}/messages`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${whatsapp.access_token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ messaging_product:"whatsapp", to:phone, type:"text", text:{ body:text, preview_url:false } })
+          body
         })
         const d = await res.json()
         if (!d.error) { sentCount++; setSent(sentCount) }
@@ -180,7 +333,9 @@ export default function Campaigns() {
 
     try {
       await supabase.from("campaigns").insert({
-        user_id: userId, name: campaignName, segment, message,
+        user_id: userId, name: campaignName, segment,
+        message: campaignMode==="template" ? `[Template: ${selectedPrebuilt}]` : message,
+        template_id: selectedPrebuilt || null,
         sent_count: sentCount, failed_count: failCount,
         status: "completed", sent_at: new Date().toISOString(), created_at: new Date().toISOString()
       })
@@ -349,6 +504,9 @@ export default function Campaigns() {
                     </div>
                     <div style={{textAlign:"right",flexShrink:0}}>
                       <div style={{fontWeight:700,fontSize:13,color:accent}}>{c.sent_count} sent</div>
+                      {(c.delivered_count||0)>0 && <div style={{fontSize:11,color:"#38bdf8"}}>📬 {c.delivered_count} delivered</div>}
+                      {(c.read_count||0)>0 && <div style={{fontSize:11,color:"#a78bfa"}}>👁 {c.read_count} read</div>}
+                      {(c.replied_count||0)>0 && <div style={{fontSize:11,color:accent}}>↩ {c.replied_count} replied</div>}
                       {(c.failed_count||0)>0 && <div style={{fontSize:11,color:"#fb7185"}}>{c.failed_count} failed</div>}
                     </div>
                   </div>
@@ -386,73 +544,163 @@ export default function Campaigns() {
             ) : (
               /* COMPOSE */
               <div className="campaign-grid">
-                {/* Col 1: Templates */}
+                {/* Col 1: Mode + Templates */}
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {/* Mode toggle */}
                   <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:14}}>
-                    <div style={{fontWeight:700,fontSize:12.5,color:text,marginBottom:10}}>Templates</div>
-                    {TEMPLATES.map(t=>(
-                      <button key={t.id} className="tmpl-card"
-                        onClick={()=>{setSelectedTemplate(t.id);if(t.text)setMessage(t.text)}}
-                        style={{color:selectedTemplate===t.id?accent:text,fontWeight:selectedTemplate===t.id?700:500,fontSize:12.5,border:`1px solid ${selectedTemplate===t.id?accent+"44":cardBorder}`,background:selectedTemplate===t.id?accentDim:"transparent"}}>
-                        {t.label}
-                      </button>
-                    ))}
-                    <div style={{marginTop:12,padding:"11px 12px",background:inputBg,borderRadius:9}}>
-                      <div style={{fontSize:10,fontWeight:700,color:textFaint,marginBottom:7,letterSpacing:"0.5px"}}>VARIABLES</div>
-                      {[["{name}","Customer first name"],["{business}","Your business name"],["{cta}","CTA text + link"]].map(([v,d])=>(
-                        <div key={v} style={{marginBottom:6}}>
-                          <code style={{fontSize:11,color:accent,fontWeight:700}}>{v}</code>
-                          <div style={{fontSize:10.5,color:textFaint}}>{d}</div>
-                        </div>
-                      ))}
+                    <div style={{fontWeight:700,fontSize:12.5,color:text,marginBottom:10}}>Campaign Type</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      <div onClick={()=>setCampaignMode("template")}
+                        style={{padding:"10px 12px",borderRadius:9,cursor:"pointer",border:`1px solid ${campaignMode==="template"?accent+"55":cardBorder}`,background:campaignMode==="template"?accentDim:"transparent"}}>
+                        <div style={{fontWeight:700,fontSize:12.5,color:campaignMode==="template"?accent:text}}>◈ Meta Template</div>
+                        <div style={{fontSize:10.5,color:textFaint,marginTop:2}}>Send to anyone, anytime. No 24hr limit. ✅</div>
+                      </div>
+                      <div onClick={()=>setCampaignMode("freetext")}
+                        style={{padding:"10px 12px",borderRadius:9,cursor:"pointer",border:`1px solid ${campaignMode==="freetext"?accent+"55":cardBorder}`,background:campaignMode==="freetext"?accentDim:"transparent"}}>
+                        <div style={{fontWeight:700,fontSize:12.5,color:campaignMode==="freetext"?accent:text}}>✏️ Free Text</div>
+                        <div style={{fontSize:10.5,color:textFaint,marginTop:2}}>Only works within 24hr conversation window</div>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Template library */}
+                  {campaignMode==="template" ? (
+                    <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:14}}>
+                      <div style={{fontWeight:700,fontSize:12.5,color:text,marginBottom:4}}>Template Library</div>
+                      <div style={{fontSize:10.5,color:textFaint,marginBottom:10}}>Pre-approved by Meta — works for any contact</div>
+                      {PRE_BUILT_TEMPLATES.map(t=>(
+                        <button key={t.id} className="tmpl-card"
+                          onClick={()=>{ setSelectedPrebuilt(t.id); setPrebuiltVars({}) }}
+                          style={{color:selectedPrebuilt===t.id?accent:text,fontWeight:selectedPrebuilt===t.id?700:500,fontSize:12,border:`1px solid ${selectedPrebuilt===t.id?accent+"44":cardBorder}`,background:selectedPrebuilt===t.id?accentDim:"transparent"}}>
+                          <div>{t.label}</div>
+                          <div style={{fontSize:9.5,color:selectedPrebuilt===t.id?accent+"88":textFaint,marginTop:2,fontWeight:400}}>{t.category}</div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:14}}>
+                      <div style={{fontWeight:700,fontSize:12.5,color:text,marginBottom:10}}>Quick Templates</div>
+                      {TEMPLATES.map(t=>(
+                        <button key={t.id} className="tmpl-card"
+                          onClick={()=>{setSelectedTemplate(t.id);if(t.text)setMessage(t.text)}}
+                          style={{color:selectedTemplate===t.id?accent:text,fontWeight:selectedTemplate===t.id?700:500,fontSize:12.5,border:`1px solid ${selectedTemplate===t.id?accent+"44":cardBorder}`,background:selectedTemplate===t.id?accentDim:"transparent"}}>
+                          {t.label}
+                        </button>
+                      ))}
+                      <div style={{marginTop:12,padding:"11px 12px",background:inputBg,borderRadius:9}}>
+                        <div style={{fontSize:10,fontWeight:700,color:textFaint,marginBottom:7,letterSpacing:"0.5px"}}>VARIABLES</div>
+                        {["{name}","{business}","{cta}"].map(v=>(
+                          <div key={v} style={{marginBottom:4}}>
+                            <code style={{fontSize:11,color:accent,fontWeight:700}}>{v}</code>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Col 2: Compose + Preview + Test */}
                 <div style={{display:"flex",flexDirection:"column",gap:12}}>
                   {/* Compose */}
                   <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:16}}>
-                    <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:12}}>Compose Message</div>
-                    <div style={{marginBottom:10}}>
+                    <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:12}}>
+                      {campaignMode==="template" ? "Template Variables" : "Compose Message"}
+                    </div>
+
+                    {/* Campaign name — always required */}
+                    <div style={{marginBottom:12}}>
                       <div style={{fontSize:11.5,color:textMuted,marginBottom:4,fontWeight:600}}>Campaign Name <span style={{color:"#fb7185"}}>*</span></div>
-                      <input placeholder="e.g. Diwali Offer 2026" value={campaignName} onChange={e=>setCampaignName(e.target.value)}
+                      <input placeholder="e.g. Product Launch March 2026" value={campaignName} onChange={e=>setCampaignName(e.target.value)}
                         style={{...inp,border:`1px solid ${!campaignName.trim()?"rgba(251,113,133,0.35)":cardBorder}`}}/>
                     </div>
-                    <div style={{marginBottom:10}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                        <div style={{fontSize:11.5,color:textMuted,fontWeight:600}}>Message</div>
-                        <div style={{fontSize:11,color:msgLength>WA_LIMIT*0.8?"#f59e0b":textFaint}}>{msgLength}/{WA_LIMIT}</div>
-                      </div>
-                      <textarea value={message} onChange={e=>setMessage(e.target.value)} rows={6}
-                        placeholder="Type your message... Use {name}, {business}, {cta}"
-                        style={{...inp,resize:"vertical",lineHeight:1.6,minHeight:130,border:`1px solid ${msgLength>WA_LIMIT?"#fb7185":cardBorder}`}}/>
-                      {msgLength>WA_LIMIT && <div style={{fontSize:11,color:"#fb7185",marginTop:3}}>⚠️ Too long — WhatsApp limit is {WA_LIMIT} chars</div>}
-                    </div>
-                    {/* CTA link */}
-                    <div style={{marginBottom:10,padding:"12px 13px",background:inputBg,border:`1px solid ${ctaUrl?accent+"33":cardBorder}`,borderRadius:9}}>
-                      <div style={{fontSize:11.5,color:textMuted,fontWeight:600,marginBottom:8}}>🔗 CTA Link <span style={{color:textFaint,fontWeight:400}}>(optional)</span></div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1.6fr",gap:8}}>
-                        <input placeholder='e.g. "Book Now"' value={ctaText} onChange={e=>setCtaText(e.target.value)} style={{...inp,padding:"7px 10px",fontSize:12}}/>
-                        <input placeholder="https://wa.me/91..." value={ctaUrl} onChange={e=>setCtaUrl(e.target.value)} style={{...inp,padding:"7px 10px",fontSize:12}}/>
-                      </div>
-                      {ctaUrl && <div style={{fontSize:11,color:accent,marginTop:6}}>✓ CTA will be appended to your message</div>}
-                    </div>
-                    <div style={{padding:"9px 11px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,fontSize:11.5,color:"#f59e0b",lineHeight:1.6}}>
-                      ⚠️ <strong>Meta Policy:</strong> Only message customers who contacted you first. Customers replying <strong>STOP</strong> are auto-excluded from all future campaigns.
-                    </div>
+
+                    {campaignMode==="template" ? (
+                      /* Template variable inputs */
+                      selectedPrebuilt ? (() => {
+                        const tmpl = PRE_BUILT_TEMPLATES.find(t=>t.id===selectedPrebuilt)
+                        return (
+                          <div>
+                            <div style={{fontSize:11.5,color:textMuted,marginBottom:10,fontWeight:600}}>Fill in the variables for <span style={{color:accent}}>{tmpl.label}</span></div>
+                            {tmpl.vars.map((varName, i) => (
+                              <div key={i} style={{marginBottom:10}}>
+                                <div style={{fontSize:11,color:textFaint,marginBottom:4}}>
+                                  <code style={{color:accent}}>{"{{" + (i+1) + "}}"}</code> — {varName}
+                                </div>
+                                <input
+                                  placeholder={`Enter ${varName.toLowerCase()}`}
+                                  value={prebuiltVars[i]||""}
+                                  onChange={e=>setPrebuiltVars(p=>({...p,[i]:e.target.value}))}
+                                  style={inp}
+                                />
+                              </div>
+                            ))}
+                            <div style={{padding:"9px 11px",background:"rgba(0,208,132,0.07)",border:`1px solid ${accent}22`,borderRadius:8,fontSize:11,color:textMuted,lineHeight:1.6}}>
+                              ✅ <strong style={{color:accent}}>Template campaigns work anytime</strong> — no 24hr window restriction. Meta template messages can reach any customer.
+                            </div>
+                          </div>
+                        )
+                      })() : (
+                        <div style={{textAlign:"center",padding:"20px",color:textFaint}}>
+                          <div style={{fontSize:22,marginBottom:8}}>←</div>
+                          <div style={{fontSize:12}}>Select a template from the left</div>
+                        </div>
+                      )
+                    ) : (
+                      /* Free text compose */
+                      <>
+                        <div style={{marginBottom:10}}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                            <div style={{fontSize:11.5,color:textMuted,fontWeight:600}}>Message</div>
+                            <div style={{fontSize:11,color:msgLength>WA_LIMIT*0.8?"#f59e0b":textFaint}}>{msgLength}/{WA_LIMIT}</div>
+                          </div>
+                          <textarea value={message} onChange={e=>setMessage(e.target.value)} rows={6}
+                            placeholder="Type your message... Use {name}, {business}, {cta}"
+                            style={{...inp,resize:"vertical",lineHeight:1.6,minHeight:130,border:`1px solid ${msgLength>WA_LIMIT?"#fb7185":cardBorder}`}}/>
+                          {msgLength>WA_LIMIT && <div style={{fontSize:11,color:"#fb7185",marginTop:3}}>⚠️ Too long — WhatsApp limit is {WA_LIMIT} chars</div>}
+                        </div>
+                        {/* CTA */}
+                        <div style={{marginBottom:10,padding:"10px 12px",background:inputBg,border:`1px solid ${ctaUrl?accent+"33":cardBorder}`,borderRadius:9}}>
+                          <div style={{fontSize:11.5,color:textMuted,fontWeight:600,marginBottom:8}}>🔗 CTA Link <span style={{color:textFaint,fontWeight:400}}>(optional)</span></div>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1.6fr",gap:8}}>
+                            <input placeholder='"Book Now"' value={ctaText} onChange={e=>setCtaText(e.target.value)} style={{...inp,padding:"7px 10px",fontSize:12}}/>
+                            <input placeholder="https://fastrill.com/book" value={ctaUrl} onChange={e=>setCtaUrl(e.target.value)} style={{...inp,padding:"7px 10px",fontSize:12}}/>
+                          </div>
+                        </div>
+                        <div style={{padding:"9px 11px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:8,fontSize:11,color:"#f59e0b",lineHeight:1.6}}>
+                          ⚠️ Free text only works if customer messaged you in last 24hrs. For product launches to all contacts → use <strong>Meta Template</strong> mode.
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Preview */}
                   <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:16}}>
-                    <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:10}}>Preview <span style={{fontSize:11,color:textFaint,fontWeight:400}}>for {previewCustomer.name}</span></div>
+                    <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:10}}>
+                      Preview <span style={{fontSize:11,color:textFaint,fontWeight:400}}>for {previewCustomer.name||"Customer"}</span>
+                    </div>
                     <div style={{background:dark?"#1a1a2e":"#e5ddd5",borderRadius:10,padding:12}}>
-                      <div style={{background:dark?"#2a2a3e":"#fff",borderRadius:"4px 12px 12px 12px",padding:"10px 13px",maxWidth:"85%",display:"inline-block"}}>
+                      <div style={{background:dark?"#2a2a3e":"#fff",borderRadius:"4px 12px 12px 12px",padding:"10px 13px",maxWidth:"90%",display:"inline-block"}}>
                         <div style={{fontSize:12.5,color:dark?"#eee":"#111",lineHeight:1.7,whiteSpace:"pre-wrap"}}>
-                          {buildMessage(previewCustomer)||<span style={{color:textFaint,fontStyle:"italic"}}>Type a message above...</span>}
+                          {campaignMode==="template" && selectedPrebuilt ? (() => {
+                            const tmpl = PRE_BUILT_TEMPLATES.find(t=>t.id===selectedPrebuilt)
+                            let preview = tmpl.body
+                            tmpl.vars.forEach((_,i) => { preview = preview.replace(`{{${i+1}}}`, prebuiltVars[i]||`[${tmpl.vars[i]}]`) })
+                            return preview
+                          })() : buildMessage(previewCustomer) || <span style={{color:textFaint,fontStyle:"italic"}}>Select a template or type a message...</span>}
                         </div>
+                        {campaignMode==="template" && selectedPrebuilt && (
+                          <div style={{fontSize:10,color:textFaint,marginTop:6,borderTop:`1px solid ${border}`,paddingTop:4}}>
+                            {PRE_BUILT_TEMPLATES.find(t=>t.id===selectedPrebuilt)?.footer}
+                          </div>
+                        )}
                       </div>
                     </div>
+                  </div>
+
+                      </div>
+                    </div>
+                  </div>
+
                   </div>
 
                   {/* Test send */}
@@ -481,21 +729,42 @@ export default function Campaigns() {
                         <div style={{fontSize:10.5,color:textFaint,marginTop:1}}>{s.desc}</div>
                       </div>
                     ))}
-                    <div style={{marginTop:8}}>
-                      <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={handleCsvUpload}/>
-                      <button onClick={()=>fileRef.current?.click()}
-                        style={{width:"100%",padding:"8px",borderRadius:8,background:segment==="csv"?accentDim:inputBg,border:`1px solid ${segment==="csv"?accent+"44":cardBorder}`,color:segment==="csv"?accent:textMuted,fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                        📎 {csvNumbers.length>0?`${csvNumbers.length} numbers loaded`:"Upload CSV or .txt file"}
-                      </button>
-                      {csvNumbers.length>0 && (
-                        <div style={{fontSize:11,color:textFaint,marginTop:4,textAlign:"center"}}>
-                          {csvNumbers.length} numbers · <span style={{color:"#fb7185",cursor:"pointer"}} onClick={()=>{setCsvNumbers([]);setSegment("all")}}>Clear</span>
+
+                    {/* Manual number entry */}
+                    {segment==="manual" && (
+                      <div style={{marginTop:8}}>
+                        <textarea
+                          placeholder={"Enter phone numbers, one per line or comma separated:\n917997576108\n916309279265\n+91 98765 43210"}
+                          value={manualNumbers}
+                          onChange={e=>setManualNumbers(e.target.value)}
+                          rows={5}
+                          style={{...inp,resize:"vertical",fontSize:12,lineHeight:1.6}}
+                        />
+                        <div style={{fontSize:10.5,color:textFaint,marginTop:4}}>
+                          {manualNumbers.split(/[\n,;]+/).filter(s=>s.trim().length>=8).length} numbers detected · Country code auto-detected
                         </div>
-                      )}
-                      <div style={{fontSize:10.5,color:textFaint,marginTop:5,lineHeight:1.5}}>One number per line, or first column of CSV. Country code auto-detected.</div>
-                    </div>
+                      </div>
+                    )}
+
+                    {/* CSV upload */}
+                    {segment==="csv" && (
+                      <div style={{marginTop:8}}>
+                        <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={handleCsvUpload}/>
+                        <button onClick={()=>fileRef.current?.click()}
+                          style={{width:"100%",padding:"8px",borderRadius:8,background:accentDim,border:`1px solid ${accent}44`,color:accent,fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                          📎 {csvNumbers.length>0?`${csvNumbers.length} numbers loaded`:"Upload CSV or .txt file"}
+                        </button>
+                        {csvNumbers.length>0 && (
+                          <div style={{fontSize:11,color:textFaint,marginTop:4,textAlign:"center"}}>
+                            {csvNumbers.length} numbers · <span style={{color:"#fb7185",cursor:"pointer"}} onClick={()=>{setCsvNumbers([]);setSegment("all")}}>Clear</span>
+                          </div>
+                        )}
+                        <div style={{fontSize:10.5,color:textFaint,marginTop:5,lineHeight:1.5}}>One number per line, or first column of CSV</div>
+                      </div>
+                    )}
                   </div>
 
+                  {/* Ready to send + delivery stats */}
                   <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:16}}>
                     <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:8}}>Ready to send</div>
                     <div style={{fontSize:34,fontWeight:800,color:audience.length>0?accent:textFaint,marginBottom:2,letterSpacing:"-1px"}}>{audience.length}</div>
@@ -522,14 +791,25 @@ export default function Campaigns() {
                       </div>
                     )}
 
-                    <button onClick={sendCampaign}
-                      disabled={!whatsapp||!audience.length||!message.trim()||!campaignName.trim()||sending||msgLength>WA_LIMIT}
-                      style={{width:"100%",padding:"11px",background:(!whatsapp||!audience.length||!message.trim()||!campaignName.trim())?inputBg:accent,border:`1px solid ${(!whatsapp||!audience.length||!message.trim()||!campaignName.trim())?cardBorder:accent}`,borderRadius:9,color:(!whatsapp||!audience.length||!message.trim()||!campaignName.trim())?textMuted:"#000",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:6}}>
-                      {!whatsapp?"Connect WhatsApp first":!campaignName.trim()?"Add a campaign name ↑":!audience.length?"No recipients":"🚀 Send Campaign"}
-                    </button>
-                    {!campaignName.trim()&&message.trim()&&audience.length>0&&(
-                      <div style={{fontSize:11,color:"#fb7185",textAlign:"center"}}>Campaign name is required to track history</div>
-                    )}
+                    {/* Send button — validates based on mode */}
+                    {(() => {
+                      const isTemplateReady = campaignMode==="template" && selectedPrebuilt && campaignName.trim() && audience.length>0 && whatsapp
+                      const isFreeReady = campaignMode==="freetext" && message.trim() && campaignName.trim() && audience.length>0 && whatsapp && msgLength<=WA_LIMIT
+                      const isReady = isTemplateReady || isFreeReady
+                      const btnLabel = !whatsapp ? "Connect WhatsApp first"
+                        : !campaignName.trim() ? "Add campaign name ↑"
+                        : !audience.length ? "Select an audience"
+                        : campaignMode==="template" && !selectedPrebuilt ? "Select a template ←"
+                        : campaignMode==="freetext" && !message.trim() ? "Write a message"
+                        : msgLength>WA_LIMIT ? "Message too long"
+                        : "🚀 Send Campaign"
+                      return (
+                        <button onClick={sendCampaign} disabled={!isReady||sending}
+                          style={{width:"100%",padding:"11px",background:isReady?accent:inputBg,border:`1px solid ${isReady?accent:cardBorder}`,borderRadius:9,color:isReady?"#000":textMuted,fontWeight:700,fontSize:13,cursor:isReady?"pointer":"not-allowed",fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:6}}>
+                          {btnLabel}
+                        </button>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>
