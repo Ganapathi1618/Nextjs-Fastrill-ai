@@ -57,6 +57,7 @@ export default function Conversations() {
   const [userId, setUserId]         = useState(null)
   const [dark, setDark]             = useState(true)
   const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
+  const [mobChatOpen, setMobChatOpen] = useState(false)
   const [convos, setConvos]         = useState([])
   const [selected, setSelected]     = useState(null)
   const [messages, setMessages]     = useState([])
@@ -522,10 +523,17 @@ export default function Conversations() {
           .content{padding:12px!important;}
           .hamburger{display:flex!important;}
           .tb-title{font-size:14px!important;}
+          /* Conversations: hide list when chat open, hide chat when list shown */
+          .mob-hide-list{display:none!important;}
+          .mob-hide-chat{display:none!important;}
+          .clist{width:100%!important;border-right:none!important;}
+          .chat-area{position:fixed!important;inset:0!important;z-index:150!important;background:var(--bg)!important;}
+          .mob-back-btn{display:flex!important;}
           /* Hide theme toggle label on small screens */
           .theme-toggle .tog-label{display:none;}
         }
         .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
+        .mob-back-btn{display:none;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:13px;color:#eeeef5;font-family:'Plus Jakarta Sans',sans-serif;align-items:center;gap:5px;font-weight:600;margin-right:8px;}
         .hamburger{display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:#eeeef5;line-height:1;margin-right:2px;}
         /* Responsive grids */
         @media(max-width:767px){
@@ -586,7 +594,7 @@ export default function Conversations() {
 
           <div className="inbox-wrap">
             {/* Conversation list */}
-            <div className="clist">
+            <div className={`clist${mobChatOpen?" mob-hide-list":""}`}>
               <div className="clist-top">
                 <div className="search-box">
                   <span style={{ color:textFaint, fontSize:13 }}>🔍</span>
@@ -610,7 +618,7 @@ export default function Conversations() {
                         const color = getColor(c._displayName || name)
                         return (
                           <div key={c.id} className={`c-item${selected?.id===c.id?" sel":""}`}
-                            onClick={() => { setSelected(c); setMessages([]) }}>
+                            onClick={() => { setSelected(c); setMessages([]); setMobChatOpen(true) }}>
                             <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:4 }}>
                               <div style={{ width:34, height:34, borderRadius:9, background:`linear-gradient(135deg,${color}88,${color}44)`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:14, color:"#fff", flexShrink:0 }}>
                                 {getInitial(name)}
@@ -642,9 +650,10 @@ export default function Conversations() {
 
             {/* Chat area */}
             {selected ? (
-              <div className="chat-area">
+              <div className={`chat-area${!mobChatOpen?" mob-hide-chat":""}`}>
                 <div className="chat-head">
                   <div style={{ display:"flex", alignItems:"center", gap:11 }}>
+                    <button className="mob-back-btn" onClick={()=>setMobChatOpen(false)}>← Back</button>
                     <div style={{ width:36, height:36, borderRadius:9, background:`linear-gradient(135deg,${getColor(selected._displayName)}88,${getColor(selected._displayName)}44)`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:14, color:"#fff" }}>
                       {getInitial(selected._displayName)}
                     </div>
