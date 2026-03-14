@@ -83,7 +83,14 @@ export default function Dashboard() {
     const uniqueConvos = [...new Set((msgs||[]).map(m=>m.conversation_id).filter(Boolean))].length
 
     setStats({ revenue, leads:(leads||[]).length, bookings:periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue: Math.round(revenue*0.7) })
-    setFunnel({ leads:(leads||[]).length, convos:uniqueConvos||Math.round((leads||[]).length*0.72), booked:allBks.length, completed:allCompleted.length, revenue })
+    // FIX: Funnel should show real pipeline numbers
+    // Leads In = total customers (everyone who ever messaged)
+    // Chats = unique conversations with messages this period
+    // Booked = total bookings ever
+    // Done = completed bookings
+    const totalCustomers = (customers||[]).length
+    const funnelLeads = totalCustomers || (leads||[]).length
+    setFunnel({ leads:funnelLeads, convos:uniqueConvos || Math.round(funnelLeads*0.8), booked:allBks.length, completed:allCompleted.length, revenue })
 
     // Today's bookings — from ALL bookings, filter by today's date
     setTodayBookings((bks||[]).filter(b=>b.booking_date===todayStr).slice(0,4))
@@ -169,6 +176,12 @@ export default function Dashboard() {
         @media(max-width:960px){.two-col,.three-col{grid-template-columns:1fr;}}
 
         /* ══ MOBILE RESPONSIVE ══════════════════════════════════ */
+        @media(max-width:767px){
+          /* Dashboard: stack health score above KPI cards */
+          .kpi-grid{grid-template-columns:repeat(2,1fr)!important;}
+          /* Make health+kpi container vertical */
+          .health-kpi-row{grid-template-columns:1fr!important;}
+        }
         @media(max-width:767px){
           .wrap{position:relative;}
           .sidebar{
@@ -272,7 +285,7 @@ export default function Dashboard() {
             )}
 
             {/* Health + KPIs */}
-            <div style={{display:"grid",gridTemplateColumns:"210px 1fr",gap:14}}>
+            <div className="health-kpi-row" style={{display:"grid",gridTemplateColumns:"210px 1fr",gap:14}}>
               <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:"20px 16px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden"}}>
                 <div style={{position:"absolute",inset:0,background:`radial-gradient(circle at 50% 30%,${accent}0d,transparent 70%)`,pointerEvents:"none"}}/>
                 <div style={{fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase",color:textFaint,fontWeight:600,marginBottom:12}}>Business Health</div>
@@ -291,7 +304,7 @@ export default function Dashboard() {
                 <div style={{fontSize:11,color:textMuted,lineHeight:1.5}}>{loading?"Calculating...":connected?"AI is active":"Connect WhatsApp to get started"}</div>
               </div>
 
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11}}>
+              <div className="kpi-grid" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11}}>
                 {[
                   {name:"Revenue Generated",val:`₹${stats.revenue.toLocaleString()}`,color:accent,icon:"₹"},
                   {name:"Leads Captured",val:stats.leads,color:"#38bdf8",icon:"↗"},
