@@ -143,8 +143,7 @@ export default function Campaigns() {
     const thirtyDaysAgo = new Date(now); thirtyDaysAgo.setDate(now.getDate()-30)
 
     // Parse manually entered numbers
-    const manualList = manualNumbers.split(/[
-,;]+/).map(s=>s.trim()).filter(s=>s.length>=8)
+    const manualList = manualNumbers.split(",").join(" ").split(";").join(" ").split(" ").map(s=>s.trim()).filter(s=>s.length>=8)
       .map((phone,i) => ({ id:`manual-${i}`, name:phone, phone }))
 
     let base = segment === "csv"
@@ -274,7 +273,7 @@ export default function Campaigns() {
     const file = e.target.files[0]; if (!file) return
     const reader = new FileReader()
     reader.onload = (ev) => {
-      const lines = ev.target.result.split(/\r?\n/).map(l=>l.trim()).filter(Boolean)
+      const lines = ev.target.result.split("\n").map(l=>l.replace(/\r/,"").trim()).filter(Boolean)
       const phones = []
       for (const line of lines) {
         for (const col of line.split(",")) {
@@ -666,7 +665,7 @@ export default function Campaigns() {
                           style={{...inp,resize:"vertical",fontSize:12,lineHeight:1.6}}
                         />
                         <div style={{fontSize:10.5,color:textFaint,marginTop:4}}>
-                          {manualNumbers.split(/[\n,;]+/).filter(s=>s.trim().length>=8).length} numbers detected · Country code auto-detected
+                          {manualNumbers.replace(/[,;]/g," ").split(" ").filter(s=>s.trim().length>=8).length} numbers detected · Country code auto-detected
                         </div>
                       </div>
                     )}
