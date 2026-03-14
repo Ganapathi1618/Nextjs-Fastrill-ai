@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [connected, setConnected] = useState(false)
   const [period, setPeriod] = useState("today")
   const [dark, setDark] = useState(true)
+  const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const [stats, setStats] = useState({ revenue:0, leads:0, bookings:0, missedLeads:0, aiHandled:0, aiBookings:0, aiRevenue:0 })
@@ -166,10 +167,57 @@ export default function Dashboard() {
         .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
         @media(max-width:1200px){.three-col{grid-template-columns:1fr 1fr;}}
         @media(max-width:960px){.two-col,.three-col{grid-template-columns:1fr;}}
+
+        /* ══ MOBILE RESPONSIVE ══════════════════════════════════ */
+        @media(max-width:767px){
+          .wrap{position:relative;}
+          .sidebar{
+            position:fixed;top:0;left:0;height:100vh;z-index:300;
+            transform:translateX(-100%);transition:transform 0.25s ease;
+            width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);
+          }
+          .sidebar.mob-open{transform:translateX(0);}
+          .mob-overlay{display:block!important;}
+          .main{width:100%;}
+          .topbar{padding:0 12px!important;}
+          .content{padding:12px!important;}
+          .hamburger{display:flex!important;}
+          .tb-title{font-size:14px!important;}
+          /* Hide theme toggle label on small screens */
+          .theme-toggle .tog-label{display:none;}
+        }
+        .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
+        .hamburger{display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:#eeeef5;line-height:1;margin-right:2px;}
+        /* Responsive grids */
+        @media(max-width:767px){
+          [style*="grid-template-columns: repeat(5"]{grid-template-columns:repeat(2,1fr)!important;}
+          [style*="grid-template-columns: repeat(4"]{grid-template-columns:repeat(2,1fr)!important;}
+          [style*="grid-template-columns: repeat(3"]{grid-template-columns:repeat(2,1fr)!important;}
+          [style*="grid-template-columns: 1fr 300px"]{grid-template-columns:1fr!important;}
+          [style*="grid-template-columns: 1fr 320px"]{grid-template-columns:1fr!important;}
+          [style*="grid-template-columns: 280px 1fr 280px"]{grid-template-columns:1fr!important;}
+          [style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr!important;}
+          [style*="repeat(7,1fr)"]{grid-template-columns:repeat(4,1fr)!important;}
+        }
+        /* Bottom navigation bar */
+        .bottom-nav{
+          display:none;position:fixed;bottom:0;left:0;right:0;
+          background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);
+          padding:6px 0;z-index:200;
+        }
+        @media(max-width:767px){
+          .bottom-nav{display:flex;justify-content:space-around;}
+          .main{padding-bottom:60px;}
+          .wrap{padding-bottom:0;}
+        }
+        .bnav-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
+        .bnav-icon{font-size:17px;color:rgba(255,255,255,0.3);}
+        .bnav-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
+        .bnav-btn.active .bnav-icon,.bnav-btn.active .bnav-label{color:#00d084;}
       `}</style>
 
       <div className="wrap">
-        <aside className="sidebar">
+        <aside className={`sidebar${mobSidebarOpen?" mob-open":""}`}>
           <a href="/dashboard" className="logo">fast<span>rill</span></a>
           <div className="nav-section">Platform</div>
           {NAV.map(item=>(
@@ -189,6 +237,7 @@ export default function Dashboard() {
         <div className="main">
           <div className="topbar">
             <div className="topbar-l">
+              <button className="hamburger" onClick={()=>setMobSidebarOpen(s=>!s)}>☰</button>
               <span className="tb-title">Revenue Engine</span>
               <div className="period-wrap">
                 {["today","week","month"].map(p=>(
