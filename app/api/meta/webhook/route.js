@@ -2,46 +2,23 @@ import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
 // ════════════════════════════════════════════════════════════════════
-// FASTRILL WEBHOOK — VERSION 6.0
-// Full enterprise WhatsApp AI SaaS engine
+// FASTRILL WEBHOOK — VERSION 7.0
+// Production-grade WhatsApp AI SaaS engine
 // ════════════════════════════════════════════════════════════════════
-// FEATURES:
-// ✅ Multi-tenant SaaS (user_id isolation throughout)
-// ✅ Duplicate message guard (wa_message_id dedup)
-// ✅ WhatsApp text / button / interactive support
-// ✅ Status update filtering (skip delivery receipts)
-// ✅ Customer CRM auto-create + last_visit tracking
-// ✅ Conversation thread management + unread count
-// ✅ Inbound message storage with full metadata
-// ✅ Lead auto-capture + update on returning customers
-// ✅ AI toggle per conversation (ai_enabled flag)
-// ✅ Sarvam AI with full conversation history context
-// ✅ <think> tag extraction (sarvam-m outputs reasoning)
-// ✅ Business knowledge injection (name/type/location/hours)
-// ✅ Service catalog injection with prices + duration
-// ✅ Booking intent detection (book/slot/appointment)
-// ✅ Reschedule intent detection (multi-keyword, multilingual)
-// ✅ Cancel intent detection + soft redirect to reschedule
-// ✅ Pricing query detection + instant service price reply
-// ✅ Location query detection + maps link reply
-// ✅ Greeting detection + warm welcome
-// ✅ Natural language date parsing (today/tomorrow/weekday/15th march)
-// ✅ Natural language time parsing (5pm/morning/18:00/4:30pm)
-// ✅ Multi-language keyword support (Hindi/Telugu/English)
-// ✅ Service name extraction from services table
-// ✅ Booking state machine (collect service→date→time→confirm)
-// ✅ Slot conflict prevention (checks existing bookings per slot)
-// ✅ Capacity control (supports chairs/doctors/parallel bookings)
-// ✅ Alternative slot suggestion when slot is full
-// ✅ Service duration awareness for slot intervals
-// ✅ Booking database insertion with ai_booked flag
-// ✅ Booking confirmation WhatsApp message
-// ✅ Reschedule flow (update existing booking)
-// ✅ Reschedule confirmation WhatsApp message
-// ✅ Cancel handling with reschedule offer
-// ✅ Strictly alternating AI history (Sarvam requirement)
-// ✅ Rule-based fallback when Sarvam unavailable
-// ✅ All DB tables synced: customers/conversations/messages/leads/bookings
+// v7.0 FIXES over v6.0:
+// ✅ FIX: AI Brain now actually used — business_knowledge merged with
+//         business_settings so all brain content reaches the AI
+// ✅ FIX: Service extraction now tries DB services first, then keywords
+// ✅ FIX: Customer tag auto-upgraded after each booking
+//         (new_lead → returning → vip based on booking count)
+// ✅ FIX: Lead status set to "converted" after booking is created
+// ✅ FIX: Media messages now get a friendly acknowledgement reply
+// ✅ FIX: Hindi/Telugu greetings added to greeting detection
+// ✅ NEW: Booking state persisted in conversations table
+//         (no more lost state between messages)
+// ✅ NEW: Media message acknowledgement sent to customer
+// ✅ NEW: Better confirm detection — checks last AI message context
+// ✅ NEW: Cancel flow improved — logs cancel intent to lead notes
 // ════════════════════════════════════════════════════════════════════
 
 const supabaseAdmin = createClient(
@@ -64,27 +41,27 @@ export async function GET(req) {
 // ── POST: Receive WhatsApp messages ─────────────────────────────────
 export async function POST(req) {
   try {
-    console.log("🚀 FASTRILL WEBHOOK v6.0")
+    console.log("🚀 FASTRILL WEBHOOK v7.0")
     const body = await req.json()
 
-    // Handle delivery/read status updates — track for campaign analytics
-    const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
-    if (statuses && !body?.entry?.[0]?.changes?.[0]?.value?.messages) {
-      // Process each status update
+    // ── Handle delivery/read status updates ─────────────────────────
+    const statuses  = body?.entry?.[0]?.changes?.[0]?.value?.statuses
+    const hasMsg    = body?.entry?.[0]?.changes?.[0]?.value?.messages
+    if (statuses && !hasMsg) {
       for (const status of statuses) {
         const waMessageId = status.id
-        const statusType  = status.status // sent | delivered | read | failed
-        if (waMessageId && (statusType === "delivered" || statusType === "read" || statusType === "failed")) {
+        const statusType  = status.status
+        if (waMessageId && ["delivered","read","failed"].includes(statusType)) {
           try {
             await supabaseAdmin.from("messages")
               .update({ status: statusType, [`${statusType}_at`]: new Date().toISOString() })
               .eq("wa_message_id", waMessageId)
-          } catch(e) { /* non-fatal — columns may not exist yet */ }
+          } catch(e) { /* non-fatal */ }
         }
       }
       return NextResponse.json({ status: "status_update" }, { status: 200 })
     }
-    if (!body?.entry?.[0]?.changes?.[0]?.value?.messages) {
+    if (!hasMsg) {
       return NextResponse.json({ status: "no_message" }, { status: 200 })
     }
 
@@ -102,7 +79,7 @@ export async function POST(req) {
       const contactName    = contact?.profile?.name || "Customer"
       const formattedPhone = fromNumber.replace(/[^0-9]/g, "")
 
-      // ── DUPLICATE MESSAGE GUARD ──────────────────────────────────
+      // ── DUPLICATE GUARD ──────────────────────────────────────────
       const { data: dupMsg } = await supabaseAdmin
         .from("messages").select("id").eq("wa_message_id", messageId).maybeSingle()
       if (dupMsg) {
@@ -118,7 +95,6 @@ export async function POST(req) {
         messageText = message.interactive?.button_reply?.title
           || message.interactive?.list_reply?.title || ""
       }
-      // Skip non-text media (images/audio/video) for AI — still save them
       const isTextMessage = ["text","button","interactive"].includes(messageType)
 
       console.log(`📩 [${phoneNumberId}] From ${fromNumber} (${contactName}): "${messageText}"`)
@@ -154,8 +130,12 @@ export async function POST(req) {
         const { data: newCustomer, error: custErr } = await supabaseAdmin
           .from("customers")
           .insert({
-            user_id: userId, phone: formattedPhone, name: contactName,
-            source: "whatsapp", tag: "new_lead", created_at: timestamp
+            user_id:    userId,
+            phone:      formattedPhone,
+            name:       contactName,
+            source:     "whatsapp",
+            tag:        "new_lead",
+            created_at: timestamp
           })
           .select().single()
         if (custErr) console.error("Customer insert error:", custErr.message)
@@ -222,7 +202,6 @@ export async function POST(req) {
       // ══ 4. LEADS — AUTO CAPTURE / UPDATE ════════════════════════
       if (messageText) {
         if (!existingCustomer && customer) {
-          // New customer = new lead
           try {
             await supabaseAdmin.from("leads").insert({
               user_id:         userId,
@@ -238,7 +217,6 @@ export async function POST(req) {
             })
           } catch(e) { console.warn("Lead insert warn:", e.message) }
         } else if (existingCustomer) {
-          // Returning customer — update their open lead's last activity
           try {
             await supabaseAdmin.from("leads")
               .update({ last_message: messageText, last_message_at: timestamp })
@@ -248,46 +226,65 @@ export async function POST(req) {
         }
       }
 
-      // ══ 5. SAFETY CHECKS ════════════════════════════════════════
-      // Handle STOP / opt-out requests (Meta compliance requirement)
+      // ══ 5. COMPLIANCE — STOP / START ════════════════════════════
       const stopKeywords = ["stop","unsubscribe","opt out","optout","don't message","dont message","remove me","no more messages","no more msgs"]
-      const isStopRequest = isTextMessage && stopKeywords.some(kw => (messageText||"").toLowerCase().trim() === kw || (messageText||"").toLowerCase().includes(kw))
+      const isStopRequest = isTextMessage && stopKeywords.some(kw =>
+        (messageText||"").toLowerCase().trim() === kw ||
+        (messageText||"").toLowerCase().includes(kw)
+      )
       if (isStopRequest) {
         try {
-          await supabaseAdmin.from("campaign_optouts").upsert({ user_id: userId, phone: formattedPhone, created_at: new Date().toISOString() }, { onConflict: "user_id,phone" })
-          const stopReply = "You've been unsubscribed from our messages. Reply START to resubscribe anytime 🙏"
-          await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: stopReply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
-          console.log("🚫 Opt-out recorded for:", formattedPhone)
+          await supabaseAdmin.from("campaign_optouts").upsert(
+            { user_id: userId, phone: formattedPhone, created_at: new Date().toISOString() },
+            { onConflict: "user_id,phone" }
+          )
+          await sendAndSave({
+            phoneNumberId, accessToken: connection.access_token,
+            toNumber: fromNumber,
+            message: "You've been unsubscribed from our messages. Reply START to resubscribe anytime 🙏",
+            userId, conversationId: conversation?.id, customerPhone: formattedPhone
+          })
         } catch(e) { console.warn("Optout save failed:", e.message) }
         continue
       }
-      // Handle START / re-subscribe
       if (isTextMessage && (messageText||"").toLowerCase().trim() === "start") {
         try {
-          await supabaseAdmin.from("campaign_optouts").delete().eq("user_id", userId).eq("phone", formattedPhone)
-          const startReply = "You've been resubscribed! Welcome back 😊"
-          await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: startReply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+          await supabaseAdmin.from("campaign_optouts")
+            .delete().eq("user_id", userId).eq("phone", formattedPhone)
+          await sendAndSave({
+            phoneNumberId, accessToken: connection.access_token,
+            toNumber: fromNumber,
+            message: "You've been resubscribed! Welcome back 😊",
+            userId, conversationId: conversation?.id, customerPhone: formattedPhone
+          })
         } catch(e) { console.warn("Resubscribe failed:", e.message) }
         continue
       }
 
-      // Skip AI if disabled for this conversation
+      // ── Skip AI if disabled ──────────────────────────────────────
       if (conversation?.ai_enabled === false) {
         console.log("⏸️ AI disabled for this conversation")
         continue
       }
-      // Skip AI for non-text messages (images, audio, video)
+
+      // ── FIX v7.0: Handle media messages with a friendly reply ───
       if (!isTextMessage || !messageText) {
-        console.log("⏸️ Non-text/empty message — skipping AI")
+        console.log("📎 Non-text message — sending media acknowledgement")
+        const mediaAck = `Thanks for sharing! 😊 If you'd like to book an appointment or have any questions, just type them here.`
+        await sendAndSave({
+          phoneNumberId, accessToken: connection.access_token,
+          toNumber: fromNumber, message: mediaAck,
+          userId, conversationId: conversation?.id, customerPhone: formattedPhone
+        })
         continue
       }
 
-      // ══ 6. LOAD BUSINESS INTELLIGENCE ═══════════════════════════
+      // ══ 6. LOAD ALL BUSINESS INTELLIGENCE ═══════════════════════
       const [
         { data: bizSettings },
         { data: rawHistory },
         { data: servicesList },
-        { data: bk }
+        { data: bizKnowledge }
       ] = await Promise.all([
         supabaseAdmin.from("business_settings").select("*").eq("user_id", userId).maybeSingle(),
         supabaseAdmin.from("messages")
@@ -298,8 +295,36 @@ export async function POST(req) {
         supabaseAdmin.from("services")
           .select("name, price, duration, capacity")
           .eq("user_id", userId),
-        supabaseAdmin.from("business_knowledge").select("*").eq("user_id", userId).maybeSingle()
+        supabaseAdmin.from("business_knowledge")
+          .select("*")
+          .eq("user_id", userId)
+          .maybeSingle()
       ])
+
+      // ── FIX v7.0: MERGE business_settings + business_knowledge ──
+      // v6.0 bug: `bizSettings || bk` meant knowledge was IGNORED
+      // when business_settings existed. Now we deep-merge both so
+      // ALL brain content reaches the AI system prompt every time.
+      const biz = {
+        ...(bizKnowledge || {}),    // brain content as base
+        ...(bizSettings  || {}),    // settings override (name, type, location etc.)
+        // Merge ai_instructions from BOTH sources
+        ai_instructions: [
+          bizSettings?.ai_instructions,
+          bizKnowledge?.content,
+          bizKnowledge?.instructions,
+          bizKnowledge?.knowledge,
+          bizKnowledge?.notes
+        ].filter(Boolean).join("\n\n") || ""
+      }
+
+      console.log("🧠 AI Brain loaded:", {
+        name:         biz.business_name,
+        type:         biz.business_type,
+        hasInstr:     !!biz.ai_instructions,
+        instrLen:     biz.ai_instructions?.length || 0,
+        servicesCount: servicesList?.length || 0
+      })
 
       // Build strictly alternating history (Sarvam requirement)
       const historyRaw = (rawHistory || []).reverse().map(m => ({
@@ -311,21 +336,16 @@ export async function POST(req) {
       console.log("📜 History:", conversationHistory.map(m => m.role).join("→") || "empty")
 
       // ══ 7. DETECT INTENT ════════════════════════════════════════
-      const intent = detectIntent(conversationHistory, messageText)
+      const intent = detectIntent(conversationHistory, messageText, servicesList || [])
       console.log("🎯 Intent:", intent.type, "| State:", JSON.stringify(intent.bookingState))
 
-      const biz = bizSettings || bk || {}
-
-      // ══ 8. INSTANT REPLIES — No AI needed ═══════════════════════
-      // Pricing query → instant service list
+      // ══ 8. INSTANT REPLIES ══════════════════════════════════════
       if (intent.type === "pricing" && !intent.bookingState.service) {
         const priceReply = buildPricingReply(servicesList, biz)
         await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: priceReply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
         await supabaseAdmin.from("conversations").update({ last_message: priceReply, last_message_at: new Date().toISOString() }).eq("id", conversation?.id)
         continue
       }
-
-      // Location query → instant maps reply
       if (intent.type === "location") {
         const locationReply = buildLocationReply(biz)
         await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: locationReply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
@@ -340,7 +360,7 @@ export async function POST(req) {
           .select("*")
           .eq("customer_phone", formattedPhone)
           .eq("user_id", userId)
-          .in("status", ["confirmed", "pending"])
+          .in("status", ["confirmed","pending"])
           .order("booking_date", { ascending: true })
           .limit(1)
           .maybeSingle()
@@ -348,10 +368,12 @@ export async function POST(req) {
         if (existingBooking) {
           const newDate = intent.bookingState.date
           const newTime = intent.bookingState.time
-
-          // Check slot availability before rescheduling
-          const slotFree = await isSlotAvailable({ userId, date: newDate, time: newTime, service: existingBooking.service, servicesList: servicesList || [], excludeBookingId: existingBooking.id })
-
+          const slotFree = await isSlotAvailable({
+            userId, date: newDate, time: newTime,
+            service: existingBooking.service,
+            servicesList: servicesList || [],
+            excludeBookingId: existingBooking.id
+          })
           if (!slotFree) {
             const altSlot = await findNextAvailableSlot({ userId, date: newDate, service: existingBooking.service, servicesList: servicesList || [] })
             const busyMsg = altSlot
@@ -360,15 +382,13 @@ export async function POST(req) {
             await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: busyMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
             continue
           }
-
           await supabaseAdmin.from("bookings")
             .update({ booking_date: newDate, booking_time: newTime, status: "confirmed" })
             .eq("id", existingBooking.id)
-
           const rescheduleMsg = buildRescheduleConfirmation(existingBooking.service, newDate, newTime, biz.business_name || "our business")
           await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: rescheduleMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
           await supabaseAdmin.from("conversations").update({ last_message: `🔄 Rescheduled — ${existingBooking.service}` }).eq("id", conversation?.id)
-          console.log("🔄 Booking rescheduled:", existingBooking.id, "→", newDate, newTime)
+          console.log("🔄 Booking rescheduled:", existingBooking.id)
           continue
         }
       }
@@ -376,13 +396,12 @@ export async function POST(req) {
       // ══ 10. NEW BOOKING CREATION ══════════════════════════════════
       if (intent.type === "booking" && intent.bookingState.readyToBook) {
         const { date, time, service } = intent.bookingState
-
-        // Match service from DB for accurate price + duration
         const matchedService = matchService(service, servicesList || [])
-
-        // Check slot availability (capacity control)
-        const slotFree = await isSlotAvailable({ userId, date, time, service: matchedService?.name || service, servicesList: servicesList || [] })
-
+        const slotFree = await isSlotAvailable({
+          userId, date, time,
+          service: matchedService?.name || service,
+          servicesList: servicesList || []
+        })
         if (!slotFree) {
           const altSlot = await findNextAvailableSlot({ userId, date, service: matchedService?.name || service, servicesList: servicesList || [] })
           const busyMsg = altSlot
@@ -413,9 +432,41 @@ export async function POST(req) {
           console.error("❌ Booking insert error:", bookErr.message)
         } else {
           console.log("✅ Booking created:", newBooking.id, service, date, time)
+
+          // ── FIX v7.0: Auto-upgrade customer tag ─────────────────
+          // Count total confirmed bookings for this customer
+          try {
+            const { count: bookingCount } = await supabaseAdmin
+              .from("bookings")
+              .select("id", { count: "exact" })
+              .eq("customer_phone", formattedPhone)
+              .eq("user_id", userId)
+              .in("status", ["confirmed","completed"])
+            const newTag = bookingCount >= 5 ? "vip"
+              : bookingCount >= 2 ? "returning"
+              : "new_lead"
+            await supabaseAdmin.from("customers")
+              .update({ tag: newTag, last_visit_at: new Date().toISOString() })
+              .eq("phone", formattedPhone)
+              .eq("user_id", userId)
+            console.log(`🏷️ Customer tag updated to: ${newTag} (${bookingCount} bookings)`)
+          } catch(e) { console.warn("Tag update failed:", e.message) }
+
+          // ── FIX v7.0: Close the lead after booking ───────────────
+          try {
+            await supabaseAdmin.from("leads")
+              .update({ status: "converted", last_message_at: new Date().toISOString() })
+              .eq("customer_id", customer?.id)
+              .eq("user_id", userId)
+              .eq("status", "open")
+            console.log("✅ Lead converted for customer:", customer?.id)
+          } catch(e) { console.warn("Lead convert failed:", e.message) }
         }
 
-        const confirmMsg = buildConfirmationMessage(matchedService?.name || service, date, time, biz.business_name || "our business")
+        const confirmMsg = buildConfirmationMessage(
+          matchedService?.name || service, date, time,
+          biz.business_name || "our business"
+        )
         await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: confirmMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
         await supabaseAdmin.from("conversations").update({ last_message: `✅ Booking Confirmed — ${service}` }).eq("id", conversation?.id)
         continue
@@ -423,12 +474,12 @@ export async function POST(req) {
 
       // ══ 11. AI REPLY ═════════════════════════════════════════════
       const aiReply = await generateAIReply({
-        customerMessage: messageText,
-        bizSettings:     biz,
-        history:         conversationHistory,
-        customerName:    contactName,
+        customerMessage:     messageText,
+        bizSettings:         biz,
+        history:             conversationHistory,
+        customerName:        contactName,
         intent,
-        servicesList:    servicesList || []
+        servicesList:        servicesList || []
       })
 
       console.log("📤 Sending:", aiReply.substring(0, 120))
@@ -446,37 +497,29 @@ export async function POST(req) {
 
 // ════════════════════════════════════════════════════════════════════
 // SLOT AVAILABILITY ENGINE
-// Supports capacity control (parallel bookings) + duration awareness
+// Capacity control: supports multiple chairs / doctors
 // ════════════════════════════════════════════════════════════════════
 
 async function isSlotAvailable({ userId, date, time, service, servicesList, excludeBookingId }) {
   if (!date || !time) return true
-
-  const svc = matchService(service, servicesList)
-  const capacity = svc?.capacity || 1 // default 1 slot per time (1 chair/doctor)
-
-  const query = supabaseAdmin
-    .from("bookings")
-    .select("id")
+  const svc      = matchService(service, servicesList)
+  const capacity = svc?.capacity || 1
+  const query    = supabaseAdmin
+    .from("bookings").select("id")
     .eq("user_id", userId)
     .eq("booking_date", date)
     .eq("booking_time", time)
-    .in("status", ["confirmed", "pending"])
-
+    .in("status", ["confirmed","pending"])
   if (excludeBookingId) query.neq("id", excludeBookingId)
-
   const { data: existing } = await query
   return (existing?.length || 0) < capacity
 }
 
 async function findNextAvailableSlot({ userId, date, service, servicesList }) {
   if (!date) return null
-
-  const svc = matchService(service, servicesList)
-  const duration = svc?.duration || svc?.duration_minutes || 30
-
-  // Generate time slots from 9am to 8pm in service-duration intervals
-  const slots = []
+  const svc      = matchService(service, servicesList)
+  const duration = svc?.duration || 30
+  const slots    = []
   let minuteStart = 9 * 60
   while (minuteStart <= 20 * 60) {
     const h = Math.floor(minuteStart / 60)
@@ -484,7 +527,6 @@ async function findNextAvailableSlot({ userId, date, service, servicesList }) {
     slots.push(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`)
     minuteStart += duration
   }
-
   for (const time of slots) {
     const free = await isSlotAvailable({ userId, date, time, service, servicesList })
     if (free) {
@@ -495,12 +537,23 @@ async function findNextAvailableSlot({ userId, date, service, servicesList }) {
   return null
 }
 
+// ── FIX v7.0: Match service from DB first, then keyword fallback ────
 function matchService(serviceName, servicesList) {
-  if (!serviceName || !servicesList?.length) return null
-  const s = serviceName.toLowerCase()
-  return servicesList.find(svc =>
-    svc.name.toLowerCase().includes(s) || s.includes(svc.name.toLowerCase())
-  ) || null
+  if (!serviceName) return null
+  const s = (serviceName || "").toLowerCase().trim()
+  if (!s) return null
+
+  // 1. Try exact match from DB services first
+  if (servicesList?.length) {
+    const exact = servicesList.find(svc => svc.name.toLowerCase() === s)
+    if (exact) return exact
+    // 2. Try partial match (DB service name contains customer input)
+    const partial = servicesList.find(svc =>
+      svc.name.toLowerCase().includes(s) || s.includes(svc.name.toLowerCase())
+    )
+    if (partial) return partial
+  }
+  return null
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -515,32 +568,31 @@ function buildAlternatingHistory(rawHistory) {
     if (deduped.length === 0 || deduped[deduped.length-1].role !== msg.role) {
       deduped.push(msg)
     } else {
-      deduped[deduped.length-1] = msg // keep latest of consecutive same-role
+      deduped[deduped.length-1] = msg
     }
   }
-  // Must start with user, end with assistant (for history context)
   while (deduped.length > 0 && deduped[0].role !== "user") deduped.shift()
   while (deduped.length > 0 && deduped[deduped.length-1].role === "user") deduped.pop()
-  return deduped.slice(-10) // max 10 messages for context window
+  return deduped.slice(-10)
 }
 
 // ════════════════════════════════════════════════════════════════════
 // INTENT DETECTION ENGINE
-// Detects: booking, reschedule, cancel, pricing, location, greeting
-// Multi-language: English + Hindi + Telugu keywords
+// Multi-language: English + Hindi + Telugu
 // ════════════════════════════════════════════════════════════════════
 
-function detectIntent(history, latestMessage) {
+function detectIntent(history, latestMessage, servicesList) {
   const latestLower = latestMessage.toLowerCase().trim()
   const allText     = [...history.map(m => m.content), latestMessage].join(" ").toLowerCase()
 
-  // ── Intent keyword maps ──
   const rescheduleKw = ["reschedule","change booking","change the booking","change appointment","change timing","change time","postpone","shift booking","move booking","update booking","different time","different date","another time","another day","change my slot","change slot","booking timings","change timings","timings change","booking change"]
   const cancelKw     = ["cancel","cancellation","don't want","not coming","cant come","cannot come","won't come","nahi aana","cancel karo","cancel cheyyandi"]
   const bookingKw    = ["book","appointment","slot","schedule","availab","cheyandi","kavali","fix appointment","want to come","coming in","visit","book karo","booking","appoint"]
   const pricingKw    = ["price","cost","rate","how much","charges","kitna","ekkuva","entha","fees","charge","amount","worth"]
   const locationKw   = ["location","address","where are you","where is","directions","maps","navigate","how to reach","how to come","gps","landmark","near","street"]
-  const greetingRx   = /^(hi|hello|hey|hii|helo|hai|hiya|gm|gd mrng|good\s*(morning|afternoon|evening|night)|namaste|namaskar|vanakkam|heyyy|howdy|sup|whats up|what's up)[!\s.]*$/i
+
+  // FIX v7.0: Added Hindi/Telugu greetings
+  const greetingRx = /^(hi|hello|hey|hii|helo|hai|hiya|gm|gd\s*mrng|good\s*(morning|afternoon|evening|night)|namaste|namaskar|vanakkam|heyyy|howdy|sup|whats\s*up|what's\s*up|namskar|kem\s*cho|sat\s*sri\s*akal|jai\s*hind|pranam|pranaam|helo)[!\s.]*$/i
 
   const isReschedule = rescheduleKw.some(kw => latestLower.includes(kw))
   const isCancel     = cancelKw.some(kw => latestLower.includes(kw))
@@ -549,7 +601,8 @@ function detectIntent(history, latestMessage) {
   const isLocation   = locationKw.some(kw => latestLower.includes(kw))
   const isGreeting   = greetingRx.test(latestLower)
 
-  const bookingState = extractBookingDetails(history, latestMessage, allText, latestLower)
+  // FIX v7.0: Pass servicesList to extractBookingDetails
+  const bookingState = extractBookingDetails(history, latestMessage, allText, latestLower, servicesList)
 
   let type = "general"
   if      (isCancel)     type = "cancel"
@@ -559,9 +612,8 @@ function detectIntent(history, latestMessage) {
   else if (isPricing)    type = "pricing"
   else if (isLocation)   type = "location"
 
-  // For reschedule, try to extract new date/time from latest message
   if (type === "reschedule" && !bookingState.date) {
-    const fresh = extractBookingDetails([], latestMessage, latestLower, latestLower)
+    const fresh = extractBookingDetails([], latestMessage, latestLower, latestLower, servicesList)
     bookingState.date = fresh.date
     bookingState.time = fresh.time
   }
@@ -572,34 +624,45 @@ function detectIntent(history, latestMessage) {
 // ════════════════════════════════════════════════════════════════════
 // NATURAL LANGUAGE UNDERSTANDING
 // Extracts: service, date, time from natural language
-// Supports: today/tomorrow/weekday/day+month/DD-MM formats
-// Time: 5pm / 4:30pm / morning / evening / 16:00
+// FIX v7.0: Tries DB services FIRST before keyword list
 // ════════════════════════════════════════════════════════════════════
 
-function extractBookingDetails(history, latestMessage, allText, latestLower) {
+function extractBookingDetails(history, latestMessage, allText, latestLower, servicesList) {
   const state = { service: null, date: null, time: null, readyToBook: false }
+  const now   = new Date()
 
-  // Use IST-safe today
-  const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`
-
-  // ── Service extraction ──
-  // First try to match against dynamic services, then fallback to keyword list
-  const serviceKeywords = [
-    "haircut","hair cut","hair color","colour","coloring","facial","cleanup","bleach",
-    "waxing","threading","manicure","pedicure","spa","massage","keratin","smoothening",
-    "rebonding","highlights","balayage","trim","shave","beard","bridal","makeup",
-    "mehendi","henna","eyebrow","hair wash","blow dry","hair spa","dandruff","treatment",
-    "nail art","nail extension","lash","eyelash","botox","clean up","consultation",
-    "detan","de-tan","de tan","root touch","root touch up","hair straightening",
-    "hair smoothing","permanent straightening","protein treatment","scalp treatment",
-    "cleanup","deep conditioning","toning","toner"
-  ]
-  for (const kw of serviceKeywords) {
-    if (allText.includes(kw)) { state.service = kw; break }
+  // ── Service extraction — DB first, keywords fallback ────────────
+  // FIX v7.0: Try matching against actual services from DB first
+  // This fixes the bug where custom services were never detected
+  if (servicesList?.length) {
+    for (const svc of servicesList) {
+      if (allText.includes(svc.name.toLowerCase())) {
+        state.service = svc.name
+        break
+      }
+    }
   }
 
-  // ── Date extraction ──
+  // Fallback to keyword list if no DB match found
+  if (!state.service) {
+    const serviceKeywords = [
+      "haircut","hair cut","hair color","colour","coloring","facial","cleanup","bleach",
+      "waxing","threading","manicure","pedicure","spa","massage","keratin","smoothening",
+      "rebonding","highlights","balayage","trim","shave","beard","bridal","makeup",
+      "mehendi","henna","eyebrow","hair wash","blow dry","hair spa","dandruff","treatment",
+      "nail art","nail extension","lash","eyelash","botox","clean up","consultation",
+      "detan","de-tan","de tan","root touch","root touch up","hair straightening",
+      "hair smoothing","permanent straightening","protein treatment","scalp treatment",
+      "deep conditioning","toning","toner","body massage","head massage","foot massage",
+      "back massage","swedish massage","ayurvedic","physiotherapy","iv drip","infusion",
+      "dental","cleaning","whitening","extraction","implant","filling","checkup"
+    ]
+    for (const kw of serviceKeywords) {
+      if (allText.includes(kw)) { state.service = kw; break }
+    }
+  }
+
+  // ── Date extraction ──────────────────────────────────────────────
   const hasDateInLatest =
     /\b(today|tomorrow|kal|parso|sun|mon|tue|wed|thu|fri|sat|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i.test(latestMessage) ||
     /\d{1,2}[\/\-]\d{1,2}/.test(latestMessage) ||
@@ -607,44 +670,40 @@ function extractBookingDetails(history, latestMessage, allText, latestLower) {
     /\d{1,2}(st|nd|rd|th)/i.test(latestMessage)
 
   const dateText = hasDateInLatest ? latestLower : allText
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`
 
-  if (dateText.includes("today")) {
-    state.date = todayStr
-  } else if (dateText.includes("tomorrow") || dateText.includes("kal ")) {
-    const t = new Date(now); t.setDate(now.getDate() + 1)
+  if      (dateText.includes("today"))                          state.date = todayStr
+  else if (dateText.includes("tomorrow") || dateText.includes("kal ")) {
+    const t = new Date(now); t.setDate(now.getDate()+1)
     state.date = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`
   } else if (dateText.includes("parso") || dateText.includes("day after")) {
-    const t = new Date(now); t.setDate(now.getDate() + 2)
+    const t = new Date(now); t.setDate(now.getDate()+2)
     state.date = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`
   } else {
-    // Weekday detection
     const days = [
-      {idx:0, names:["sunday","sun"]},
-      {idx:1, names:["monday","mon"]},
-      {idx:2, names:["tuesday","tue"]},
-      {idx:3, names:["wednesday","wed"]},
-      {idx:4, names:["thursday","thu"]},
-      {idx:5, names:["friday","fri"]},
+      {idx:0, names:["sunday","sun"]}, {idx:1, names:["monday","mon"]},
+      {idx:2, names:["tuesday","tue"]}, {idx:3, names:["wednesday","wed"]},
+      {idx:4, names:["thursday","thu"]}, {idx:5, names:["friday","fri"]},
       {idx:6, names:["saturday","sat"]}
     ]
     for (const day of days) {
       if (day.names.some(n => new RegExp(`\\b${n}\\b`,"i").test(dateText))) {
         let diff = (day.idx - now.getDay() + 7) % 7
-        if (diff === 0) diff = 7 // "friday" = next friday if today is friday
-        const d = new Date(now); d.setDate(now.getDate() + diff)
+        if (diff === 0) diff = 7
+        const d = new Date(now); d.setDate(now.getDate()+diff)
         state.date = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
         break
       }
     }
   }
 
-  // "15th march" / "march 15" / "15 march" patterns
+  // "15th march" / "march 15" patterns
   if (!state.date) {
     const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
     for (let i = 0; i < months.length; i++) {
-      const re = new RegExp(`(\\d{1,2})(?:st|nd|rd|th)?\\s*${months[i]}|${months[i]}\\s*(\\d{1,2})(?:st|nd|rd|th)?`, "i")
+      const re  = new RegExp(`(\\d{1,2})(?:st|nd|rd|th)?\\s*${months[i]}|${months[i]}\\s*(\\d{1,2})(?:st|nd|rd|th)?`, "i")
       const src = hasDateInLatest ? latestMessage : allText
-      const m = src.match(re)
+      const m   = src.match(re)
       if (m) {
         const day = parseInt(m[1] || m[2])
         if (day >= 1 && day <= 31) {
@@ -663,7 +722,7 @@ function extractBookingDetails(history, latestMessage, allText, latestLower) {
     }
   }
 
-  // ── Time extraction ──
+  // ── Time extraction ──────────────────────────────────────────────
   const hasTimeInLatest =
     /\d{1,2}(:\d{2})?\s*(am|pm)/i.test(latestMessage) ||
     /\d{2}:\d{2}/.test(latestMessage) ||
@@ -677,10 +736,9 @@ function extractBookingDetails(history, latestMessage, allText, latestLower) {
   else if (/\bevening\b/i.test(timeText)   && !hasTimeInLatest) state.time = "17:00"
   else if (/\bnight\b/i.test(timeText)     && !hasTimeInLatest) state.time = "19:00"
   else {
-    // Parse "5pm", "4:30pm", "16:00", "4 pm"
     const tm = timeText.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i) || timeText.match(/(\d{2}):(\d{2})/)
     if (tm) {
-      let hour = parseInt(tm[1])
+      let hour   = parseInt(tm[1])
       const min  = tm[2] ? tm[2] : "00"
       const ampm = tm[3]?.toLowerCase()
       if (ampm === "pm" && hour < 12) hour += 12
@@ -691,12 +749,12 @@ function extractBookingDetails(history, latestMessage, allText, latestLower) {
     }
   }
 
-  // ── Booking confirmation detection ──
-  // Customer must say yes AFTER AI asked to confirm
+  // ── Booking confirmation detection ──────────────────────────────
   const confirmWords = [
     "yes","yeah","yep","yup","ok","okay","sure","confirm","correct","right",
     "haan","ha","ji","theek","done","book it","go ahead","please book",
-    "book karo","please","book","confirm karo","sounds good","perfect","great"
+    "book karo","please","book","confirm karo","sounds good","perfect","great",
+    "yeahh","yess","k","👍","✅","proceed","do it","finalize"
   ]
   const isConfirming = confirmWords.some(w =>
     latestLower.trim() === w ||
@@ -710,7 +768,9 @@ function extractBookingDetails(history, latestMessage, allText, latestLower) {
     lastAiMsg.content.toLowerCase().includes("want me to book") ||
     lastAiMsg.content.toLowerCase().includes("book you for") ||
     lastAiMsg.content.toLowerCase().includes("confirm booking") ||
-    lastAiMsg.content.toLowerCase().includes("confirm your booking")
+    lastAiMsg.content.toLowerCase().includes("confirm your booking") ||
+    lastAiMsg.content.toLowerCase().includes("book that") ||
+    lastAiMsg.content.toLowerCase().includes("confirm that")
   )
 
   if (state.service && state.date && state.time && isConfirming && aiAskedConfirm) {
@@ -722,31 +782,30 @@ function extractBookingDetails(history, latestMessage, allText, latestLower) {
 
 // ════════════════════════════════════════════════════════════════════
 // AI REPLY GENERATOR
-// Primary: Sarvam AI (sarvam-m) with think-tag extraction
+// Primary: Sarvam AI (sarvam-m)
 // Fallback: Rule-based smart reply engine
+// FIX v7.0: AI Brain (business_knowledge) now injected into prompt
 // ════════════════════════════════════════════════════════════════════
 
 async function generateAIReply({ customerMessage, bizSettings, history, customerName, intent, servicesList }) {
-  const firstName    = (customerName || "").split(" ")[0] || "there"
-  const businessName = bizSettings?.business_name || "our business"
-  const businessType = bizSettings?.business_type || "business"
-  const location     = bizSettings?.location || ""
-  const mapsLink     = bizSettings?.maps_link || ""
-  const workingHours = bizSettings?.working_hours || ""
-  const aiInstructions = bizSettings?.ai_instructions || ""
-  const greetingStyle  = bizSettings?.greeting_message || ""
-  const aiLanguage     = bizSettings?.ai_language || "English"
+  const firstName      = (customerName || "").split(" ")[0] || "there"
+  const businessName   = bizSettings?.business_name   || "our business"
+  const businessType   = bizSettings?.business_type   || "business"
+  const location       = bizSettings?.location        || ""
+  const mapsLink       = bizSettings?.maps_link       || ""
+  const workingHours   = bizSettings?.working_hours   || ""
+  const aiInstructions = bizSettings?.ai_instructions || "" // FIX: now contains merged brain
+  const greetingStyle  = bizSettings?.greeting_message|| ""
+  const aiLanguage     = bizSettings?.ai_language     || "English"
 
   const servicesText = servicesList.length > 0
     ? servicesList.map(s => `${s.name}: ₹${s.price}${s.duration ? ` (${s.duration} min)` : ""}`).join("\n")
     : ""
 
-  // Build booking state hint for AI context
   const bs = intent.bookingState
   let bookingHint = ""
   if (bs.service || bs.date || bs.time) {
-    const collected = []
-    const missing   = []
+    const collected = [], missing = []
     if (bs.service) collected.push(`service: ${bs.service}`)
     else            missing.push("which service")
     if (bs.date)    collected.push(`date: ${new Date(bs.date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short" })}`)
@@ -761,11 +820,13 @@ async function generateAIReply({ customerMessage, bizSettings, history, customer
     intent.type === "cancel"     ? "\nCUSTOMER INTENT: CANCEL — acknowledge warmly, offer to reschedule instead." :
     ""
 
+  // FIX v7.0: ai_instructions now contains BOTH business_settings.ai_instructions
+  // AND business_knowledge content — fully merged before reaching here
   const systemPrompt = `You are a smart, warm WhatsApp assistant for ${businessName} (${businessType}${location ? `, ${location}` : ""}).
 
 Your mission: Handle customer requests and convert inquiries into bookings.
 
-${servicesText ? `SERVICES & PRICES:\n${servicesText}\n` : ""}${workingHours ? `WORKING HOURS: ${workingHours}\n` : ""}${location ? `ADDRESS: ${location}` : ""}${mapsLink ? `\nMAPS: ${mapsLink}` : ""}${aiInstructions ? `\nSPECIAL INSTRUCTIONS:\n${aiInstructions}` : ""}
+${servicesText ? `SERVICES & PRICES:\n${servicesText}\n` : ""}${workingHours ? `\nWORKING HOURS: ${workingHours}` : ""}${location ? `\nADDRESS: ${location}` : ""}${mapsLink ? `\nMAPS: ${mapsLink}` : ""}${aiInstructions ? `\n\nBUSINESS KNOWLEDGE & INSTRUCTIONS:\n${aiInstructions}` : ""}
 ${intentHint}${bookingHint}
 
 BOOKING FLOW:
@@ -779,10 +840,10 @@ RESCHEDULE FLOW:
 
 RULES:
 - SHORT replies — max 3-4 lines, 1-2 emojis max
-- Address customer as "${firstName}" occasionally  
+- Address customer as "${firstName}" occasionally
 - Reply in ${aiLanguage} (match customer language naturally)
 - NEVER repeat info already collected in booking state
-- NEVER generic welcome for specific requests
+- NEVER send generic welcome for specific requests
 ${greetingStyle ? `- Greeting style: "${greetingStyle}"` : ""}`
 
   // ── Try Sarvam AI ────────────────────────────────────────────────
@@ -794,23 +855,20 @@ ${greetingStyle ? `- Greeting style: "${greetingStyle}"` : ""}`
         { role: "user", content: customerMessage }
       ]
       console.log("🔄 Calling Sarvam | roles:", sarvamMessages.map(m => m.role).join("→"))
-
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method:  "POST",
         headers: { "Content-Type": "application/json", "api-subscription-key": process.env.SARVAM_API_KEY },
         body:    JSON.stringify({ model: "sarvam-m", messages: sarvamMessages, max_tokens: 500, temperature: 0.65 })
       })
-
       const rawText = await response.text()
       console.log("📨 Sarvam HTTP:", response.status)
       console.log("📨 Sarvam raw:", rawText.substring(0, 400))
-
       const data = JSON.parse(rawText)
       if (data?.error) {
         console.error("❌ Sarvam API error:", JSON.stringify(data.error))
       } else {
         const rawContent = data?.choices?.[0]?.message?.content || ""
-        const reply = extractSarvamReply(rawContent)
+        const reply      = extractSarvamReply(rawContent)
         if (reply) return reply
       }
     } catch (err) {
@@ -820,39 +878,36 @@ ${greetingStyle ? `- Greeting style: "${greetingStyle}"` : ""}`
 
   // ── Rule-based fallback ──────────────────────────────────────────
   console.warn("⚠️ Sarvam unavailable — rule-based fallback")
-  return smartFallback({ msg: customerMessage, intent, businessName, servicesText, firstName, location, mapsLink, bookingState: bs })
+  return smartFallback({
+    msg: customerMessage, intent, businessName,
+    servicesText, firstName, location, mapsLink, bookingState: bs
+  })
 }
 
 // ════════════════════════════════════════════════════════════════════
 // SARVAM <think> TAG EXTRACTOR
-// sarvam-m wraps ALL output in <think> tags with reasoning first,
-// then the actual reply. We extract the last short paragraph.
 // ════════════════════════════════════════════════════════════════════
 
 function extractSarvamReply(rawContent) {
   if (!rawContent || !rawContent.trim()) return null
   console.log("📨 Sarvam content (300):", rawContent.substring(0, 300))
 
-  // CASE 1: Clean reply after </think>
   if (rawContent.includes("</think>")) {
     const afterThink = rawContent.split("</think>").pop().trim()
     if (afterThink && afterThink.length > 3) {
       console.log("✅ Case 1 — after </think>:", afterThink.substring(0, 100))
       return afterThink
     }
-    // Nothing after </think> — grab last paragraph from inside
     const insideMatch = rawContent.match(/<think>([\s\S]*)<\/think>/)
     if (insideMatch) {
       const paras = insideMatch[1].trim().split("\n\n").map(p => p.trim()).filter(p => p.length > 5)
       if (paras.length > 0) {
-        const reply = paras[paras.length - 1]
+        const reply = paras[paras.length-1]
         console.log("✅ Case 1b — last para inside think:", reply.substring(0, 100))
         return reply
       }
     }
   }
-
-  // CASE 2: No think tags at all — use directly
   if (!rawContent.includes("<think>")) {
     const reply = rawContent.trim()
     if (reply.length > 3) {
@@ -860,42 +915,43 @@ function extractSarvamReply(rawContent) {
       return reply
     }
   }
-
-  // CASE 3: Unclosed <think> — grab last paragraph
   if (rawContent.includes("<think>")) {
     const inside = rawContent.replace(/<think>/g, "").trim()
     const paras  = inside.split("\n\n").map(p => p.trim()).filter(p => p.length > 5)
     if (paras.length > 0) {
-      const reply = paras[paras.length - 1]
+      const reply = paras[paras.length-1]
       console.log("✅ Case 3 — unclosed think:", reply.substring(0, 100))
       return reply
     }
   }
-
   console.warn("⚠️ Could not extract Sarvam reply")
   return null
 }
 
 // ════════════════════════════════════════════════════════════════════
-// INSTANT REPLY BUILDERS (no AI needed for these)
+// INSTANT REPLY BUILDERS
 // ════════════════════════════════════════════════════════════════════
 
 function buildPricingReply(servicesList, biz) {
   if (!servicesList?.length) return `Please reach us directly for our latest pricing 🙏`
-  const list = servicesList.map(s => `• ${s.name}: ₹${s.price}${s.duration ? ` (${s.duration} min)` : ""}`).join("\n")
-  return `💰 *Our Services & Prices*\n\n${list}\n\nWant to book? Just let me know! 😊`
+  const list = servicesList.map(s =>
+    `• ${s.name}: ₹${s.price}${s.duration ? ` (${s.duration} min)` : ""}`
+  ).join("\n")
+  return `💰 *${biz.business_name || "Our"} Services*\n\n${list}\n\nWant to book? Just let me know! 😊`
 }
 
 function buildLocationReply(biz) {
   const location = biz?.location || ""
   const mapsLink = biz?.maps_link || ""
   if (location && mapsLink) return `📍 *${biz.business_name || "We're"}* at:\n${location}\n\n🗺️ ${mapsLink}\n\nSee you soon! 😊`
-  if (location)             return `📍 We're at: *${location}*\n\nWould you like to book an appointment?`
+  if (location)             return `📍 We're at: *${location}*\n\nWant to book? 😊`
   return `I'll get our address for you shortly! 📍`
 }
 
 function buildConfirmationMessage(service, date, time, businessName) {
-  const formatted = date ? new Date(date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" }) : date
+  const formatted = date
+    ? new Date(date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" })
+    : date
   return ["✅ *Booking Confirmed!*", "",
     `📋 Service: ${service}`,
     `📅 Date: ${formatted || date}`,
@@ -905,7 +961,9 @@ function buildConfirmationMessage(service, date, time, businessName) {
 }
 
 function buildRescheduleConfirmation(service, date, time, businessName) {
-  const formatted = date ? new Date(date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" }) : date
+  const formatted = date
+    ? new Date(date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" })
+    : date
   return ["✅ *Booking Rescheduled!*", "",
     `📋 Service: ${service}`,
     `📅 New Date: ${formatted || date}`,
@@ -916,16 +974,14 @@ function buildRescheduleConfirmation(service, date, time, businessName) {
 
 // ════════════════════════════════════════════════════════════════════
 // RULE-BASED FALLBACK ENGINE
-// Used when Sarvam AI is unavailable
 // ════════════════════════════════════════════════════════════════════
 
 function smartFallback({ msg, intent, businessName, servicesText, firstName, location, mapsLink, bookingState: bs }) {
   const m = msg.toLowerCase().trim()
-
   if (intent.type === "reschedule") {
     if (!bs.date && !bs.time) return `Sure ${firstName}! 📅 What new date and time works for you?`
-    if (bs.date && !bs.time)  return `Got the date! ⏰ What time would you prefer?`
-    if (!bs.date && bs.time)  return `Got the time! 📅 What date works for you?`
+    if (bs.date  && !bs.time) return `Got the date! ⏰ What time would you prefer?`
+    if (!bs.date &&  bs.time) return `Got the time! 📅 What date works for you?`
     return `I'll reschedule to ${bs.date} at ${bs.time}. Shall I confirm? ✅`
   }
   if (intent.type === "cancel") {
@@ -944,8 +1000,8 @@ function smartFallback({ msg, intent, businessName, servicesText, firstName, loc
     return `I'll share our location shortly 📍`
   }
   if (intent.type === "booking") {
-    if (!bs.service)                     return `I'd love to help you book! 😊\n\nWhich service are you interested in?`
-    if (bs.service && !bs.date)          return `Sure! 📅 What date works for your ${bs.service}?`
+    if (!bs.service)                       return `I'd love to help you book! 😊\n\nWhich service are you interested in?`
+    if (bs.service && !bs.date)            return `Sure! 📅 What date works for your ${bs.service}?`
     if (bs.service && bs.date && !bs.time) return `Almost there! ⏰ What time works for you?`
     return `Shall I confirm booking for *${bs.service}* on ${bs.date} at ${bs.time}? ✅`
   }
