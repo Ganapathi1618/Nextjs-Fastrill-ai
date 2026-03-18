@@ -39,16 +39,13 @@ function formatConvoTime(ts) {
     const d    = new Date(ts)
     const now  = new Date()
     const diff = now - d
+    const tz   = Intl.DateTimeFormat().resolvedOptions().timeZone
     if (diff < 60_000)       return "just now"
     if (diff < 3_600_000)    return `${Math.floor(diff / 60_000)}m ago`
-    if (diff < 86_400_000)   return d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true })
-    if (diff < 7 * 86_400_000) {
-      return d.toLocaleDateString("en-IN", { weekday:"short" })
-    }
-    return d.toLocaleDateString("en-IN", { day:"numeric", month:"short" })
-  } catch {
-    return ""
-  }
+    if (diff < 86_400_000)   return d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true, timeZone:tz })
+    if (diff < 7 * 86_400_000) return d.toLocaleDateString("en-IN", { weekday:"short", timeZone:tz })
+    return d.toLocaleDateString("en-IN", { day:"numeric", month:"short", timeZone:tz })
+  } catch { return "" }
 }
 
 export default function Conversations() {
