@@ -1,659 +1,943 @@
-"use client"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 
-const NAV = [
-  { id:"overview", label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
-  { id:"inbox", label:"Conversations", icon:"◎", path:"/dashboard/conversations" },
-  { id:"bookings", label:"Bookings", icon:"◷", path:"/dashboard/bookings" },
-  { id:"campaigns", label:"Campaigns", icon:"◆", path:"/dashboard/campaigns" },
-  { id:"leads", label:"Lead Recovery", icon:"◉", path:"/dashboard/leads" },
-  { id:"contacts", label:"Customers", icon:"◑", path:"/dashboard/contacts" },
-  { id:"analytics", label:"Analytics", icon:"▦", path:"/dashboard/analytics" },
-  { id:"settings", label:"Settings", icon:"◌", path:"/dashboard/settings" },
-]
-const LANGUAGES = ["English","Hindi","Telugu","Tamil","Kannada","Malayalam","Marathi","Bengali","Gujarati","Punjabi"]
-const CATEGORIES = ["Hair","Skin","Nails","Bridal","Massage","Body","Dental","Fitness","Consultation","Other"]
-const BUSINESS_TYPES = ["Salon","Beauty Parlour","Spa","Dermatology Clinic","Dental Clinic","Gym","Yoga Studio","Fitness Studio","Physiotherapy","Hair Studio","Nail Studio","Makeup Studio","Other"]
-const TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30"]
+// ════════════════════════════════════════════════════════════════════
+// FASTRILL WEBHOOK — VERSION 7.1
+// ════════════════════════════════════════════════════════════════════
+// FIXES over v7.0:
+// ✅ FIX: extractSarvamReply — smarter think tag extraction
+//         No more reasoning paragraphs being sent to customers
+// ✅ FIX: System prompt — AI restricted to THIS business only
+//         "book a table at a classy resto" → politely declined
+// ✅ FIX: External booking requests detected before AI, handled cleanly
+// ✅ FIX: STOP/START compliance retained
+// ✅ All v7.0 fixes retained (AI brain merge, tag upgrade, etc.)
+// ════════════════════════════════════════════════════════════════════
 
-export default function Settings() {
-  const router = useRouter()
-  const [userEmail, setUserEmail] = useState("")
-  const [userId, setUserId] = useState(null)
-  const [dark, setDark] = useState(true)
-  const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
-  const [tab, setTab] = useState("business")
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [saveError, setSaveError] = useState("")
-  const [loading, setLoading] = useState(true)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
 
-  const [business, setBusiness] = useState({ name:"", type:"Salon", phone:"", location:"", mapsLink:"", description:"", workingHours:"" })
-  const [services, setServices] = useState([])
-  const [newService, setNewService] = useState({ name:"", price:"", duration:"30", category:"Hair", capacity:"1" })
-  const [ai, setAI] = useState({ language:"English", customInstructions:"", autoBooking:true, followUpEnabled:true, greetingMessage:"", missedLeadMessage:"" })
-  const [whatsapp, setWhatsapp] = useState(null)
-
-  useEffect(() => {
-    const saved = localStorage.getItem("fastrill-theme")
-    if (saved) setDark(saved === "dark")
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) router.push("/login")
-      else { setUserEmail(data.user.email || ""); setUserId(data.user.id) }
-    })
-  }, [])
-
-  useEffect(() => { if (userId) loadAll() }, [userId])
-
-  async function loadAll() {
-    setLoading(true)
-    try {
-      // FIX: use maybeSingle() not single() — single() throws error when no row exists
-      const [{ data: bs }, { data: svcs }, { data: wa }] = await Promise.all([
-        supabase.from("business_settings").select("*").eq("user_id", userId).maybeSingle(),
-        supabase.from("services").select("*").eq("user_id", userId).order("category"),
-        supabase.from("whatsapp_connections").select("*").eq("user_id", userId).maybeSingle()
-      ])
-      if (bs) {
-        setBusiness({
-          name:         bs.business_name  || "",
-          type:         bs.business_type  || "Salon",
-          phone:        bs.phone          || "",
-          location:     bs.location       || "",
-          mapsLink:     bs.maps_link      || "",
-          description:  bs.description    || "",
-          workingHours: bs.working_hours  || ""
-        })
-        setAI({
-          language:           bs.ai_language          || "English",
-          customInstructions: bs.ai_instructions      || "",
-          autoBooking:        bs.auto_booking         !== false,
-          followUpEnabled:    bs.follow_up_enabled    !== false,
-          greetingMessage:    bs.greeting_message     || "",
-          missedLeadMessage:  bs.missed_lead_message  || ""
-        })
-      }
-      setServices(svcs || [])
-      setWhatsapp(wa || null)
-    } catch (e) {
-      console.error("loadAll error:", e)
-    }
-    setLoading(false)
+export async function GET(req) {
+  const { searchParams } = new URL(req.url)
+  const mode      = searchParams.get("hub.mode")
+  const token     = searchParams.get("hub.verify_token")
+  const challenge = searchParams.get("hub.challenge")
+  if (mode === "subscribe" && token === process.env.WEBHOOK_VERIFY_TOKEN) {
+    return new Response(challenge, { status: 200 })
   }
+  return new Response("Forbidden", { status: 403 })
+}
 
-  async function saveBusiness() {
-    if (!business.name.trim()) {
-      setSaveError("Business name is required")
-      setTimeout(() => setSaveError(""), 3000)
-      return
+export async function POST(req) {
+  try {
+    console.log("🚀 FASTRILL WEBHOOK v7.1")
+    const body = await req.json()
+
+    const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
+    const hasMsg   = body?.entry?.[0]?.changes?.[0]?.value?.messages
+    if (statuses && !hasMsg) {
+      for (const status of statuses) {
+        const waMessageId = status.id
+        const statusType  = status.status
+        if (waMessageId && ["delivered","read","failed"].includes(statusType)) {
+          try {
+            await supabaseAdmin.from("messages")
+              .update({ status: statusType, [`${statusType}_at`]: new Date().toISOString() })
+              .eq("wa_message_id", waMessageId)
+          } catch(e) {}
+        }
+      }
+      return NextResponse.json({ status: "status_update" }, { status: 200 })
     }
-    setSaving(true)
-    setSaveError("")
-    try {
-      const payload = {
-        user_id:            userId,
-        business_name:      business.name.trim(),
-        business_type:      business.type,
-        phone:              business.phone.trim(),
-        location:           business.location.trim(),
-        maps_link:          business.mapsLink.trim(),
-        description:        business.description.trim(),
-        working_hours:      business.workingHours.trim(),
-        ai_language:        ai.language,
-        ai_instructions:    ai.customInstructions.trim(),
-        auto_booking:       ai.autoBooking,
-        follow_up_enabled:  ai.followUpEnabled,
-        greeting_message:   ai.greetingMessage.trim(),
-        missed_lead_message: ai.missedLeadMessage.trim(),
-        updated_at:         new Date().toISOString()
+    if (!hasMsg) return NextResponse.json({ status: "no_message" }, { status: 200 })
+
+    const value         = body.entry[0].changes[0].value
+    const phoneNumberId = value?.metadata?.phone_number_id
+    const messages      = value?.messages || []
+    const contacts      = value?.contacts || []
+
+    for (const message of messages) {
+      const fromNumber     = message.from
+      const messageType    = message.type
+      const messageId      = message.id
+      const timestamp      = new Date(parseInt(message.timestamp) * 1000).toISOString()
+      const contact        = contacts.find(c => c.wa_id === fromNumber)
+      const contactName    = contact?.profile?.name || "Customer"
+      const formattedPhone = fromNumber.replace(/[^0-9]/g, "")
+
+      // ── DUPLICATE GUARD ──────────────────────────────────────────
+      const { data: dupMsg } = await supabaseAdmin
+        .from("messages").select("id").eq("wa_message_id", messageId).maybeSingle()
+      if (dupMsg) { console.log("⚠️ Duplicate:", messageId); continue }
+
+      // ── EXTRACT TEXT ─────────────────────────────────────────────
+      let messageText = ""
+      if      (messageType === "text")        messageText = message.text?.body || ""
+      else if (messageType === "button")      messageText = message.button?.text || ""
+      else if (messageType === "interactive") {
+        messageText = message.interactive?.button_reply?.title
+          || message.interactive?.list_reply?.title || ""
+      }
+      const isTextMessage = ["text","button","interactive"].includes(messageType)
+      console.log(`📩 [${phoneNumberId}] From ${fromNumber} (${contactName}): "${messageText}"`)
+
+      // ── LOOK UP WHATSAPP CONNECTION ──────────────────────────────
+      const { data: connection } = await supabaseAdmin
+        .from("whatsapp_connections")
+        .select("user_id, access_token")
+        .eq("phone_number_id", phoneNumberId)
+        .single()
+      if (!connection) { console.error("❌ No WA connection:", phoneNumberId); continue }
+      const userId = connection.user_id
+
+      // ══ 1. CRM — UPSERT CUSTOMER ════════════════════════════════
+      let customer = null
+      const { data: existingCustomer } = await supabaseAdmin
+        .from("customers").select("*")
+        .eq("phone", formattedPhone).eq("user_id", userId).maybeSingle()
+
+      if (existingCustomer) {
+        await supabaseAdmin.from("customers")
+          .update({ last_visit_at: timestamp, name: existingCustomer.name || contactName })
+          .eq("id", existingCustomer.id)
+        customer = existingCustomer
+      } else {
+        const { data: newCustomer } = await supabaseAdmin.from("customers").insert({
+          user_id: userId, phone: formattedPhone, name: contactName,
+          source: "whatsapp", tag: "new_lead", created_at: timestamp
+        }).select().single()
+        customer = newCustomer
+        console.log(`✅ New customer: ${contactName} (${formattedPhone})`)
       }
 
-      // FIX: capture error and check it before showing "Saved"
-      const { error: bsErr } = await supabase
-        .from("business_settings")
-        .upsert(payload, { onConflict: "user_id" })
+      // ══ 2. CRM — UPSERT CONVERSATION ════════════════════════════
+      let conversation = null
+      const { data: existingConvo } = await supabaseAdmin
+        .from("conversations").select("*")
+        .eq("phone", formattedPhone).eq("user_id", userId).maybeSingle()
 
-      if (bsErr) {
-        console.error("business_settings upsert error:", bsErr)
-        setSaveError("Failed to save: " + bsErr.message)
-        setSaving(false)
-        return
+      if (existingConvo) {
+        const { data: updatedConvo } = await supabaseAdmin.from("conversations")
+          .update({
+            last_message:    messageText || "[media]",
+            last_message_at: timestamp,
+            unread_count:    (existingConvo.unread_count || 0) + 1,
+            customer_id:     customer?.id || existingConvo.customer_id,
+            status:          "open"
+          })
+          .eq("id", existingConvo.id).select().single()
+        conversation = updatedConvo
+      } else {
+        const { data: newConvo } = await supabaseAdmin.from("conversations").insert({
+          user_id: userId, customer_id: customer?.id || null,
+          phone: formattedPhone, status: "open", ai_enabled: true,
+          last_message: messageText || "[media]", last_message_at: timestamp, unread_count: 1
+        }).select().single()
+        conversation = newConvo
       }
 
-      // Sync to business_knowledge so AI webhook can read it
-      const knowledgeText = [
-        `Business: ${business.name}`,
-        `Type: ${business.type}`,
-        business.phone    ? `Phone: ${business.phone}`          : "",
-        business.location ? `Location: ${business.location}`    : "",
-        business.mapsLink ? `Maps: ${business.mapsLink}`        : "",
-        business.description ? `About: ${business.description}` : "",
-      ].filter(Boolean).join("\n")
+      // ══ 3. MESSAGES — SAVE INBOUND ══════════════════════════════
+      await supabaseAdmin.from("messages").insert({
+        user_id:         userId,
+        phone_number_id: phoneNumberId,
+        from_number:     fromNumber,
+        message_text:    messageText || "[media message]",
+        direction:       "inbound",
+        conversation_id: conversation?.id || null,
+        customer_phone:  formattedPhone,
+        message_type:    messageType || "text",
+        status:          "delivered",
+        is_ai:           false,
+        wa_message_id:   messageId || null,
+        created_at:      timestamp
+      })
 
-      const { error: knErr } = await supabase
-        .from("business_knowledge")
-        .upsert(
-          { user_id: userId, category: "business_info", content: knowledgeText },
-          { onConflict: "user_id,category" }
-        )
-
-      if (knErr) {
-        // Non-fatal — log but don't block save
-        console.warn("business_knowledge sync warning:", knErr.message)
+      // ══ 4. LEADS — AUTO CAPTURE ══════════════════════════════════
+      if (messageText) {
+        if (!existingCustomer && customer) {
+          try {
+            await supabaseAdmin.from("leads").insert({
+              user_id: userId, customer_id: customer.id,
+              phone: formattedPhone, name: contactName,
+              source: "whatsapp", status: "open",
+              last_message: messageText, last_message_at: timestamp,
+              ai_score: 60, estimated_value: 600
+            })
+          } catch(e) {}
+        } else if (existingCustomer) {
+          try {
+            await supabaseAdmin.from("leads")
+              .update({ last_message: messageText, last_message_at: timestamp })
+              .eq("customer_id", existingCustomer.id).eq("status", "open")
+          } catch(e) {}
+        }
       }
 
-      setSaving(false)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2500)
-    } catch (e) {
-      console.error("saveBusiness unexpected error:", e)
-      setSaveError("Unexpected error: " + e.message)
-      setSaving(false)
-    }
-  }
-
-  async function addService() {
-    if (!newService.name.trim() || !newService.price) return
-    setSaving(true)
-    try {
-      const payload = {
-        name:      newService.name.trim(),
-        price:     parseInt(newService.price) || 0,
-        duration:  parseInt(newService.duration) || 30,
-        category:  newService.category,
-        capacity:  parseInt(newService.capacity) || 1,
-        is_active: true,
-        user_id:   userId
-      }
-      const { data, error } = await supabase.from("services").insert(payload).select().single()
-      if (error) {
-        console.error("Add service error:", error)
-        alert("Could not add service: " + error.message)
-        setSaving(false)
-        return
-      }
-      if (data) {
-        const updated = [...services, data]
-        setServices(updated)
-        setNewService({ name:"", price:"", duration:"30", category:"Hair", capacity:"1" })
-        // Sync services list to knowledge base for AI
-        try {
-          const svcText = updated.map(s => `${s.name}: ₹${s.price} (${s.duration} min)${s.capacity>1?`, ${s.capacity} slots`:""}${s.is_active===false?" [inactive]":""}`).join("\n")
-          await supabase.from("business_knowledge").upsert(
-            { user_id: userId, category: "services", content: svcText },
-            { onConflict: "user_id,category" }
-          )
-        } catch (e) { console.warn("Knowledge sync failed (non-critical):", e) }
-      }
-    } catch (e) {
-      console.error("Unexpected error:", e)
-      alert("Something went wrong. Check console.")
-    }
-    setSaving(false)
-  }
-
-  async function deleteService(id) {
-    await supabase.from("services").delete().eq("id", id)
-    const updated = services.filter(s => s.id !== id)
-    setServices(updated)
-    // Re-sync knowledge after delete
-    try {
-      const svcText = updated.map(s => `${s.name}: ₹${s.price} (${s.duration} min)`).join("\n")
-      await supabase.from("business_knowledge").upsert(
-        { user_id: userId, category: "services", content: svcText || "No services listed." },
-        { onConflict: "user_id,category" }
+      // ══ 5. COMPLIANCE — STOP / START ════════════════════════════
+      const stopKeywords = ["stop","unsubscribe","opt out","optout","don't message","dont message","remove me","no more messages"]
+      const isStopRequest = isTextMessage && stopKeywords.some(kw =>
+        (messageText||"").toLowerCase().trim() === kw ||
+        (messageText||"").toLowerCase().includes(kw)
       )
-    } catch (e) { console.warn("Knowledge sync on delete failed:", e) }
+      if (isStopRequest) {
+        try {
+          await supabaseAdmin.from("campaign_optouts").upsert(
+            { user_id: userId, phone: formattedPhone, created_at: new Date().toISOString() },
+            { onConflict: "user_id,phone" }
+          )
+          await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: "You've been unsubscribed from our messages. Reply START to resubscribe anytime 🙏", userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+        } catch(e) {}
+        continue
+      }
+      if (isTextMessage && (messageText||"").toLowerCase().trim() === "start") {
+        try {
+          await supabaseAdmin.from("campaign_optouts").delete().eq("user_id", userId).eq("phone", formattedPhone)
+          await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: "You've been resubscribed! Welcome back 😊", userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+        } catch(e) {}
+        continue
+      }
+
+      // ── Skip AI if disabled ──────────────────────────────────────
+      if (conversation?.ai_enabled === false) { console.log("⏸️ AI disabled"); continue }
+
+      // ── Handle media messages ────────────────────────────────────
+      if (!isTextMessage || !messageText) {
+        await sendAndSave({
+          phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber,
+          message: "Thanks for sharing! 😊 If you'd like to book an appointment or have any questions, just type them here.",
+          userId, conversationId: conversation?.id, customerPhone: formattedPhone
+        })
+        continue
+      }
+
+      // ══ 6. LOAD BUSINESS INTELLIGENCE ═══════════════════════════
+      const [
+        { data: bizSettings },
+        { data: rawHistory },
+        { data: servicesList },
+        { data: bizKnowledge }
+      ] = await Promise.all([
+        supabaseAdmin.from("business_settings").select("*").eq("user_id", userId).maybeSingle(),
+        supabaseAdmin.from("messages")
+          .select("message_text, direction, is_ai, created_at")
+          .eq("conversation_id", conversation?.id)
+          .order("created_at", { ascending: false }).limit(14),
+        supabaseAdmin.from("services").select("name, price, duration, capacity").eq("user_id", userId),
+        supabaseAdmin.from("business_knowledge").select("*").eq("user_id", userId).maybeSingle()
+      ])
+
+      // Deep merge business_settings + business_knowledge
+      const biz = {
+        ...(bizKnowledge || {}),
+        ...(bizSettings  || {}),
+        ai_instructions: [
+          bizSettings?.ai_instructions,
+          bizKnowledge?.content,
+          bizKnowledge?.instructions,
+          bizKnowledge?.knowledge,
+          bizKnowledge?.notes
+        ].filter(Boolean).join("\n\n") || ""
+      }
+
+      console.log("🧠 AI Brain:", { name: biz.business_name, type: biz.business_type, services: servicesList?.length || 0 })
+
+      const historyRaw = (rawHistory || []).reverse().map(m => ({
+        role:    m.direction === "inbound" ? "user" : "assistant",
+        content: (m.message_text || "").trim()
+      })).filter(m => m.content && m.content !== "[media message]")
+
+      const conversationHistory = buildAlternatingHistory(historyRaw)
+
+      // ══ 7. DETECT INTENT ════════════════════════════════════════
+      const intent = detectIntent(conversationHistory, messageText, servicesList || [])
+      console.log("🎯 Intent:", intent.type, "| State:", JSON.stringify(intent.bookingState))
+
+      // ══ 7b. FIX v7.1: DETECT EXTERNAL BOOKING REQUESTS ══════════
+      // If customer asks to book something this business doesn't offer
+      // (e.g. "book a table at a restaurant") — reject cleanly, no booking flow
+      const msgLower = messageText.toLowerCase()
+      const isExternalVenue = /\b(restaurant|resto|hotel|cafe|diner|bar|dhaba|club|resort|lounge)\b/i.test(messageText)
+      const isBookingVerb   = /\b(book|reserve|table|seat|reservation)\b/i.test(messageText)
+      if (isExternalVenue && isBookingVerb) {
+        const businessName = biz.business_name || "us"
+        const servicesPreview = (servicesList || []).slice(0, 3).map(s => s.name).join(", ")
+        const rejectMsg = `Hi! I can only help with bookings for ${businessName} 😊\n\n${servicesPreview ? `We offer: ${servicesPreview}${servicesList.length > 3 ? " and more" : ""}.\n\n` : ""}Would you like to book an appointment with us? 🙌`
+        await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: rejectMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+        continue
+      }
+
+      // ══ 8. INSTANT REPLIES ══════════════════════════════════════
+      if (intent.type === "pricing" && !intent.bookingState.service) {
+        const priceReply = buildPricingReply(servicesList, biz)
+        await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: priceReply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+        continue
+      }
+      if (intent.type === "location") {
+        const locationReply = buildLocationReply(biz)
+        await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: locationReply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+        continue
+      }
+
+      // ══ 9. RESCHEDULE FLOW ══════════════════════════════════════
+      if (intent.type === "reschedule" && intent.bookingState.date && intent.bookingState.time) {
+        const { data: existingBooking } = await supabaseAdmin
+          .from("bookings").select("*")
+          .eq("customer_phone", formattedPhone).eq("user_id", userId)
+          .in("status", ["confirmed","pending"])
+          .order("booking_date", { ascending: true }).limit(1).maybeSingle()
+
+        if (existingBooking) {
+          const slotFree = await isSlotAvailable({
+            userId, date: intent.bookingState.date, time: intent.bookingState.time,
+            service: existingBooking.service, servicesList: servicesList || [],
+            excludeBookingId: existingBooking.id
+          })
+          if (!slotFree) {
+            const altSlot = await findNextAvailableSlot({ userId, date: intent.bookingState.date, service: existingBooking.service, servicesList: servicesList || [] })
+            const busyMsg = altSlot
+              ? `That slot is full 😅 Next available: *${altSlot}*\n\nShall I book that instead? ✅`
+              : `That slot is fully booked 😅 Please suggest another time?`
+            await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: busyMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+            continue
+          }
+          await supabaseAdmin.from("bookings")
+            .update({ booking_date: intent.bookingState.date, booking_time: intent.bookingState.time, status: "confirmed" })
+            .eq("id", existingBooking.id)
+          const rescheduleMsg = buildRescheduleConfirmation(existingBooking.service, intent.bookingState.date, intent.bookingState.time, biz.business_name || "our business")
+          await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: rescheduleMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+          continue
+        }
+      }
+
+      // ══ 10. NEW BOOKING CREATION ═════════════════════════════════
+      if (intent.type === "booking" && intent.bookingState.readyToBook) {
+        const { date, time, service } = intent.bookingState
+        const matchedService = matchService(service, servicesList || [])
+        const slotFree = await isSlotAvailable({ userId, date, time, service: matchedService?.name || service, servicesList: servicesList || [] })
+        if (!slotFree) {
+          const altSlot = await findNextAvailableSlot({ userId, date, service: matchedService?.name || service, servicesList: servicesList || [] })
+          const busyMsg = altSlot
+            ? `That slot is taken 😅 How about *${altSlot}*? Shall I book that? ✅`
+            : `That time slot is fully booked 😅 Could you suggest another time?`
+          await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: busyMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+          continue
+        }
+
+        const { data: newBooking, error: bookErr } = await supabaseAdmin.from("bookings").insert({
+          user_id:        userId,
+          customer_name:  contactName,
+          customer_phone: formattedPhone,
+          customer_id:    customer?.id || null,
+          service:        matchedService?.name || service || "Appointment",
+          booking_date:   date,
+          booking_time:   time,
+          amount:         matchedService?.price || 0,
+          status:         "confirmed",
+          ai_booked:      true,
+          created_at:     new Date().toISOString()
+        }).select().single()
+
+        if (!bookErr && newBooking) {
+          console.log("✅ Booking created:", newBooking.id, service, date, time)
+          try {
+            const { count: bookingCount } = await supabaseAdmin.from("bookings").select("id", { count: "exact" })
+              .eq("customer_phone", formattedPhone).eq("user_id", userId).in("status", ["confirmed","completed"])
+            const newTag = bookingCount >= 5 ? "vip" : bookingCount >= 2 ? "returning" : "new_lead"
+            await supabaseAdmin.from("customers").update({ tag: newTag, last_visit_at: new Date().toISOString() })
+              .eq("phone", formattedPhone).eq("user_id", userId)
+          } catch(e) {}
+          try {
+            await supabaseAdmin.from("leads").update({ status: "converted", last_message_at: new Date().toISOString() })
+              .eq("customer_id", customer?.id).eq("user_id", userId).eq("status", "open")
+          } catch(e) {}
+        }
+
+        const confirmMsg = buildConfirmationMessage(matchedService?.name || service, date, time, biz.business_name || "our business")
+        await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: confirmMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+        await supabaseAdmin.from("conversations").update({ last_message: "✅ Booking Confirmed — " + service }).eq("id", conversation?.id)
+        continue
+      }
+
+      // ══ 11. AI REPLY ═════════════════════════════════════════════
+      const aiReply = await generateAIReply({
+        customerMessage: messageText,
+        bizSettings:     biz,
+        history:         conversationHistory,
+        customerName:    contactName,
+        intent,
+        servicesList:    servicesList || []
+      })
+
+      console.log("📤 Sending:", aiReply.substring(0, 120))
+      await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: aiReply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+      await supabaseAdmin.from("conversations").update({ last_message: aiReply, last_message_at: new Date().toISOString() }).eq("id", conversation?.id)
+    }
+
+    return NextResponse.json({ status: "ok" }, { status: 200 })
+  } catch (err) {
+    console.error("❌ Webhook fatal error:", err)
+    return NextResponse.json({ status: "error", message: err.message }, { status: 200 })
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SLOT AVAILABILITY ENGINE
+// ════════════════════════════════════════════════════════════════════
+
+async function isSlotAvailable({ userId, date, time, service, servicesList, excludeBookingId }) {
+  if (!date || !time) return true
+  const svc      = matchService(service, servicesList)
+  const capacity = svc?.capacity || 1
+  const query    = supabaseAdmin.from("bookings").select("id")
+    .eq("user_id", userId).eq("booking_date", date).eq("booking_time", time)
+    .in("status", ["confirmed","pending"])
+  if (excludeBookingId) query.neq("id", excludeBookingId)
+  const { data: existing } = await query
+  return (existing?.length || 0) < capacity
+}
+
+async function findNextAvailableSlot({ userId, date, service, servicesList }) {
+  if (!date) return null
+  const svc      = matchService(service, servicesList)
+  const duration = svc?.duration || 30
+  const slots    = []
+  let m = 9 * 60
+  while (m <= 20 * 60) {
+    slots.push(`${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`)
+    m += duration
+  }
+  for (const time of slots) {
+    const free = await isSlotAvailable({ userId, date, time, service, servicesList })
+    if (free) {
+      const dt = new Date(date + "T" + time + ":00")
+      return dt.toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short" }) + " at " + time
+    }
+  }
+  return null
+}
+
+function matchService(serviceName, servicesList) {
+  if (!serviceName || !servicesList?.length) return null
+  const s = serviceName.toLowerCase().trim()
+  const exact = servicesList.find(svc => svc.name.toLowerCase() === s)
+  if (exact) return exact
+  const partial = servicesList.find(svc =>
+    svc.name.toLowerCase().includes(s) || s.includes(svc.name.toLowerCase())
+  )
+  return partial || null
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CONVERSATION HISTORY BUILDER
+// ════════════════════════════════════════════════════════════════════
+
+function buildAlternatingHistory(rawHistory) {
+  if (!rawHistory || rawHistory.length === 0) return []
+  const deduped = []
+  for (const msg of rawHistory) {
+    if (deduped.length === 0 || deduped[deduped.length-1].role !== msg.role) {
+      deduped.push(msg)
+    } else {
+      deduped[deduped.length-1] = msg
+    }
+  }
+  while (deduped.length > 0 && deduped[0].role !== "user") deduped.shift()
+  while (deduped.length > 0 && deduped[deduped.length-1].role === "user") deduped.pop()
+  return deduped.slice(-10)
+}
+
+// ════════════════════════════════════════════════════════════════════
+// INTENT DETECTION
+// ════════════════════════════════════════════════════════════════════
+
+function detectIntent(history, latestMessage, servicesList) {
+  const latestLower = latestMessage.toLowerCase().trim()
+  const allText     = [...history.map(m => m.content), latestMessage].join(" ").toLowerCase()
+
+  const rescheduleKw = ["reschedule","change booking","change appointment","change timing","postpone","shift booking","move booking","different time","different date","another time","another day","change slot"]
+  const cancelKw     = ["cancel","cancellation","don't want","not coming","cant come","cannot come","won't come","nahi aana","cancel karo"]
+  const bookingKw    = ["book","appointment","slot","schedule","availab","cheyandi","kavali","fix appointment","want to come","coming in","visit","book karo","booking"]
+  const pricingKw    = ["price","cost","rate","how much","charges","kitna","ekkuva","entha","fees","charge","amount"]
+  const locationKw   = ["location","address","where are you","where is","directions","maps","navigate","how to reach","how to come","landmark"]
+  const greetingRx   = /^(hi|hello|hey|hii|helo|hai|hiya|gm|good\s*(morning|afternoon|evening|night)|namaste|namaskar|vanakkam|heyyy|sup|whats\s*up)[!\s.]*$/i
+
+  const isReschedule = rescheduleKw.some(kw => latestLower.includes(kw))
+  const isCancel     = cancelKw.some(kw => latestLower.includes(kw))
+  const isBooking    = bookingKw.some(kw => latestLower.includes(kw))
+  const isPricing    = pricingKw.some(kw => latestLower.includes(kw))
+  const isLocation   = locationKw.some(kw => latestLower.includes(kw))
+  const isGreeting   = greetingRx.test(latestLower)
+
+  const bookingState = extractBookingDetails(history, latestMessage, allText, latestLower, servicesList)
+
+  let type = "general"
+  if      (isCancel)     type = "cancel"
+  else if (isReschedule) type = "reschedule"
+  else if (isBooking || bookingState.service || bookingState.date || bookingState.time) type = "booking"
+  else if (isGreeting)   type = "greeting"
+  else if (isPricing)    type = "pricing"
+  else if (isLocation)   type = "location"
+
+  if (type === "reschedule" && !bookingState.date) {
+    const fresh = extractBookingDetails([], latestMessage, latestLower, latestLower, servicesList)
+    bookingState.date = fresh.date
+    bookingState.time = fresh.time
   }
 
-  async function disconnectWhatsApp() {
-    if (!confirm("Disconnect WhatsApp? AI will stop responding to customers.")) return
-    await supabase.from("whatsapp_connections").delete().eq("user_id", userId)
-    setWhatsapp(null)
+  return { type, bookingState }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// BOOKING DETAILS EXTRACTOR
+// ════════════════════════════════════════════════════════════════════
+
+function extractBookingDetails(history, latestMessage, allText, latestLower, servicesList) {
+  const state = { service: null, date: null, time: null, readyToBook: false }
+  const now   = new Date()
+
+  // Service: DB first, keyword fallback
+  if (servicesList?.length) {
+    for (const svc of servicesList) {
+      if (allText.includes(svc.name.toLowerCase())) { state.service = svc.name; break }
+    }
+  }
+  if (!state.service) {
+    const serviceKeywords = [
+      "haircut","hair cut","hair color","colour","coloring","facial","cleanup","bleach",
+      "waxing","threading","manicure","pedicure","spa","massage","keratin","smoothening",
+      "rebonding","highlights","balayage","trim","shave","beard","bridal","makeup",
+      "mehendi","henna","eyebrow","hair wash","blow dry","hair spa","dandruff","treatment",
+      "nail art","nail extension","lash","eyelash","botox","clean up","consultation",
+      "detan","de-tan","root touch","hair straightening","protein treatment","scalp treatment",
+      "deep conditioning","toning","body massage","head massage","foot massage","physiotherapy",
+      "dental","cleaning","whitening","extraction","implant","filling","checkup"
+    ]
+    for (const kw of serviceKeywords) {
+      if (allText.includes(kw)) { state.service = kw; break }
+    }
   }
 
-  const toggleTheme = () => {
-    const n = !dark
-    setDark(n)
-    localStorage.setItem("fastrill-theme", n ? "dark" : "light")
+  // Date extraction
+  const hasDateInLatest =
+    /\b(today|tomorrow|kal|parso|sun|mon|tue|wed|thu|fri|sat|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i.test(latestMessage) ||
+    /\d{1,2}[\/\-]\d{1,2}/.test(latestMessage) ||
+    /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(latestMessage) ||
+    /\d{1,2}(st|nd|rd|th)/i.test(latestMessage)
+
+  const dateText = hasDateInLatest ? latestLower : allText
+  const todayStr = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0")
+
+  if (dateText.includes("today")) {
+    state.date = todayStr
+  } else if (dateText.includes("tomorrow") || dateText.includes("kal ")) {
+    const t = new Date(now); t.setDate(now.getDate()+1)
+    state.date = t.getFullYear() + "-" + String(t.getMonth()+1).padStart(2,"0") + "-" + String(t.getDate()).padStart(2,"0")
+  } else if (dateText.includes("parso") || dateText.includes("day after")) {
+    const t = new Date(now); t.setDate(now.getDate()+2)
+    state.date = t.getFullYear() + "-" + String(t.getMonth()+1).padStart(2,"0") + "-" + String(t.getDate()).padStart(2,"0")
+  } else {
+    const days = [
+      {idx:0, names:["sunday","sun"]}, {idx:1, names:["monday","mon"]},
+      {idx:2, names:["tuesday","tue"]}, {idx:3, names:["wednesday","wed"]},
+      {idx:4, names:["thursday","thu"]}, {idx:5, names:["friday","fri"]},
+      {idx:6, names:["saturday","sat"]}
+    ]
+    for (const day of days) {
+      if (day.names.some(n => new RegExp("\\b" + n + "\\b","i").test(dateText))) {
+        let diff = (day.idx - now.getDay() + 7) % 7
+        if (diff === 0) diff = 7
+        const d = new Date(now); d.setDate(now.getDate()+diff)
+        state.date = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0")
+        break
+      }
+    }
   }
-  const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login") }
 
-  const bg          = dark ? "#08080e"                      : "#f0f2f5"
-  const sidebar     = dark ? "#0c0c15"                      : "#ffffff"
-  const card        = dark ? "#0f0f1a"                      : "#ffffff"
-  const border      = dark ? "rgba(255,255,255,0.07)"       : "rgba(0,0,0,0.08)"
-  const cardBorder  = dark ? "rgba(255,255,255,0.08)"       : "rgba(0,0,0,0.09)"
-  const text        = dark ? "#eeeef5"                      : "#111827"
-  const textMuted   = dark ? "rgba(255,255,255,0.45)"       : "rgba(0,0,0,0.5)"
-  const textFaint   = dark ? "rgba(255,255,255,0.2)"        : "rgba(0,0,0,0.25)"
-  const inputBg     = dark ? "rgba(255,255,255,0.04)"       : "rgba(0,0,0,0.03)"
-  const accent      = dark ? "#00d084"                      : "#00935a"
-  const navText     = dark ? "rgba(255,255,255,0.45)"       : "rgba(0,0,0,0.5)"
-  const navActive   = dark ? "rgba(0,196,125,0.1)"          : "rgba(0,180,115,0.08)"
-  const navActiveBorder = dark ? "rgba(0,196,125,0.2)"     : "rgba(0,180,115,0.2)"
-  const navActiveText = dark ? "#00c47d"                    : "#00935a"
-  const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
-
-  const inp = {
-    background: inputBg, border: `1px solid ${cardBorder}`, borderRadius: 8,
-    padding: "9px 12px", fontSize: 13, color: text,
-    fontFamily: "'Plus Jakarta Sans',sans-serif", outline: "none", width: "100%"
+  if (!state.date) {
+    const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
+    const src = hasDateInLatest ? latestMessage : allText
+    for (let i = 0; i < months.length; i++) {
+      const re = new RegExp("(\\d{1,2})(?:st|nd|rd|th)?\\s*" + months[i] + "|" + months[i] + "\\s*(\\d{1,2})(?:st|nd|rd|th)?", "i")
+      const m  = src.match(re)
+      if (m) {
+        const day = parseInt(m[1] || m[2])
+        if (day >= 1 && day <= 31) {
+          state.date = now.getFullYear() + "-" + String(i+1).padStart(2,"0") + "-" + String(day).padStart(2,"0")
+          break
+        }
+      }
+    }
   }
 
-  const TABS = [
-    { id:"business", label:"Business" },
-    { id:"services", label:"Services" },
-    { id:"ai",       label:"AI Brain" },
-    { id:"whatsapp", label:"WhatsApp" }
+  if (!state.date) {
+    const src = hasDateInLatest ? latestMessage : allText
+    const m   = src.match(/(\d{1,2})[\/\-](\d{1,2})/)
+    if (m) state.date = now.getFullYear() + "-" + String(m[2]).padStart(2,"0") + "-" + String(m[1]).padStart(2,"0")
+  }
+
+  // Time extraction
+  const hasTimeInLatest =
+    /\d{1,2}(:\d{2})?\s*(am|pm)/i.test(latestMessage) ||
+    /\d{2}:\d{2}/.test(latestMessage) ||
+    /\b\d{1,2}(pm|am)\b/i.test(latestMessage) ||
+    /\b(morning|afternoon|evening|night)\b/i.test(latestMessage)
+
+  const timeText = hasTimeInLatest ? latestMessage : allText
+
+  if (/\bmorning\b/i.test(timeText) && !hasTimeInLatest)        state.time = "10:00"
+  else if (/\bafternoon\b/i.test(timeText) && !hasTimeInLatest) state.time = "14:00"
+  else if (/\bevening\b/i.test(timeText) && !hasTimeInLatest)   state.time = "17:00"
+  else if (/\bnight\b/i.test(timeText) && !hasTimeInLatest)     state.time = "19:00"
+  else {
+    const tm = timeText.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i) || timeText.match(/(\d{2}):(\d{2})/)
+    if (tm) {
+      let hour   = parseInt(tm[1])
+      const min  = tm[2] ? tm[2] : "00"
+      const ampm = tm[3]?.toLowerCase()
+      if (ampm === "pm" && hour < 12) hour += 12
+      if (ampm === "am" && hour === 12) hour = 0
+      if (hour >= 7 && hour <= 22) state.time = String(hour).padStart(2,"0") + ":" + min.padStart(2,"0")
+    }
+  }
+
+  // Confirm detection
+  const confirmWords = ["yes","yeah","yep","yup","ok","okay","sure","confirm","correct","right","haan","ha","ji","theek","done","book it","go ahead","please book","book karo","sounds good","perfect","great","yeahh","yess","k","👍","✅","proceed","do it"]
+  const isConfirming = confirmWords.some(w => latestLower.trim() === w || latestLower.trim().startsWith(w + " ") || latestLower.trim().endsWith(" " + w))
+  const lastAiMsg = [...history].reverse().find(m => m.role === "assistant")
+  const aiAskedConfirm = lastAiMsg && (
+    lastAiMsg.content.toLowerCase().includes("shall i book") ||
+    lastAiMsg.content.toLowerCase().includes("shall i confirm") ||
+    lastAiMsg.content.toLowerCase().includes("want me to book") ||
+    lastAiMsg.content.toLowerCase().includes("book you for") ||
+    lastAiMsg.content.toLowerCase().includes("confirm booking") ||
+    lastAiMsg.content.toLowerCase().includes("confirm your booking") ||
+    lastAiMsg.content.toLowerCase().includes("book that") ||
+    lastAiMsg.content.toLowerCase().includes("confirm that")
+  )
+
+  if (state.service && state.date && state.time && isConfirming && aiAskedConfirm) {
+    state.readyToBook = true
+  }
+
+  return state
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AI REPLY GENERATOR — v7.1
+// FIX: System prompt now explicitly restricts AI to THIS business only
+// FIX: Never show reasoning — only send final reply
+// ════════════════════════════════════════════════════════════════════
+
+async function generateAIReply({ customerMessage, bizSettings, history, customerName, intent, servicesList }) {
+  const firstName      = (customerName || "").split(" ")[0] || "there"
+  const businessName   = bizSettings?.business_name   || "our business"
+  const businessType   = bizSettings?.business_type   || "business"
+  const location       = bizSettings?.location        || ""
+  const mapsLink       = bizSettings?.maps_link       || ""
+  const workingHours   = bizSettings?.working_hours   || ""
+  const aiInstructions = bizSettings?.ai_instructions || ""
+  const greetingStyle  = bizSettings?.greeting_message|| ""
+  const aiLanguage     = bizSettings?.ai_language     || "English"
+
+  const servicesText = servicesList.length > 0
+    ? servicesList.map(s => s.name + ": Rs." + s.price + (s.duration ? " (" + s.duration + " min)" : "")).join("\n")
+    : ""
+
+  const bs = intent.bookingState
+  let bookingHint = ""
+  if (bs.service || bs.date || bs.time) {
+    const collected = [], missing = []
+    if (bs.service) collected.push("service: " + bs.service)
+    else missing.push("which service")
+    if (bs.date) collected.push("date: " + new Date(bs.date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short" }))
+    else missing.push("preferred date")
+    if (bs.time) collected.push("time: " + bs.time)
+    else missing.push("preferred time")
+    bookingHint = "\nBOOKING STATE - Collected: " + collected.join(", ") + "." + (missing.length ? " Still need: " + missing.join(", ") + "." : " All collected — ask to confirm!")
+  }
+
+  const intentHint =
+    intent.type === "reschedule" ? "\nCUSTOMER INTENT: RESCHEDULE — ask for new date/time only." :
+    intent.type === "cancel"     ? "\nCUSTOMER INTENT: CANCEL — acknowledge warmly, offer to reschedule." : ""
+
+  // ── KEY FIX v7.1: Restrict AI to this business only ─────────────
+  const systemPrompt = `You are a WhatsApp booking assistant for ${businessName} (${businessType}${location ? ", " + location : ""}).
+
+CRITICAL RULE: You ONLY handle bookings and inquiries for ${businessName}. If a customer asks to book something at another place (restaurant, hotel, another shop etc), politely tell them you can only help with ${businessName} services and ask if they would like to book with us instead.
+
+CRITICAL RULE: Your reply must be SHORT (3-4 lines max). NEVER show your thinking or reasoning. Send ONLY the final message to the customer.
+
+${servicesText ? "SERVICES WE OFFER:\n" + servicesText + "\n" : ""}${workingHours ? "\nWORKING HOURS: " + workingHours : ""}${location ? "\nADDRESS: " + location : ""}${mapsLink ? "\nMAPS: " + mapsLink : ""}${aiInstructions ? "\n\nBUSINESS NOTES:\n" + aiInstructions : ""}
+${intentHint}${bookingHint}
+
+BOOKING FLOW (collect one at a time):
+1. Which service?
+2. Which date?
+3. Which time?
+4. Once all 3 → say "Shall I confirm booking for [service] on [date] at [time]? Yes/No"
+5. Customer says yes → booking is created automatically, you do not need to do anything
+
+RULES:
+- Maximum 3-4 lines per reply
+- 1-2 emojis only
+- Reply in ${aiLanguage} (match customer language)
+- NEVER repeat info already collected
+- NEVER send generic welcome for specific requests
+- NEVER show reasoning or internal thoughts — final reply only${greetingStyle ? "\n- Greeting style: " + greetingStyle : ""}`
+
+  if (process.env.SARVAM_API_KEY) {
+    try {
+      const sarvamMessages = [
+        { role: "system", content: systemPrompt },
+        ...history,
+        { role: "user", content: customerMessage }
+      ]
+      console.log("🔄 Calling Sarvam | roles:", sarvamMessages.map(m => m.role).join("->"))
+      const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", "api-subscription-key": process.env.SARVAM_API_KEY },
+        body:    JSON.stringify({ model: "sarvam-m", messages: sarvamMessages, max_tokens: 500, temperature: 0.65 })
+      })
+      const rawText = await response.text()
+      console.log("📨 Sarvam HTTP:", response.status)
+      const data = JSON.parse(rawText)
+      if (data?.error) {
+        console.error("❌ Sarvam error:", JSON.stringify(data.error))
+      } else {
+        const rawContent = data?.choices?.[0]?.message?.content || ""
+        const reply      = extractSarvamReply(rawContent)
+        if (reply) return reply
+      }
+    } catch (err) {
+      console.error("Sarvam exception:", err.message)
+    }
+  }
+
+  console.warn("⚠️ Sarvam unavailable — fallback")
+  return smartFallback({ msg: customerMessage, intent, businessName, servicesText, firstName, location, mapsLink, bookingState: bs })
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SARVAM REPLY EXTRACTOR — v7.1 COMPLETE REWRITE
+//
+// Problem in v7.0: Case 1b was returning the LAST paragraph inside
+// <think> which is still the reasoning, not the actual reply.
+//
+// Sarvam-m output patterns we handle:
+// Pattern A: <think>reasoning</think>\nActual reply   <- ideal, common
+// Pattern B: <think>reasoning\nActual reply</think>  <- reply stuck inside
+// Pattern C: <think>reasoning</think>                <- nothing after tag
+// Pattern D: No think tags, just the reply
+// Pattern E: <think> tag opened but never closed
+//
+// Strategy for B/C: The actual reply is SHORT (< 200 chars) and starts
+// with conversational words. The reasoning is LONG paragraphs starting
+// with "So", "The", "Wait", "Let me", "First", "I need".
+// ════════════════════════════════════════════════════════════════════
+
+function extractSarvamReply(rawContent) {
+  if (!rawContent || !rawContent.trim()) return null
+  console.log("📨 Sarvam raw (400):", rawContent.substring(0, 400))
+
+  // Pattern A — clean reply after </think> (most common)
+  if (rawContent.includes("</think>")) {
+    const afterThink = rawContent.split("</think>").pop().trim()
+    if (afterThink && afterThink.length > 3) {
+      console.log("✅ Pattern A — after </think>:", afterThink.substring(0, 100))
+      return afterThink
+    }
+  }
+
+  // Pattern D — no think tags at all
+  if (!rawContent.includes("<think>") && !rawContent.includes("</think>")) {
+    const reply = rawContent.trim()
+    if (reply.length > 3) {
+      console.log("✅ Pattern D — no think tags:", reply.substring(0, 100))
+      return reply
+    }
+  }
+
+  // Pattern B/C/E — reply is inside or mixed with think block
+  // Strip the think tags and find the short reply among the reasoning
+  const stripped = rawContent
+    .replace(/<\/think>/g, "")
+    .replace(/<think>/g, "")
+    .trim()
+
+  const lines = stripped.split("\n").map(l => l.trim()).filter(l => l.length > 2)
+
+  // Reasoning detection — lines that are clearly internal thinking
+  const reasoningStarters = [
+    "so ", "the ", "wait", "let me", "first", "i need", "i should",
+    "okay,", "okay.", "but ", "now,", "now.", "since ", "the user",
+    "looking at", "according", "maybe ", "perhaps ", "however",
+    "alternatively", "the assistant", "the response", "the booking",
+    "to summarize", "in summary", "so the", "so i", "i'll", "i will",
+    "that means", "this means", "the customer", "based on"
   ]
 
-  return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        html,body{background:${bg}!important;color:${text}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
-        .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
-        .sidebar{width:224px;flex-shrink:0;background:${sidebar};border-right:1px solid ${border};display:flex;flex-direction:column;overflow-y:auto;}
-        .logo{padding:22px 20px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:block;border-bottom:1px solid ${border};}
-        .logo span{color:${accent};}
-        .nav-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${textFaint};font-weight:600;}
-        .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
-        .nav-item:hover{background:${inputBg};color:${text};}
-        .nav-item.active{background:${navActive};color:${navActiveText};font-weight:600;border-color:${navActiveBorder};}
-        .nav-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0;}
-        .sidebar-footer{margin-top:auto;padding:14px;border-top:1px solid ${border};}
-        .user-card{display:flex;align-items:center;gap:9px;padding:9px;border-radius:9px;background:${inputBg};border:1px solid ${cardBorder};}
-        .user-avatar{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,${accent},#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex-shrink:0;}
-        .user-email{font-size:11.5px;color:${textMuted};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-        .logout-btn{margin-top:7px;width:100%;padding:7px;border-radius:7px;background:transparent;border:1px solid ${cardBorder};font-size:12px;color:${textMuted};cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
-        .logout-btn:hover{border-color:#fca5a5;color:#ef4444;}
-        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-        .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${border};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sidebar};}
-        .tb-title{font-weight:700;font-size:15px;color:${text};}
-        .topbar-r{display:flex;align-items:center;gap:8px;}
-        .theme-toggle{display:flex;align-items:center;gap:6px;padding:5px 10px;background:${inputBg};border:1px solid ${cardBorder};border-radius:8px;cursor:pointer;font-size:11.5px;color:${textMuted};font-family:'Plus Jakarta Sans',sans-serif;}
-        .toggle-pill{width:30px;height:16px;border-radius:100px;background:${dark?accent:"#d1d5db"};position:relative;flex-shrink:0;}
-        .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
-        .content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};}
-        .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid ${border};}
-        .tog{width:38px;height:22px;border-radius:100px;position:relative;cursor:pointer;border:none;flex-shrink:0;transition:background 0.2s;}
-        .tog::after{content:'';position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 0.2s;}
-        select{color-scheme:dark;background-color:inherit;}
-        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
-        select:focus{outline:none;}
-        .error-banner{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);borderRadius:8px;padding:10px 14px;fontSize:13px;color:#f87171;marginBottom:12px;}
+  const isReasoning = (line) => {
+    const lower = line.toLowerCase()
+    return (
+      line.length > 200 ||
+      reasoningStarters.some(s => lower.startsWith(s))
+    )
+  }
 
-        /* ══ MOBILE RESPONSIVE ══════════════════════════════════ */
-        @media(max-width:767px){
-          .wrap{position:relative;}
-          .sidebar{
-            position:fixed;top:0;left:0;height:100vh;z-index:300;
-            transform:translateX(-100%);transition:transform 0.25s ease;
-            width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);
-          }
-          .sidebar.mob-open{transform:translateX(0);}
-          .mob-overlay{display:block!important;}
-          .main{width:100%;}
-          .topbar{padding:0 12px!important;}
-          .content{padding:12px!important;}
-          .hamburger{display:flex!important;}
-          .tb-title{font-size:14px!important;}
-          /* Hide theme toggle label on small screens */
-          .theme-toggle .tog-label{display:none;}
-        }
-        .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
-        .hamburger{display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:#eeeef5;line-height:1;margin-right:2px;}
-        /* Responsive grids */
-        @media(max-width:767px){
-          [style*="grid-template-columns: repeat(5"]{grid-template-columns:repeat(2,1fr)!important;}
-          [style*="grid-template-columns: repeat(4"]{grid-template-columns:repeat(2,1fr)!important;}
-          [style*="grid-template-columns: repeat(3"]{grid-template-columns:repeat(2,1fr)!important;}
-          [style*="grid-template-columns: 1fr 300px"]{grid-template-columns:1fr!important;}
-          [style*="grid-template-columns: 1fr 320px"]{grid-template-columns:1fr!important;}
-          [style*="grid-template-columns: 280px 1fr 280px"]{grid-template-columns:1fr!important;}
-          [style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr!important;}
-          [style*="repeat(7,1fr)"]{grid-template-columns:repeat(4,1fr)!important;}
-        }
-        /* Bottom navigation bar */
-        .bottom-nav{
-          display:none;position:fixed;bottom:0;left:0;right:0;
-          background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);
-          padding:6px 0;z-index:200;
-        }
-        @media(max-width:767px){
-          .bottom-nav{display:flex;justify-content:space-around;}
-          .main{padding-bottom:60px;}
-          .wrap{padding-bottom:0;}
-        }
-        .bnav-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
-        .bnav-icon{font-size:17px;color:rgba(255,255,255,0.3);}
-        .bnav-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
-        .bnav-btn.active .bnav-icon,.bnav-btn.active .bnav-label{color:#00d084;}
-      `}</style>
+  // Conversational reply starters
+  const replyStarters = [
+    /^(hi|hello|hey|sure|great|got it|perfect|of course|absolutely|i'd|no problem)/i,
+    /^[\u{1F600}-\u{1F9FF}]/u,
+    /^(sure|ok|okay|yes|no problem|thanks|thank you)/i,
+    /^\*/,
+    /^(your|we |here|happy to|would you|what (date|time|service)|which)/i,
+    /^[A-Z][a-z].*\?$/,
+  ]
 
-      <div className="wrap">
-        <aside className={`sidebar${mobSidebarOpen?" mob-open":""}`}>
-          <a href="/dashboard" className="logo">fast<span>rill</span></a>
-          <div className="nav-section">Platform</div>
-          {NAV.map(item => (
-            <button key={item.id} className={`nav-item${item.id === "settings" ? " active" : ""}`} onClick={() => router.push(item.path)}>
-              <span className="nav-icon">{item.icon}</span><span>{item.label}</span>
-            </button>
-          ))}
-          <div className="sidebar-footer">
-            <div className="user-card">
-              <div className="user-avatar">{userInitial}</div>
-              <div className="user-email">{userEmail || "Loading..."}</div>
-            </div>
-            <button className="logout-btn" onClick={handleLogout}>↩ Sign out</button>
-          </div>
-        </aside>
+  const isReply = (line) => replyStarters.some(rx => rx.test(line.trim()))
 
-        <div className="main">
-          <div className="topbar">
-            <button className="hamburger" onClick={()=>setMobSidebarOpen(s=>!s)}>☰</button>
-              <span className="tb-title">Settings</span>
-            <div className="topbar-r">
-              {(tab === "business" || tab === "ai") && (
-                <button
-                  onClick={saveBusiness}
-                  disabled={saving}
-                  style={{
-                    background: saved ? "#22c55e" : saveError ? "#ef4444" : accent,
-                    color: "#000", border: "none", padding: "7px 18px",
-                    borderRadius: 8, fontWeight: 700, fontSize: 12,
-                    cursor: saving ? "not-allowed" : "pointer",
-                    fontFamily: "'Plus Jakarta Sans',sans-serif", transition: "background 0.2s"
-                  }}>
-                  {saving ? "Saving..." : saved ? "✓ Saved" : saveError ? "✗ Error" : "Save Changes"}
-                </button>
-              )}
-              <button className="theme-toggle" onClick={toggleTheme}>
-                <span>{dark ? "🌙" : "☀️"}</span><div className="toggle-pill" /><span>{dark ? "Dark" : "Light"}</span>
-              </button>
-            </div>
-          </div>
+  // Strategy 1: Find the last SHORT line (< 200 chars) that looks like a reply
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i]
+    if (line.length < 200 && !isReasoning(line)) {
+      // Extra check: if it's clearly a reply starter, use it
+      if (isReply(line) || line.endsWith("?") || line.endsWith("😊") || line.endsWith("✅")) {
+        console.log("✅ Pattern B/E — short reply line:", line.substring(0, 100))
+        return line
+      }
+    }
+  }
 
-          {/* Tabs */}
-          <div style={{ padding:"0 24px", borderBottom:`1px solid ${border}`, background:sidebar, display:"flex", gap:0, flexShrink:0 }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{
-                padding:"14px 18px", background:"transparent", border:"none",
-                borderBottom: tab===t.id ? `2px solid ${accent}` : "2px solid transparent",
-                color: tab===t.id ? accent : textMuted,
-                fontWeight: tab===t.id ? 700 : 500, fontSize:13,
-                cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", transition:"all 0.12s"
-              }}>{t.label}</button>
-            ))}
-          </div>
+  // Strategy 2: Take the last paragraph that is under 150 chars
+  const paragraphs = stripped.split("\n\n").map(p => p.trim()).filter(p => p.length > 3)
+  for (let i = paragraphs.length - 1; i >= 0; i--) {
+    const p = paragraphs[i]
+    if (p.length < 150) {
+      console.log("✅ Pattern C fallback — short paragraph:", p.substring(0, 100))
+      return p
+    }
+  }
 
-          <div className="content">
-            {/* Error banner */}
-            {saveError && (
-              <div style={{ background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#f87171", marginBottom:12 }}>
-                ⚠️ {saveError}
-              </div>
-            )}
+  // Strategy 3: The reply may be a "So the response should be: X" pattern
+  const responseMatch = stripped.match(/(?:response should be|reply should be|answer should be|say something like)[:\s]*[""]?([^""\n]+)[""]?/i)
+  if (responseMatch && responseMatch[1]) {
+    const extracted = responseMatch[1].trim().replace(/^[""]|[""]$/g, "")
+    if (extracted.length > 3 && extracted.length < 300) {
+      console.log("✅ Pattern meta-extract:", extracted.substring(0, 100))
+      return extracted
+    }
+  }
 
-            {loading ? (
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:200, color:textFaint }}>Loading...</div>
+  // Last resort: take the last non-empty line
+  const lastLine = lines[lines.length - 1]
+  if (lastLine && lastLine.length < 400) {
+    console.log("✅ Last resort — final line:", lastLine.substring(0, 100))
+    return lastLine
+  }
 
-            ) : tab === "business" ? (
-              <div style={{ maxWidth:620, display:"flex", flexDirection:"column", gap:20 }}>
-                <div style={{ background:card, border:`1px solid ${cardBorder}`, borderRadius:13, padding:22 }}>
-                  <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:16 }}>Business Info</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-                    <div>
-                      <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Business Name *</div>
-                      <input placeholder="e.g. Priya Beauty Salon" value={business.name} onChange={e => setBusiness(p => ({ ...p, name:e.target.value }))} style={inp} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Business Type</div>
-                      <select value={business.type} onChange={e => setBusiness(p => ({ ...p, type:e.target.value }))} style={inp}>
-                        {BUSINESS_TYPES.map(t => <option key={t}>{t}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>WhatsApp Phone Number</div>
-                      <input placeholder="+91 98765 43210" value={business.phone} onChange={e => setBusiness(p => ({ ...p, phone:e.target.value }))} style={inp} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Location / Address</div>
-                      <input placeholder="Building, Street, City" value={business.location} onChange={e => setBusiness(p => ({ ...p, location:e.target.value }))} style={inp} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Google Maps Link</div>
-                      <input placeholder="https://maps.google.com/..." value={business.mapsLink} onChange={e => setBusiness(p => ({ ...p, mapsLink:e.target.value }))} style={inp} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>
-                        Working Hours <span style={{ color:textFaint }}>(AI tells customers when you're open)</span>
-                      </div>
-                      <input
-                        placeholder="e.g. Mon–Sat 9am–8pm, Sunday Closed"
-                        value={business.workingHours}
-                        onChange={e => setBusiness(p => ({ ...p, workingHours:e.target.value }))}
-                        style={inp}
-                      />
-                    </div>
-                    <div>
-                      <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>
-                        Business Description <span style={{ color:textFaint }}>(AI uses this to answer customer questions)</span>
-                      </div>
-                      <textarea
-                        placeholder="Tell customers about your salon — specialties, experience, awards, what makes you unique..."
-                        value={business.description}
-                        onChange={e => setBusiness(p => ({ ...p, description:e.target.value }))}
-                        style={{ ...inp, resize:"vertical", minHeight:90, lineHeight:1.5 }}
-                      />
-                    </div>
-                  </div>
-                </div>
+  console.warn("⚠️ Could not extract Sarvam reply")
+  return null
+}
 
-                {/* Save hint */}
-                <div style={{ fontSize:12, color:textFaint, textAlign:"center" }}>
-                  💡 After saving, your AI will immediately use this info to answer customers
-                </div>
-              </div>
+// ════════════════════════════════════════════════════════════════════
+// INSTANT REPLY BUILDERS
+// ════════════════════════════════════════════════════════════════════
 
-            ) : tab === "services" ? (
-              <div style={{ maxWidth:700, display:"flex", flexDirection:"column", gap:16 }}>
-                <div style={{ background:card, border:`1px solid ${cardBorder}`, borderRadius:13, padding:20 }}>
-                  <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:14 }}>Add Service</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                    <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:10 }}>
-                      <div><div style={{ fontSize:11, color:textMuted, marginBottom:4 }}>Service Name</div><input placeholder="e.g. Haircut" value={newService.name} onChange={e => setNewService(p => ({ ...p, name:e.target.value }))} style={inp} /></div>
-                      <div><div style={{ fontSize:11, color:textMuted, marginBottom:4 }}>Price (₹)</div><input type="number" placeholder="500" value={newService.price} onChange={e => setNewService(p => ({ ...p, price:e.target.value }))} style={inp} /></div>
-                      <div><div style={{ fontSize:11, color:textMuted, marginBottom:4 }}>Duration (min)</div><input type="number" placeholder="30" value={newService.duration} onChange={e => setNewService(p => ({ ...p, duration:e.target.value }))} style={inp} /></div>
-                      <div>
-                        <div style={{ fontSize:11, color:textMuted, marginBottom:4 }}>Capacity <span style={{ color:textFaint, fontSize:10 }}>(parallel slots)</span></div>
-                        <input type="number" min="1" max="20" placeholder="1" value={newService.capacity} onChange={e => setNewService(p => ({ ...p, capacity:e.target.value }))} style={inp} />
-                      </div>
-                    </div>
-                    <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:11, color:textMuted, marginBottom:4 }}>Category</div>
-                        <select value={newService.category} onChange={e => setNewService(p => ({ ...p, category:e.target.value }))} style={inp}>
-                          {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <button
-                        onClick={addService}
-                        disabled={saving || !newService.name || !newService.price}
-                        style={{ background:(saving||!newService.name||!newService.price)?"rgba(0,208,132,0.4)":accent, color:"#000", border:"none", padding:"10px 22px", borderRadius:8, fontWeight:700, fontSize:13, cursor:(saving||!newService.name||!newService.price)?"not-allowed":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", whiteSpace:"nowrap", height:40, flexShrink:0 }}>
-                        {saving ? "Adding..." : "+ Add Service"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+function buildPricingReply(servicesList, biz) {
+  if (!servicesList?.length) return "Please reach us directly for our latest pricing 🙏"
+  const list = servicesList.map(s => "- " + s.name + ": Rs." + s.price + (s.duration ? " (" + s.duration + " min)" : "")).join("\n")
+  return "*" + (biz.business_name || "Our") + " Services*\n\n" + list + "\n\nWant to book? Just let me know! 😊"
+}
 
-                <div style={{ background:card, border:`1px solid ${cardBorder}`, borderRadius:13, overflow:"hidden" }}>
-                  <div style={{ padding:"12px 16px", borderBottom:`1px solid ${border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                    <div style={{ fontWeight:700, fontSize:13, color:text }}>Your Services ({services.length})</div>
-                    <div style={{ fontSize:11, color:textFaint }}>Capacity = parallel bookings per slot (chairs/doctors)</div>
-                  </div>
-                  {services.length === 0 ? (
-                    <div style={{ textAlign:"center", padding:"30px", color:textFaint, fontSize:12 }}>No services yet — add your first service above</div>
-                  ) : CATEGORIES.filter(cat => services.some(s => s.category === cat)).map(cat => (
-                    <div key={cat}>
-                      <div style={{ padding:"8px 16px", background:inputBg, fontSize:10, fontWeight:700, color:textFaint, letterSpacing:"1px", textTransform:"uppercase" }}>{cat}</div>
-                      {services.filter(s => s.category === cat).map(s => (
-                        <div key={s.id} style={{ display:"flex", alignItems:"center", padding:"10px 16px", borderBottom:`1px solid ${border}`, gap:10, opacity:s.is_active===false?0.5:1 }}>
-                          <div style={{ flex:1, fontWeight:600, fontSize:13, color:text }}>{s.name}</div>
-                          <div style={{ fontSize:11.5, color:textMuted }}>{s.duration} min</div>
-                          {(s.capacity||1) > 1 && (
-                            <div style={{ fontSize:10.5, fontWeight:700, color:"#38bdf8", background:"rgba(56,189,248,0.1)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:100, padding:"1px 7px" }}>
-                              {s.capacity} slots
-                            </div>
-                          )}
-                          <div style={{ fontWeight:700, fontSize:13, color:accent }}>₹{parseInt(s.price||0).toLocaleString()}</div>
-                          {/* Active/Inactive toggle */}
-                          <button
-                            onClick={async () => {
-                              const newActive = s.is_active === false ? true : false
-                              await supabase.from("services").update({ is_active: newActive }).eq("id", s.id)
-                              setServices(prev => prev.map(sv => sv.id===s.id ? {...sv, is_active:newActive} : sv))
-                            }}
-                            style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:100, border:`1px solid ${s.is_active===false?"rgba(251,113,133,0.3)":accent+"44"}`, background:s.is_active===false?"rgba(251,113,133,0.08)":"rgba(0,208,132,0.08)", color:s.is_active===false?"#fb7185":accent, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-                            {s.is_active===false?"Off":"On"}
-                          </button>
-                          <button onClick={() => deleteService(s.id)} style={{ background:"transparent", border:"none", color:textFaint, cursor:"pointer", fontSize:15, lineHeight:1 }}>×</button>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
+function buildLocationReply(biz) {
+  const location = biz?.location || ""
+  const mapsLink = biz?.maps_link || ""
+  if (location && mapsLink) return "📍 *" + (biz.business_name || "We're") + "* at:\n" + location + "\n\n🗺️ " + mapsLink + "\n\nSee you soon! 😊"
+  if (location)             return "📍 We're at: *" + location + "*\n\nWant to book? 😊"
+  return "I'll get our address for you shortly! 📍"
+}
 
-            ) : tab === "ai" ? (
-              <div style={{ maxWidth:620, display:"flex", flexDirection:"column", gap:20 }}>
-                <div style={{ background:card, border:`1px solid ${cardBorder}`, borderRadius:13, padding:22 }}>
-                  <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:4 }}>AI Brain Settings</div>
-                  <div style={{ fontSize:12, color:textFaint, marginBottom:16 }}>These settings control how your AI responds to customers on WhatsApp</div>
+function buildConfirmationMessage(service, date, time, businessName) {
+  const formatted = date ? new Date(date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" }) : date
+  return "✅ *Booking Confirmed!*\n\n📋 Service: " + service + "\n📅 Date: " + (formatted || date) + (time ? "\n⏰ Time: " + time : "") + "\n\nSee you soon at *" + businessName + "*! 😊"
+}
 
-                  <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-                    <div>
-                      <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Primary Language</div>
-                      <select value={ai.language} onChange={e => setAI(p => ({ ...p, language:e.target.value }))} style={inp}>
-                        {LANGUAGES.map(l => <option key={l}>{l}</option>)}
-                      </select>
-                    </div>
+function buildRescheduleConfirmation(service, date, time, businessName) {
+  const formatted = date ? new Date(date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" }) : date
+  return "✅ *Booking Rescheduled!*\n\n📋 Service: " + service + "\n📅 New Date: " + (formatted || date) + (time ? "\n⏰ New Time: " + time : "") + "\n\nAll updated! See you at *" + businessName + "* 😊"
+}
 
-                    <div className="toggle-row">
-                      <div>
-                        <div style={{ fontWeight:600, fontSize:13, color:text }}>Auto Booking</div>
-                        <div style={{ fontSize:11.5, color:textMuted }}>AI books appointments automatically from chat</div>
-                      </div>
-                      <button className="tog" style={{ background:ai.autoBooking ? accent : "rgba(255,255,255,0.12)" }} onClick={() => setAI(p => ({ ...p, autoBooking:!p.autoBooking }))}>
-                        <span style={{ position:"absolute", top:3, width:16, height:16, borderRadius:"50%", background:"#fff", left:ai.autoBooking?"19px":"3px", transition:"left 0.2s", display:"block" }} />
-                      </button>
-                    </div>
+// ════════════════════════════════════════════════════════════════════
+// RULE-BASED FALLBACK ENGINE
+// ════════════════════════════════════════════════════════════════════
 
-                    <div className="toggle-row">
-                      <div>
-                        <div style={{ fontWeight:600, fontSize:13, color:text }}>Follow-up Messages</div>
-                        <div style={{ fontSize:11.5, color:textMuted }}>AI sends follow-ups to inactive leads automatically</div>
-                      </div>
-                      <button className="tog" style={{ background:ai.followUpEnabled ? accent : "rgba(255,255,255,0.12)" }} onClick={() => setAI(p => ({ ...p, followUpEnabled:!p.followUpEnabled }))}>
-                        <span style={{ position:"absolute", top:3, width:16, height:16, borderRadius:"50%", background:"#fff", left:ai.followUpEnabled?"19px":"3px", transition:"left 0.2s", display:"block" }} />
-                      </button>
-                    </div>
+function smartFallback({ msg, intent, businessName, servicesText, firstName, location, mapsLink, bookingState: bs }) {
+  const m = msg.toLowerCase().trim()
+  if (intent.type === "reschedule") {
+    if (!bs.date && !bs.time) return "Sure " + firstName + "! 📅 What new date and time works for you?"
+    if (bs.date  && !bs.time) return "Got the date! ⏰ What time would you prefer?"
+    if (!bs.date &&  bs.time) return "Got the time! 📅 What date works for you?"
+    return "Reschedule to " + bs.date + " at " + bs.time + ". Shall I confirm? ✅"
+  }
+  if (intent.type === "cancel") return "I understand you want to cancel 😔\n\nWould you prefer to reschedule instead? We'd love to see you! 🙌"
+  if (intent.type === "greeting") return "Hi " + firstName + "! 👋 Welcome to *" + businessName + "*!\n\nHow can I help you today? 😊"
+  if (intent.type === "pricing") {
+    if (servicesText) return "*Our Services*\n\n" + servicesText + "\n\nWant to book? 😊"
+    return "I'll share our latest prices right away 🙌"
+  }
+  if (intent.type === "location") {
+    if (location && mapsLink) return "📍 " + location + "\n\n🗺️ " + mapsLink + "\n\nSee you soon! 😊"
+    if (location)             return "📍 We're at: " + location
+    return "I'll share our location shortly 📍"
+  }
+  if (intent.type === "booking") {
+    if (!bs.service)                       return "I'd love to help you book! 😊\n\nWhich service are you interested in?"
+    if (bs.service && !bs.date)            return "Sure! 📅 What date works for your " + bs.service + "?"
+    if (bs.service && bs.date && !bs.time) return "Almost there! ⏰ What time works for you?"
+    return "Shall I confirm booking for *" + bs.service + "* on " + bs.date + " at " + bs.time + "? ✅"
+  }
+  if (/thank|thanks|ok|okay|great|perfect|good|noted|done|alright/.test(m)) return "You're welcome! 😊 Looking forward to seeing you at *" + businessName + "*!"
+  if (/speak|human|owner|manager|staff|agent/.test(m)) return "Of course! 🙌 I'll notify our team and someone will reach out shortly."
+  return "Thanks for reaching out to *" + businessName + "*! 😊\n\nHow can I help?\n📅 Book appointment\n💰 Services & prices\n📍 Our location"
+}
 
-                    <div>
-                      <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Greeting Message <span style={{ color:textFaint }}>(first message to new customers)</span></div>
-                      <textarea
-                        placeholder="Hi [Name]! Welcome to our salon 😊 How can I help you today?"
-                        value={ai.greetingMessage}
-                        onChange={e => setAI(p => ({ ...p, greetingMessage:e.target.value }))}
-                        style={{ ...inp, resize:"vertical", minHeight:70 }}
-                      />
-                    </div>
+// ════════════════════════════════════════════════════════════════════
+// WHATSAPP SENDER + MESSAGE SAVER
+// ════════════════════════════════════════════════════════════════════
 
-                    <div>
-                      <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>
-                        Custom AI Instructions <span style={{ color:textFaint }}>(tone, rules, what to say/avoid)</span>
-                      </div>
-                      <textarea
-                        placeholder={`Examples:
-• Always respond warmly and professionally
-• If customer asks to reschedule, collect new date+time and update booking
-• Never mention competitor salons
-• If unsure about pricing, say 'let me check and get back to you'
-• Upsell hair spa with every haircut booking`}
-                        value={ai.customInstructions}
-                        onChange={e => setAI(p => ({ ...p, customInstructions:e.target.value }))}
-                        style={{ ...inp, resize:"vertical", minHeight:130, lineHeight:1.6 }}
-                      />
-                    </div>
+async function sendAndSave({ phoneNumberId, accessToken, toNumber, message, userId, conversationId, customerPhone }) {
+  const sendResult = await sendWhatsAppMessage({ phoneNumberId, accessToken, toNumber, message })
+  await supabaseAdmin.from("messages").insert({
+    user_id:         userId,
+    phone_number_id: phoneNumberId,
+    from_number:     phoneNumberId,
+    message_text:    message,
+    direction:       "outbound",
+    conversation_id: conversationId || null,
+    customer_phone:  customerPhone,
+    message_type:    "text",
+    status:          "sent",
+    is_ai:           true,
+    wa_message_id:   sendResult?.messages?.[0]?.id || null,
+    created_at:      new Date().toISOString()
+  })
+  return sendResult
+}
 
-                    <div style={{ background:"rgba(0,208,132,0.06)", border:`1px solid ${accent}22`, borderRadius:9, padding:"11px 13px", fontSize:12, color:textMuted, lineHeight:1.6 }}>
-                      💡 <strong style={{ color:text }}>What your AI knows:</strong> Business name, type, location, working hours, all services + prices, custom instructions. The more you fill in, the smarter your AI gets.<br/><br/>
-                      🔒 <strong style={{ color:text }}>Slot control:</strong> Set <em>Capacity</em> per service in the Services tab — e.g. a salon with 3 chairs can take 3 haircut bookings at the same time.
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            ) : tab === "whatsapp" ? (
-              <div style={{ maxWidth:560, display:"flex", flexDirection:"column", gap:16 }}>
-                {whatsapp ? (
-                  <div style={{ background:card, border:`1px solid ${accent}44`, borderRadius:13, padding:22 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
-                      <div style={{ width:44, height:44, borderRadius:11, background:"#25d366", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>💬</div>
-                      <div>
-                        <div style={{ fontWeight:800, fontSize:15, color:text }}>WhatsApp Connected ✓</div>
-                        <div style={{ fontSize:12, color:textMuted }}>Your AI is live and responding to customers</div>
-                      </div>
-                    </div>
-                    {[["Phone Number ID", whatsapp.phone_number_id],["WABA ID", whatsapp.waba_id||"—"],["Status","🟢 Active"]].map(([l,v]) => (
-                      <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"9px 0", borderBottom:`1px solid ${border}` }}>
-                        <span style={{ fontSize:12, color:textMuted }}>{l}</span>
-                        <span style={{ fontSize:12, fontWeight:600, color:text, fontFamily:"monospace" }}>{v}</span>
-                      </div>
-                    ))}
-                    <button onClick={disconnectWhatsApp} style={{ marginTop:16, width:"100%", padding:"9px", background:"rgba(251,113,133,0.1)", border:"1px solid rgba(251,113,133,0.25)", borderRadius:8, color:"#fb7185", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-                      Disconnect WhatsApp
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ background:card, border:`1px solid ${cardBorder}`, borderRadius:13, padding:28, textAlign:"center" }}>
-                    <div style={{ fontSize:36, marginBottom:12 }}>💬</div>
-                    <div style={{ fontWeight:800, fontSize:16, color:text, marginBottom:6 }}>Connect Your WhatsApp</div>
-                    <div style={{ fontSize:13, color:textMuted, marginBottom:20, lineHeight:1.6 }}>Link your business WhatsApp to activate AI replies, lead capture, and auto-booking.</div>
-                    <button
-                      onClick={() => {
-                        const appId = "780799931531576", configId = "1090960043190718"
-                        const redirectUri = "https://fastrill.com/api/meta/callback"
-                        window.location.href = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}`
-                      }}
-                      style={{ background:"#1877f2", color:"#fff", border:"none", padding:"11px 24px", borderRadius:9, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-                      Connect WhatsApp via Meta →
-                    </button>
-                  </div>
-                )}
-
-                <div style={{ background:card, border:`1px solid ${cardBorder}`, borderRadius:13, padding:20 }}>
-                  <div style={{ fontWeight:700, fontSize:13.5, color:text, marginBottom:12 }}>Webhook Configuration</div>
-                  {[
-                    ["Webhook URL","https://fastrill.com/api/meta/webhook"],
-                    ["Verify Token","fastrill_webhook_2026"],
-                    ["Events","messages, message_status"]
-                  ].map(([l,v]) => (
-                    <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${border}` }}>
-                      <span style={{ fontSize:12, color:textMuted }}>{l}</span>
-                      <span style={{ fontSize:11.5, fontWeight:600, color:text, fontFamily:"monospace", wordBreak:"break-all", textAlign:"right", maxWidth:"60%" }}>{v}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </>
-  )
+async function sendWhatsAppMessage({ phoneNumberId, accessToken, toNumber, message }) {
+  try {
+    const res = await fetch("https://graph.facebook.com/v18.0/" + phoneNumberId + "/messages", {
+      method:  "POST",
+      headers: { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json" },
+      body:    JSON.stringify({ messaging_product: "whatsapp", to: toNumber, type: "text", text: { body: message, preview_url: false } })
+    })
+    const data = await res.json()
+    if (data.error) console.error("❌ WA send error:", JSON.stringify(data.error))
+    return data
+  } catch (err) {
+    console.error("❌ WA send exception:", err.message)
+    return {}
+  }
 }
