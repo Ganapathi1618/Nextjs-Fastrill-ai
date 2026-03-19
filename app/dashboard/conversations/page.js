@@ -16,28 +16,12 @@ const NAV = [
 
 const TIMES = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30"]
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TIMEZONE FIX — only these 3 functions changed, everything else is identical
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//
-// ROOT CAUSE:
-//   messages.created_at is stored WITHOUT timezone suffix  → "2026-03-18 16:08:06"
-//   conversations.last_message_at is stored WITH +00 suffix → "2026-03-18 16:08:06+00"
-//
-//   When JS sees "2026-03-18 16:08:06" (no Z, no +00) it treats it as LOCAL time
-//   on some browsers → adds IST offset again → shows 04:08 pm instead of 09:38 pm
-//
-// FIX:
-//   normalizeTs() appends Z if no timezone marker found → forces UTC interpretation
-//   Both formatMsgTime and formatConvoTime use hardcoded "Asia/Kolkata"
-//   so all timestamps — whether from messages or conversations — show correct IST
-
 function normalizeTs(ts) {
   if (!ts) return null
   const s = String(ts).trim()
-  if (s.includes("+") || s.toLowerCase().endsWith("z")) return s  // already has TZ
-  if (s.includes("T")) return s + "Z"                              // ISO without Z
-  return s.replace(" ", "T") + "Z"                                 // Postgres space format
+  if (s.includes("+") || s.toLowerCase().endsWith("z")) return s
+  if (s.includes("T")) return s + "Z"
+  return s.replace(" ", "T") + "Z"
 }
 
 function formatMsgTime(ts) {
@@ -46,14 +30,9 @@ function formatMsgTime(ts) {
     const normalized = normalizeTs(ts)
     if (!normalized) return ""
     return new Date(normalized).toLocaleTimeString("en-IN", {
-      hour:     "2-digit",
-      minute:   "2-digit",
-      hour12:   true,
-      timeZone: "Asia/Kolkata",   // hardcoded IST — all users are in India
+      hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata",
     })
-  } catch {
-    return ""
-  }
+  } catch { return "" }
 }
 
 function formatConvoTime(ts) {
@@ -64,18 +43,13 @@ function formatConvoTime(ts) {
     const d    = new Date(normalized)
     const now  = new Date()
     const diff = now - d
-    if (diff < 60_000)           return "just now"
-    if (diff < 3_600_000)        return `${Math.floor(diff / 60_000)}m ago`
-    if (diff < 86_400_000)       return d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true,  timeZone:"Asia/Kolkata" })
-    if (diff < 7 * 86_400_000)   return d.toLocaleDateString("en-IN", { weekday:"short",                               timeZone:"Asia/Kolkata" })
-    return                               d.toLocaleDateString("en-IN", { day:"numeric", month:"short",                  timeZone:"Asia/Kolkata" })
-  } catch {
-    return ""
-  }
+    if (diff < 60_000)         return "just now"
+    if (diff < 3_600_000)      return `${Math.floor(diff / 60_000)}m ago`
+    if (diff < 86_400_000)     return d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true,  timeZone:"Asia/Kolkata" })
+    if (diff < 7*86_400_000)   return d.toLocaleDateString("en-IN", { weekday:"short",                               timeZone:"Asia/Kolkata" })
+    return                            d.toLocaleDateString("en-IN", { day:"numeric", month:"short",                   timeZone:"Asia/Kolkata" })
+  } catch { return "" }
 }
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// END TIMEZONE FIX — rest of file is 100% unchanged from original
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function Conversations() {
   const router = useRouter()
@@ -83,7 +57,7 @@ export default function Conversations() {
   const [userId, setUserId]         = useState(null)
   const [dark, setDark]             = useState(true)
   const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
-  const [mobChatOpen, setMobChatOpen] = useState(false)
+  const [mobChatOpen, setMobChatOpen]       = useState(false)
   const [convos, setConvos]         = useState([])
   const [selected, setSelected]     = useState(null)
   const [messages, setMessages]     = useState([])
@@ -94,14 +68,13 @@ export default function Conversations() {
   const [sending, setSending]       = useState(false)
   const [waConn, setWaConn]         = useState(null)
 
-  // Booking modal
   const [showBooking, setShowBooking]     = useState(false)
   const [services, setServices]           = useState([])
   const [bookingForm, setBookingForm]     = useState({ service:"", date:"", time:"", amount:"", staff:"", notes:"" })
   const [savingBooking, setSavingBooking] = useState(false)
 
-  const msgsEndRef        = useRef(null)
-  const selectedRef       = useRef(null)
+  const msgsEndRef  = useRef(null)
+  const selectedRef = useRef(null)
 
   useEffect(() => { selectedRef.current = selected }, [selected])
 
@@ -121,23 +94,16 @@ export default function Conversations() {
     loadServices()
 
     const convoCh = supabase.channel("convos-" + userId)
-      .on("postgres_changes", {
-        event:  "*",
-        schema: "public",
-        table:  "conversations",
-        filter: `user_id=eq.${userId}`
-      }, (payload) => {
-        console.log("🔴 Convo realtime:", payload.eventType)
-        if (payload.eventType === "UPDATE" && payload.new) {
-          setConvos(prev => {
-            const updated = prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c)
-            return [...updated].sort((a,b) => new Date(b.last_message_at||0) - new Date(a.last_message_at||0))
-          })
-        } else {
-          loadConvos()
-        }
-      })
-      .subscribe(s => console.log("📡 Convos channel:", s))
+      .on("postgres_changes", { event:"*", schema:"public", table:"conversations", filter:`user_id=eq.${userId}` },
+        (payload) => {
+          if (payload.eventType === "UPDATE" && payload.new) {
+            setConvos(prev => {
+              const updated = prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c)
+              return [...updated].sort((a,b) => new Date(b.last_message_at||0) - new Date(a.last_message_at||0))
+            })
+          } else { loadConvos() }
+        })
+      .subscribe()
     return () => supabase.removeChannel(convoCh)
   }, [userId])
 
@@ -147,31 +113,22 @@ export default function Conversations() {
     supabase.from("conversations").update({ unread_count: 0 }).eq("id", selected.id)
 
     const msgCh = supabase.channel("msgs-" + selected.id)
-      .on("postgres_changes", {
-        event:  "INSERT",
-        schema: "public",
-        table:  "messages",
-        filter: `conversation_id=eq.${selected.id}`
-      }, (payload) => {
-        console.log("💬 Realtime msg:", payload.new?.direction, payload.new?.message_text?.substring(0,40))
-        if (selectedRef.current?.id !== selected.id) return
-        setMessages(prev => {
-          if (prev.find(m => m.id === payload.new.id)) return prev
-          return [...prev, payload.new]
+      .on("postgres_changes", { event:"INSERT", schema:"public", table:"messages", filter:`conversation_id=eq.${selected.id}` },
+        (payload) => {
+          if (selectedRef.current?.id !== selected.id) return
+          setMessages(prev => {
+            if (prev.find(m => m.id === payload.new.id)) return prev
+            return [...prev, payload.new]
+          })
+          setConvos(prev => prev.map(c =>
+            c.id === selected.id ? { ...c, last_message: payload.new.message_text, unread_count: 0 } : c
+          ))
         })
-        setConvos(prev => prev.map(c =>
-          c.id === selected.id
-            ? { ...c, last_message: payload.new.message_text, unread_count: 0 }
-            : c
-        ))
-      })
-      .subscribe(s => console.log("📡 Messages channel:", s))
+      .subscribe()
     return () => supabase.removeChannel(msgCh)
   }, [selected?.id])
 
-  useEffect(() => {
-    msgsEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  useEffect(() => { msgsEndRef.current?.scrollIntoView({ behavior: "smooth" }) }, [messages])
 
   async function loadWaConn() {
     const { data } = await supabase.from("whatsapp_connections").select("*").eq("user_id", userId).maybeSingle()
@@ -186,80 +143,44 @@ export default function Conversations() {
   async function loadConvos() {
     setLoading(true)
     const { data, error } = await supabase
-      .from("conversations")
-      .select("*, customers(name, phone)")
-      .eq("user_id", userId)
-      .order("last_message_at", { ascending: false })
-
+      .from("conversations").select("*, customers(name, phone)")
+      .eq("user_id", userId).order("last_message_at", { ascending: false })
     if (error) console.error("loadConvos error:", error.message)
-
     const enriched = (data || []).map(c => ({
       ...c,
       _displayName:  c.customers?.name  || c.phone || "Unknown",
       _displayPhone: c.customers?.phone || c.phone || ""
     }))
-
     setConvos(enriched)
-    if (enriched.length && !selectedRef.current) {
-      setSelected(enriched[0])
-    }
+    if (enriched.length && !selectedRef.current) setSelected(enriched[0])
     setLoading(false)
   }
 
   async function loadMessages(convoId, customerPhone) {
-    console.log("📨 loadMessages:", convoId)
-
     const { data: byConvoId, error } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", convoId)
+      .from("messages").select("*").eq("conversation_id", convoId)
       .order("created_at", { ascending: true })
-
-    if (error) {
-      console.error("❌ messages query error:", error.message)
-      setMessages([])
+    if (error) { console.error("messages error:", error.message); setMessages([]); return }
+    if (byConvoId?.length > 0) {
+      if (selectedRef.current?.id === convoId) setMessages(byConvoId)
       return
     }
-
-    if (byConvoId && byConvoId.length > 0) {
-      if (selectedRef.current?.id === convoId) {
-        setMessages(byConvoId)
-      }
-      return
-    }
-
     if (customerPhone) {
       const digits   = customerPhone.replace(/[^0-9]/g, "")
-      const variants = [...new Set([
-        customerPhone, digits, "+" + digits,
-        digits.slice(-10), "91" + digits.slice(-10)
-      ])]
-
+      const variants = [...new Set([customerPhone, digits, "+"+digits, digits.slice(-10), "91"+digits.slice(-10)])]
       let byPhone = []
       for (const variant of variants) {
-        const { data } = await supabase
-          .from("messages")
-          .select("*")
-          .eq("customer_phone", variant)
-          .eq("user_id", userId)
-          .order("created_at", { ascending: true })
+        const { data } = await supabase.from("messages").select("*")
+          .eq("customer_phone", variant).eq("user_id", userId).order("created_at", { ascending: true })
         if (data?.length) { byPhone = data; break }
       }
-
       if (byPhone.length) {
-        const ids = byPhone.map(m => m.id)
-        supabase.from("messages").update({ conversation_id: convoId }).in("id", ids)
-        if (selectedRef.current?.id === convoId) {
-          setMessages(byPhone)
-        }
+        supabase.from("messages").update({ conversation_id: convoId }).in("id", byPhone.map(m => m.id))
+        if (selectedRef.current?.id === convoId) setMessages(byPhone)
         return
       }
     }
-
-    console.warn("⚠️ No messages found for convoId:", convoId)
-    if (selectedRef.current?.id === convoId) {
-      setMessages([])
-    }
+    if (selectedRef.current?.id === convoId) setMessages([])
   }
 
   async function toggleAI(convoId, current) {
@@ -269,62 +190,52 @@ export default function Conversations() {
     if (selected?.id === convoId) setSelected(prev => ({ ...prev, ai_enabled: newVal }))
   }
 
+  // ── UPDATED: sendMsg — token never hits browser ─────────────────
   async function sendMsg() {
     if (!msgInput.trim() || !selected || sending) return
     if (!waConn) { alert("WhatsApp not connected. Go to Settings → WhatsApp to connect."); return }
-
     setSending(true)
     const text  = msgInput.trim()
     setMsgInput("")
     const phone = (selected.phone || selected.customers?.phone || "").replace("+","").replace(/\s/g,"")
-
     try {
-      const res = await fetch(`https://graph.facebook.com/v18.0/${waConn.phone_number_id}/messages`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${waConn.access_token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ messaging_product:"whatsapp", to:phone, type:"text", text:{ body:text, preview_url:false } })
+      const res = await fetch("/api/whatsapp/send", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          to:             phone,
+          message:        text,
+          conversationId: selected.id,
+          customerPhone:  selected.phone,
+          userId:         userId
+        })
       })
-      const waData = await res.json()
-      if (waData.error) { alert("WhatsApp error: " + waData.error.message); setSending(false); return }
-
-      const now = new Date().toISOString()
-      const { data: savedMsg } = await supabase.from("messages").insert({
-        conversation_id: selected.id,
-        customer_phone:  selected.phone,
-        direction:       "outbound",
-        message_type:    "text",
-        message_text:    text,
-        status:          "sent",
-        is_ai:           false,
-        user_id:         userId,
-        wa_message_id:   waData?.messages?.[0]?.id || null,
-        created_at:      now
-      }).select().single()
-
-      if (savedMsg) {
-        setMessages(prev => prev.find(m => m.id === savedMsg.id) ? prev : [...prev, savedMsg])
+      const result = await res.json()
+      if (!res.ok || result.error) {
+        alert("Failed to send: " + (result.error || "Unknown error"))
+        setSending(false)
+        return
       }
-
-      await supabase.from("conversations")
-        .update({ last_message: text, last_message_at: now })
-        .eq("id", selected.id)
+      // Fetch the saved message to add to UI
+      if (result.messageId) {
+        const { data: savedMsg } = await supabase.from("messages")
+          .select("*").eq("wa_message_id", result.messageId).maybeSingle()
+        if (savedMsg) setMessages(prev => prev.find(m => m.id === savedMsg.id) ? prev : [...prev, savedMsg])
+      }
+      const now = new Date().toISOString()
+      await supabase.from("conversations").update({ last_message: text, last_message_at: now }).eq("id", selected.id)
       setConvos(prev => prev.map(c => c.id === selected.id ? { ...c, last_message: text } : c))
-
-    } catch (e) {
-      console.error(e)
-      alert("Failed to send: " + e.message)
-    }
+    } catch(e) { console.error(e); alert("Failed to send: " + e.message) }
     setSending(false)
   }
 
+  // ── UPDATED: saveBooking — token never hits browser ─────────────
   async function saveBooking() {
     if (!bookingForm.service || !bookingForm.date) return alert("Service and date are required")
     setSavingBooking(true)
-
     const customerName  = selected?._displayName || selected?.customers?.name || selected?.phone || "Customer"
     const customerPhone = selected?.phone || selected?.customers?.phone || ""
     const phoneForWA    = customerPhone.replace(/[^0-9]/g, "")
-
     try {
       const { data: booking, error: bookErr } = await supabase.from("bookings").insert({
         user_id:        userId,
@@ -333,7 +244,7 @@ export default function Conversations() {
         customer_id:    selected?.customer_id || selected?.customers?.id || null,
         service:        bookingForm.service,
         booking_date:   bookingForm.date,
-        booking_time:   bookingForm.time || null,
+        booking_time:   bookingForm.time   || null,
         amount:         parseInt(bookingForm.amount) || 0,
         staff:          bookingForm.staff  || null,
         notes:          bookingForm.notes  || null,
@@ -342,67 +253,59 @@ export default function Conversations() {
         created_at:     new Date().toISOString()
       }).select().single()
 
-      if (bookErr) {
-        alert("Could not save booking: " + bookErr.message)
-        setSavingBooking(false)
-        return
-      }
+      if (bookErr) { alert("Could not save booking: " + bookErr.message); setSavingBooking(false); return }
 
       const confirmMsg = [
-        "✅ *Booking Confirmed!*",
-        "",
+        "✅ *Booking Confirmed!*", "",
         `📋 Service: ${bookingForm.service}`,
-        `📅 Date: ${new Date(bookingForm.date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" })}`,
-        bookingForm.time   ? `⏰ Time: ${bookingForm.time}`        : "",
-        bookingForm.staff  ? `👤 Staff: ${bookingForm.staff}`      : "",
-        bookingForm.amount ? `💰 Amount: ₹${bookingForm.amount}`   : "",
-        "",
-        "See you soon! 😊"
+        `📅 Date: ${new Date(bookingForm.date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"})}`,
+        bookingForm.time   ? `⏰ Time: ${bookingForm.time}`      : "",
+        bookingForm.staff  ? `👤 Staff: ${bookingForm.staff}`    : "",
+        bookingForm.amount ? `💰 Amount: ₹${bookingForm.amount}` : "",
+        "", "See you soon! 😊"
       ].filter(l => l !== undefined).join("\n").replace(/\n{3,}/g, "\n\n")
 
+      // Send via secure server route
       let whatsappSent = false
-      if (waConn && phoneForWA.length >= 10) {
+      if (phoneForWA.length >= 10) {
         try {
-          const waRes = await fetch(`https://graph.facebook.com/v18.0/${waConn.phone_number_id}/messages`, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${waConn.access_token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ messaging_product:"whatsapp", to:phoneForWA, type:"text", text:{ body:confirmMsg, preview_url:false } })
+          const waRes = await fetch("/api/whatsapp/send", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({
+              to:             phoneForWA,
+              message:        confirmMsg,
+              conversationId: selected.id,
+              customerPhone:  customerPhone,
+              userId:         userId
+            })
           })
-          const waData = await waRes.json()
-          if (!waData.error) whatsappSent = true
-          else console.error("WA booking confirm error:", waData.error.message)
-        } catch (e) { console.error("WA send failed:", e.message) }
+          const waResult = await waRes.json()
+          if (waRes.ok && !waResult.error) whatsappSent = true
+          else console.error("WA booking confirm error:", waResult.error)
+        } catch(e) { console.error("WA send failed:", e.message) }
+      }
+
+      // If WA failed, save message locally so it shows in chat
+      if (!whatsappSent) {
+        const now = new Date().toISOString()
+        const { data: savedMsg } = await supabase.from("messages").insert({
+          conversation_id: selected.id, customer_phone: customerPhone,
+          direction: "outbound", message_type: "text", message_text: confirmMsg,
+          status: "saved", is_ai: false, user_id: userId, created_at: now
+        }).select().single()
+        if (savedMsg) setMessages(prev => prev.find(m => m.id === savedMsg.id) ? prev : [...prev, savedMsg])
       }
 
       const now = new Date().toISOString()
-      const { data: savedMsg } = await supabase.from("messages").insert({
-        conversation_id: selected.id,
-        customer_phone:  customerPhone,
-        direction:       "outbound",
-        message_type:    "text",
-        message_text:    confirmMsg,
-        status:          whatsappSent ? "sent" : "saved",
-        is_ai:           false,
-        user_id:         userId,
-        created_at:      now
-      }).select().single()
-
-      if (savedMsg) {
-        setMessages(prev => prev.find(m => m.id === savedMsg.id) ? prev : [...prev, savedMsg])
-      }
-      await supabase.from("conversations")
-        .update({ last_message: confirmMsg, last_message_at: now })
-        .eq("id", selected.id)
-
+      await supabase.from("conversations").update({ last_message: confirmMsg, last_message_at: now }).eq("id", selected.id)
       setShowBooking(false)
       setBookingForm({ service:"", date:"", time:"", amount:"", staff:"", notes:"" })
       setSavingBooking(false)
-
       alert(whatsappSent
         ? `✅ Booking saved! Confirmation sent to ${customerName} on WhatsApp.`
         : `✅ Booking saved! (WhatsApp send failed — check connection)`)
-
-    } catch (e) {
+    } catch(e) {
       console.error("saveBooking error:", e)
       alert("Something went wrong: " + e.message)
       setSavingBooking(false)
@@ -412,25 +315,25 @@ export default function Conversations() {
   const toggleTheme  = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
   const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login") }
 
-  const bg             = dark ? "#08080e"                    : "#f0f2f5"
-  const sidebar        = dark ? "#0c0c15"                    : "#ffffff"
-  const card           = dark ? "#0f0f1a"                    : "#ffffff"
-  const border         = dark ? "rgba(255,255,255,0.07)"     : "rgba(0,0,0,0.08)"
-  const cardBorder     = dark ? "rgba(255,255,255,0.08)"     : "rgba(0,0,0,0.09)"
-  const text           = dark ? "#eeeef5"                    : "#111827"
-  const textMuted      = dark ? "rgba(255,255,255,0.45)"     : "rgba(0,0,0,0.5)"
-  const textFaint      = dark ? "rgba(255,255,255,0.2)"      : "rgba(0,0,0,0.25)"
-  const inputBg        = dark ? "rgba(255,255,255,0.04)"     : "rgba(0,0,0,0.03)"
-  const accent         = dark ? "#00d084"                    : "#00935a"
-  const navText        = dark ? "rgba(255,255,255,0.45)"     : "rgba(0,0,0,0.5)"
-  const navActive      = dark ? "rgba(0,196,125,0.1)"        : "rgba(0,180,115,0.08)"
-  const navActiveBorder= dark ? "rgba(0,196,125,0.2)"        : "rgba(0,180,115,0.2)"
-  const navActiveText  = dark ? "#00c47d"                    : "#00935a"
-  const accentDim      = dark ? "rgba(0,208,132,0.12)"       : "rgba(0,147,90,0.1)"
-  const userInitial    = userEmail ? userEmail[0].toUpperCase() : "G"
+  const bg              = dark ? "#08080e"                   : "#f0f2f5"
+  const sidebar         = dark ? "#0c0c15"                   : "#ffffff"
+  const card            = dark ? "#0f0f1a"                   : "#ffffff"
+  const border          = dark ? "rgba(255,255,255,0.07)"    : "rgba(0,0,0,0.08)"
+  const cardBorder      = dark ? "rgba(255,255,255,0.08)"    : "rgba(0,0,0,0.09)"
+  const text            = dark ? "#eeeef5"                   : "#111827"
+  const textMuted       = dark ? "rgba(255,255,255,0.45)"    : "rgba(0,0,0,0.5)"
+  const textFaint       = dark ? "rgba(255,255,255,0.2)"     : "rgba(0,0,0,0.25)"
+  const inputBg         = dark ? "rgba(255,255,255,0.04)"    : "rgba(0,0,0,0.03)"
+  const accent          = dark ? "#00d084"                   : "#00935a"
+  const navText         = dark ? "rgba(255,255,255,0.45)"    : "rgba(0,0,0,0.5)"
+  const navActive       = dark ? "rgba(0,196,125,0.1)"       : "rgba(0,180,115,0.08)"
+  const navActiveBorder = dark ? "rgba(0,196,125,0.2)"       : "rgba(0,180,115,0.2)"
+  const navActiveText   = dark ? "#00c47d"                   : "#00935a"
+  const accentDim       = dark ? "rgba(0,208,132,0.12)"      : "rgba(0,147,90,0.1)"
+  const userInitial     = userEmail ? userEmail[0].toUpperCase() : "G"
 
-  const getInitial = n  => (n || "?")[0].toUpperCase()
-  const getColor   = n  => {
+  const getInitial = n => (n || "?")[0].toUpperCase()
+  const getColor   = n => {
     const c = ["#00d084","#38bdf8","#a78bfa","#f59e0b","#fb7185"]
     return c[(n || "").charCodeAt(0) % c.length]
   }
@@ -447,8 +350,8 @@ export default function Conversations() {
     const matchSearch = name.toLowerCase().includes(search.toLowerCase()) ||
                         (c.last_message||"").toLowerCase().includes(search.toLowerCase())
     const matchFilter = filter==="all" ||
-                        (filter==="ai"       && c.ai_enabled)  ||
-                        (filter==="human"    && !c.ai_enabled) ||
+                        (filter==="ai"    && c.ai_enabled)  ||
+                        (filter==="human" && !c.ai_enabled) ||
                         filter === c.status
     return matchSearch && matchFilter
   })
@@ -521,26 +424,19 @@ export default function Conversations() {
         .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;color:${textFaint};}
         select{color-scheme:dark;}
         select option{background-color:#0c0c15!important;color:#eeeef5!important;}
-
-        /* ══ MOBILE RESPONSIVE ══════════════════════════════════ */
         @media(max-width:767px){
           .wrap{position:relative;}
-          .sidebar{
-            position:fixed;top:0;left:0;height:100vh;z-index:300;
-            transform:translateX(-100%);transition:transform 0.25s ease;
-            width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);
-          }
+          .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s ease;width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
           .sidebar.mob-open{transform:translateX(0);}
           .mob-overlay{display:block!important;}
           .main{width:100%;}
           .topbar{padding:0 12px!important;}
-          .content{padding:12px!important;}
           .hamburger{display:flex!important;}
           .tb-title{font-size:14px!important;}
           .mob-hide-list{display:none!important;}
           .mob-hide-chat{display:none!important;}
           .clist{width:100%!important;border-right:none!important;}
-          .chat-area{position:fixed!important;inset:0!important;z-index:150!important;background:var(--bg)!important;}
+          .chat-area{position:fixed!important;inset:0!important;z-index:150!important;}
           .mob-back-btn{display:flex!important;}
           .theme-toggle .tog-label{display:none;}
         }
@@ -557,16 +453,8 @@ export default function Conversations() {
           [style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr!important;}
           [style*="repeat(7,1fr)"]{grid-template-columns:repeat(4,1fr)!important;}
         }
-        .bottom-nav{
-          display:none;position:fixed;bottom:0;left:0;right:0;
-          background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);
-          padding:6px 0;z-index:200;
-        }
-        @media(max-width:767px){
-          .bottom-nav{display:flex;justify-content:space-around;}
-          .main{padding-bottom:60px;}
-          .wrap{padding-bottom:0;}
-        }
+        .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);padding:6px 0;z-index:200;}
+        @media(max-width:767px){.bottom-nav{display:flex;justify-content:space-around;}.main{padding-bottom:60px;}}
         .bnav-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
         .bnav-icon{font-size:17px;color:rgba(255,255,255,0.3);}
         .bnav-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
@@ -594,7 +482,7 @@ export default function Conversations() {
         <div className="main">
           <div className="topbar">
             <button className="hamburger" onClick={()=>setMobSidebarOpen(s=>!s)}>☰</button>
-              <span className="tb-title">Conversations</span>
+            <span className="tb-title">Conversations</span>
             <div className="topbar-r">
               <button className="theme-toggle" onClick={toggleTheme}>
                 <span>{dark?"🌙":"☀️"}</span><div className="toggle-pill"/><span className="tog-label">{dark?"Dark":"Light"}</span>
@@ -603,16 +491,15 @@ export default function Conversations() {
           </div>
 
           <div className="inbox-wrap">
-            {/* Conversation list */}
             <div className={`clist${mobChatOpen?" mob-hide-list":""}`}>
               <div className="clist-top">
                 <div className="search-box">
-                  <span style={{ color:textFaint, fontSize:13 }}>🔍</span>
-                  <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+                  <span style={{color:textFaint,fontSize:13}}>🔍</span>
+                  <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)}/>
                 </div>
                 <div className="filters">
-                  {["all","ai","human","open","resolved"].map(f => (
-                    <button key={f} className={`filter-btn${filter===f?" active":""}`} onClick={() => setFilter(f)}>
+                  {["all","ai","human","open","resolved"].map(f=>(
+                    <button key={f} className={`filter-btn${filter===f?" active":""}`} onClick={()=>setFilter(f)}>
                       {f.charAt(0).toUpperCase()+f.slice(1)}
                     </button>
                   ))}
@@ -620,33 +507,33 @@ export default function Conversations() {
               </div>
               <div className="clist-items">
                 {loading
-                  ? <div className="empty-state" style={{ height:200 }}><span style={{ fontSize:12 }}>Loading...</span></div>
+                  ? <div className="empty-state" style={{height:200}}><span style={{fontSize:12}}>Loading...</span></div>
                   : filtered.length===0
-                    ? <div className="empty-state" style={{ height:200 }}><span style={{ fontSize:26 }}>💬</span><span style={{ fontSize:12 }}>No conversations yet</span></div>
-                    : filtered.map(c => {
+                    ? <div className="empty-state" style={{height:200}}><span style={{fontSize:26}}>💬</span><span style={{fontSize:12}}>No conversations yet</span></div>
+                    : filtered.map(c=>{
                         const name  = c._displayName || c.customers?.name || c.phone
-                        const color = getColor(c._displayName || name)
+                        const color = getColor(c._displayName||name)
                         return (
                           <div key={c.id} className={`c-item${selected?.id===c.id?" sel":""}`}
-                            onClick={() => { setSelected(c); setMessages([]); setMobChatOpen(true) }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:4 }}>
-                              <div style={{ width:34, height:34, borderRadius:9, background:`linear-gradient(135deg,${color}88,${color}44)`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:14, color:"#fff", flexShrink:0 }}>
+                            onClick={()=>{ setSelected(c); setMessages([]); setMobChatOpen(true) }}>
+                            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}>
+                              <div style={{width:34,height:34,borderRadius:9,background:`linear-gradient(135deg,${color}88,${color}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:"#fff",flexShrink:0}}>
                                 {getInitial(name)}
                               </div>
-                              <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ fontWeight:600, fontSize:13, color:text, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                                  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name}</span>
-                                  <span style={{ fontSize:10.5, color:textFaint, flexShrink:0, marginLeft:4 }}>{formatConvoTime(c.last_message_at)}</span>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontWeight:600,fontSize:13,color:text,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                                  <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
+                                  <span style={{fontSize:10.5,color:textFaint,flexShrink:0,marginLeft:4}}>{formatConvoTime(c.last_message_at)}</span>
                                 </div>
-                                <div style={{ fontSize:12, color:textMuted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.last_message||"No messages"}</div>
+                                <div style={{fontSize:12,color:textMuted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.last_message||"No messages"}</div>
                               </div>
                             </div>
-                            <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-                              <span style={{ fontSize:10, fontWeight:700, color:c.ai_enabled?accent:"#a78bfa", background:(c.ai_enabled?accent:"#a78bfa")+"15", padding:"2px 7px", borderRadius:100, border:`1px solid ${(c.ai_enabled?accent:"#a78bfa")}33` }}>
-                                {c.ai_enabled ? "◈ AI Active" : "👤 Human"}
+                            <div style={{display:"flex",alignItems:"center",gap:5}}>
+                              <span style={{fontSize:10,fontWeight:700,color:c.ai_enabled?accent:"#a78bfa",background:(c.ai_enabled?accent:"#a78bfa")+"15",padding:"2px 7px",borderRadius:100,border:`1px solid ${(c.ai_enabled?accent:"#a78bfa")}33`}}>
+                                {c.ai_enabled?"◈ AI Active":"👤 Human"}
                               </span>
-                              {c.unread_count > 0 && (
-                                <span style={{ background:accent, color:"#000", fontSize:9, fontWeight:700, width:16, height:16, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                              {c.unread_count>0&&(
+                                <span style={{background:accent,color:"#000",fontSize:9,fontWeight:700,width:16,height:16,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}}>
                                   {c.unread_count}
                                 </span>
                               )}
@@ -658,60 +545,60 @@ export default function Conversations() {
               </div>
             </div>
 
-            {/* Chat area */}
             {selected ? (
               <div className={`chat-area${!mobChatOpen?" mob-hide-chat":""}`}>
                 <div className="chat-head">
-                  <div style={{ display:"flex", alignItems:"center", gap:11 }}>
+                  <div style={{display:"flex",alignItems:"center",gap:11}}>
                     <button className="mob-back-btn" onClick={()=>setMobChatOpen(false)}>← Back</button>
-                    <div style={{ width:36, height:36, borderRadius:9, background:`linear-gradient(135deg,${getColor(selected._displayName)}88,${getColor(selected._displayName)}44)`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:14, color:"#fff" }}>
+                    <div style={{width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${getColor(selected._displayName)}88,${getColor(selected._displayName)}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:"#fff"}}>
                       {getInitial(selected._displayName)}
                     </div>
                     <div>
-                      <div style={{ fontWeight:700, fontSize:14, color:text }}>{selected._displayName}</div>
-                      <div style={{ fontSize:11, color:textMuted }}>{selected.phone}</div>
+                      <div style={{fontWeight:700,fontSize:14,color:text}}>{selected._displayName}</div>
+                      <div style={{fontSize:11,color:textMuted}}>{selected.phone}</div>
                     </div>
                   </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <button onClick={() => setShowBooking(true)}
-                      style={{ display:"flex", alignItems:"center", gap:5, background:accentDim, border:`1px solid ${accent}44`, borderRadius:8, padding:"6px 12px", fontWeight:700, fontSize:12, color:accent, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <button onClick={()=>setShowBooking(true)}
+                      style={{display:"flex",alignItems:"center",gap:5,background:accentDim,border:`1px solid ${accent}44`,borderRadius:8,padding:"6px 12px",fontWeight:700,fontSize:12,color:accent,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                       📅 Book
                     </button>
-                    <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, fontWeight:600, color:textMuted }}>
+                    <div style={{display:"flex",alignItems:"center",gap:7,fontSize:12,fontWeight:600,color:textMuted}}>
                       <span>AI</span>
                       <button
-                        style={{ width:36, height:20, borderRadius:100, position:"relative", cursor:"pointer", border:"none", background:selected.ai_enabled?accent:"rgba(255,255,255,0.12)", transition:"background 0.2s", flexShrink:0 }}
-                        onClick={() => toggleAI(selected.id, selected.ai_enabled)}>
-                        <span style={{ position:"absolute", top:"2px", width:"16px", height:"16px", borderRadius:"50%", background:"#fff", transition:"left 0.2s", left:selected.ai_enabled?"18px":"2px", display:"block" }} />
+                        style={{width:36,height:20,borderRadius:100,position:"relative",cursor:"pointer",border:"none",background:selected.ai_enabled?accent:"rgba(255,255,255,0.12)",transition:"background 0.2s",flexShrink:0}}
+                        onClick={()=>toggleAI(selected.id,selected.ai_enabled)}>
+                        <span style={{position:"absolute",top:"2px",width:"16px",height:"16px",borderRadius:"50%",background:"#fff",transition:"left 0.2s",left:selected.ai_enabled?"18px":"2px",display:"block"}}/>
                       </button>
-                      <span style={{ color:selected.ai_enabled?accent:textFaint, minWidth:24 }}>{selected.ai_enabled?"ON":"OFF"}</span>
+                      <span style={{color:selected.ai_enabled?accent:textFaint,minWidth:24}}>{selected.ai_enabled?"ON":"OFF"}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="chat-msgs">
-                  {messages.length === 0 ? (
-                    <div className="empty-state"><span style={{ fontSize:22 }}>💬</span><span style={{ fontSize:12 }}>No messages yet</span></div>
-                  ) : messages.map((m, i) => {
-                    const dir        = m.direction || "inbound"
-                    const isAI       = m.is_ai
-                    const bubbleClass= dir==="inbound" ? "inbound" : isAI ? "outbound-ai" : "outbound-human"
-                    const fromLabel  = dir==="inbound" ? (selected._displayName || selected.phone) : isAI ? "◈ AI" : "👤 You"
-                    const fromColor  = dir==="inbound" ? textFaint : isAI ? accent : "#a78bfa"
-                    const msgText    = getMsgText(m)
-                    const displayText= msgText || `📎 ${m.message_type || "Media"}`
-                    if (!msgText && !m.message_type) return null
-                    return (
-                      <div key={m.id || i} className={`msg-row ${dir}`}>
-                        <div style={{ maxWidth:"68%" }}>
-                          <div className="msg-from" style={{ color:fromColor, textAlign:dir==="inbound"?"left":"right" }}>{fromLabel}</div>
-                          <div className={`msg-bubble ${bubbleClass}`}>{displayText}</div>
-                          <div className="msg-time" style={{ textAlign:dir==="inbound"?"left":"right" }}>{formatMsgTime(m.created_at)}</div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  <div ref={msgsEndRef} />
+                  {messages.length===0
+                    ? <div className="empty-state"><span style={{fontSize:22}}>💬</span><span style={{fontSize:12}}>No messages yet</span></div>
+                    : messages.map((m,i)=>{
+                        const dir         = m.direction || "inbound"
+                        const isAI        = m.is_ai
+                        const bubbleClass = dir==="inbound" ? "inbound" : isAI ? "outbound-ai" : "outbound-human"
+                        const fromLabel   = dir==="inbound" ? (selected._displayName||selected.phone) : isAI ? "◈ AI" : "👤 You"
+                        const fromColor   = dir==="inbound" ? textFaint : isAI ? accent : "#a78bfa"
+                        const msgText     = getMsgText(m)
+                        const displayText = msgText || `📎 ${m.message_type||"Media"}`
+                        if (!msgText && !m.message_type) return null
+                        return (
+                          <div key={m.id||i} className={`msg-row ${dir}`}>
+                            <div style={{maxWidth:"68%"}}>
+                              <div className="msg-from" style={{color:fromColor,textAlign:dir==="inbound"?"left":"right"}}>{fromLabel}</div>
+                              <div className={`msg-bubble ${bubbleClass}`}>{displayText}</div>
+                              <div className="msg-time" style={{textAlign:dir==="inbound"?"left":"right"}}>{formatMsgTime(m.created_at)}</div>
+                            </div>
+                          </div>
+                        )
+                      })
+                  }
+                  <div ref={msgsEndRef}/>
                 </div>
 
                 <div className="chat-input">
@@ -720,10 +607,10 @@ export default function Conversations() {
                   ) : (
                     <>
                       <textarea className="msg-field" placeholder="Type a message..." value={msgInput} rows={1}
-                        onChange={e => setMsgInput(e.target.value)}
-                        onKeyDown={e => { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg()} }} />
+                        onChange={e=>setMsgInput(e.target.value)}
+                        onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg()} }}/>
                       <button className="send-btn" onClick={sendMsg} disabled={sending||!msgInput.trim()}>
-                        {sending ? "..." : "Send"}
+                        {sending?"...":"Send"}
                       </button>
                     </>
                   )}
@@ -732,8 +619,8 @@ export default function Conversations() {
             ) : (
               <div className="chat-area">
                 <div className="empty-state">
-                  <span style={{ fontSize:32 }}>💬</span>
-                  <span style={{ fontSize:14, fontWeight:600 }}>Select a conversation</span>
+                  <span style={{fontSize:32}}>💬</span>
+                  <span style={{fontSize:14,fontWeight:600}}>Select a conversation</span>
                 </div>
               </div>
             )}
@@ -743,64 +630,73 @@ export default function Conversations() {
 
       {/* Booking Modal */}
       {showBooking && selected && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:20 }}>
-          <div style={{ background:card, border:`1px solid ${cardBorder}`, borderRadius:16, padding:28, width:"100%", maxWidth:440, display:"flex", flexDirection:"column", gap:14 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <div style={{ fontWeight:800, fontSize:16, color:text }}>📅 Book Appointment</div>
-              <button onClick={() => setShowBooking(false)} style={{ background:"transparent", border:"none", color:textFaint, cursor:"pointer", fontSize:20, lineHeight:1 }}>×</button>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20}}>
+          <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:16,padding:28,width:"100%",maxWidth:440,display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontWeight:800,fontSize:16,color:text}}>📅 Book Appointment</div>
+              <button onClick={()=>setShowBooking(false)} style={{background:"transparent",border:"none",color:textFaint,cursor:"pointer",fontSize:20,lineHeight:1}}>×</button>
             </div>
-            <div style={{ padding:"10px 12px", background:accentDim, border:`1px solid ${accent}33`, borderRadius:9, fontSize:13, color:text }}>
-              For: <strong>{selected._displayName || selected.phone}</strong>
+            <div style={{padding:"10px 12px",background:accentDim,border:`1px solid ${accent}33`,borderRadius:9,fontSize:13,color:text}}>
+              For: <strong>{selected._displayName||selected.phone}</strong>
             </div>
             <div>
-              <div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Service *</div>
-              <select value={bookingForm.service} onChange={e => { const svc=services.find(s=>s.name===e.target.value); setBookingForm(p=>({...p,service:e.target.value,amount:svc?.price?.toString()||p.amount})) }} style={inp}>
+              <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Service *</div>
+              <select value={bookingForm.service} onChange={e=>{const svc=services.find(s=>s.name===e.target.value);setBookingForm(p=>({...p,service:e.target.value,amount:svc?.price?.toString()||p.amount}))}} style={inp}>
                 <option value="">Select service</option>
-                {services.map(s => <option key={s.name} value={s.name}>{s.name} — ₹{s.price}</option>)}
+                {services.map(s=><option key={s.name} value={s.name}>{s.name} — ₹{s.price}</option>)}
                 <option value="Other">Other</option>
               </select>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              <div><div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Date *</div>
-                <input type="date" value={bookingForm.date} onChange={e=>setBookingForm(p=>({...p,date:e.target.value}))} style={inp} min={new Date().toISOString().split("T")[0]} /></div>
-              <div><div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Time</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div>
+                <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Date *</div>
+                <input type="date" value={bookingForm.date} onChange={e=>setBookingForm(p=>({...p,date:e.target.value}))} style={inp} min={new Date().toISOString().split("T")[0]}/>
+              </div>
+              <div>
+                <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Time</div>
                 <select value={bookingForm.time} onChange={e=>setBookingForm(p=>({...p,time:e.target.value}))} style={inp}>
                   <option value="">Any time</option>
-                  {TIMES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select></div>
+                  {TIMES.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-              <div><div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Amount (₹)</div>
-                <input type="number" placeholder="0" value={bookingForm.amount} onChange={e=>setBookingForm(p=>({...p,amount:e.target.value}))} style={inp} /></div>
-              <div><div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Staff</div>
-                <input placeholder="Staff name" value={bookingForm.staff} onChange={e=>setBookingForm(p=>({...p,staff:e.target.value}))} style={inp} /></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div>
+                <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Amount (₹)</div>
+                <input type="number" placeholder="0" value={bookingForm.amount} onChange={e=>setBookingForm(p=>({...p,amount:e.target.value}))} style={inp}/>
+              </div>
+              <div>
+                <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Staff</div>
+                <input placeholder="Staff name" value={bookingForm.staff} onChange={e=>setBookingForm(p=>({...p,staff:e.target.value}))} style={inp}/>
+              </div>
             </div>
-            <div><div style={{ fontSize:11.5, color:textMuted, marginBottom:5 }}>Notes</div>
-              <input placeholder="Any special requests..." value={bookingForm.notes} onChange={e=>setBookingForm(p=>({...p,notes:e.target.value}))} style={inp} /></div>
-            <div style={{ fontSize:11.5, color:textFaint, background:accentDim, border:`1px solid ${accent}22`, borderRadius:8, padding:"9px 11px" }}>
+            <div>
+              <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Notes</div>
+              <input placeholder="Any special requests..." value={bookingForm.notes} onChange={e=>setBookingForm(p=>({...p,notes:e.target.value}))} style={inp}/>
+            </div>
+            <div style={{fontSize:11.5,color:textFaint,background:accentDim,border:`1px solid ${accent}22`,borderRadius:8,padding:"9px 11px"}}>
               ✅ Confirmation message will be sent to customer on WhatsApp
             </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={()=>setShowBooking(false)} style={{ flex:1, padding:"10px", background:inputBg, border:`1px solid ${cardBorder}`, borderRadius:8, color:textMuted, fontWeight:600, fontSize:13, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Cancel</button>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setShowBooking(false)} style={{flex:1,padding:"10px",background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:8,color:textMuted,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Cancel</button>
               <button onClick={saveBooking} disabled={savingBooking||!bookingForm.service||!bookingForm.date}
-                style={{ flex:2, padding:"10px", background:(!bookingForm.service||!bookingForm.date)?inputBg:accent, border:"none", borderRadius:8, color:(!bookingForm.service||!bookingForm.date)?textFaint:"#000", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-                {savingBooking ? "Saving..." : "✅ Confirm Booking & Notify"}
+                style={{flex:2,padding:"10px",background:(!bookingForm.service||!bookingForm.date)?inputBg:accent,border:"none",borderRadius:8,color:(!bookingForm.service||!bookingForm.date)?textFaint:"#000",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                {savingBooking?"Saving...":"✅ Confirm Booking & Notify"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Bottom nav */}
       <nav className="bottom-nav">
         {[
-          { id:"overview",  icon:"⬡", label:"Home",      path:"/dashboard" },
-          { id:"inbox",     icon:"◎", label:"Chats",     path:"/dashboard/conversations" },
-          { id:"bookings",  icon:"◷", label:"Bookings",  path:"/dashboard/bookings" },
-          { id:"leads",     icon:"◉", label:"Leads",     path:"/dashboard/leads" },
-          { id:"contacts",  icon:"◑", label:"Customers", path:"/dashboard/contacts" },
-        ].map(item => (
-          <button key={item.id} className={`bnav-btn${item.id==="inbox"?" active":""}`} onClick={() => router.push(item.path)}>
+          {id:"overview",icon:"⬡",label:"Home",      path:"/dashboard"},
+          {id:"inbox",   icon:"◎",label:"Chats",     path:"/dashboard/conversations"},
+          {id:"bookings",icon:"◷",label:"Bookings",  path:"/dashboard/bookings"},
+          {id:"leads",   icon:"◉",label:"Leads",     path:"/dashboard/leads"},
+          {id:"contacts",icon:"◑",label:"Customers", path:"/dashboard/contacts"},
+        ].map(item=>(
+          <button key={item.id} className={`bnav-btn${item.id==="inbox"?" active":""}`} onClick={()=>router.push(item.path)}>
             <span className="bnav-icon">{item.icon}</span>
             <span className="bnav-label">{item.label}</span>
           </button>
