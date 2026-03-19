@@ -1,19 +1,22 @@
-// ════════════════════════════════════════════════════════════════════
-// FASTRILL WEBHOOK — VERSION 8.0
-// ════════════════════════════════════════════════════════════════════
-// KEY CHANGES over v7.1:
-// ✅ ZERO hardcoded service keywords — 100% DB-driven service detection
-// ✅ AI system prompt fully generic — works for ANY business type
-// ✅ Business settings loaded FIRST, AI called LAST
-// ✅ greetingRx extended with Hindi/Telugu/multilingual patterns
-// ✅ extractBookingDetails now receives servicesList and ONLY uses it
-// ✅ Media messages: use caption text if present before falling back
-// ✅ booking_state persisted on conversations table (persistent across msgs)
-// ✅ All v7.1 fixes retained
-// ════════════════════════════════════════════════════════════════════
-
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+
+// ════════════════════════════════════════════════════════════════════
+// FASTRILL WEBHOOK — VERSION 9.0
+// ════════════════════════════════════════════════════════════════════
+// ✅ 100% generic — works for ANY business niche
+// ✅ Services are flexible: time-based OR package-based
+//    time-based  → has duration + capacity (salon, clinic, spa, gym)
+//    package-based → just name + price (agency, consulting, coaching)
+// ✅ Greeting always includes customer name + business name + services
+// ✅ "what services" correctly hits pricing intent, not booking
+// ✅ Booking state persisted on conversations.booking_state (JSONB)
+// ✅ Zero hardcoded service keywords — 100% DB-driven detection
+// ✅ Generic AI system prompt — adapts to any business type
+// ✅ Multilingual greeting detection (EN/HI/TE/TA/KN/MR/BN/GU/PA)
+// ✅ Media captions processed before fallback
+// ✅ All v8.0 fixes retained
+// ════════════════════════════════════════════════════════════════════
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -33,10 +36,10 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    console.log("🚀 FASTRILL WEBHOOK v8.0")
+    console.log("🚀 FASTRILL WEBHOOK v9.0")
     const body = await req.json()
 
-    // ── Status updates (delivered/read/failed) ───────────────────────
+    // ── Status updates ───────────────────────────────────────────
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
     const hasMsg   = body?.entry?.[0]?.changes?.[0]?.value?.messages
     if (statuses && !hasMsg) {
@@ -69,28 +72,27 @@ export async function POST(req) {
       const contactName    = contact?.profile?.name || "Customer"
       const formattedPhone = fromNumber.replace(/[^0-9]/g, "")
 
-      // ── DUPLICATE GUARD ──────────────────────────────────────────
+      // ── DUPLICATE GUARD ─────────────────────────────────────────
       const { data: dupMsg } = await supabaseAdmin
         .from("messages").select("id").eq("wa_message_id", messageId).maybeSingle()
       if (dupMsg) { console.log("⚠️ Duplicate:", messageId); continue }
 
       // ── EXTRACT TEXT ─────────────────────────────────────────────
-      // For media messages, try to grab caption — don't just discard
-      let messageText = ""
+      let messageText  = ""
       let mediaCaption = ""
-      if      (messageType === "text")        messageText = message.text?.body || ""
-      else if (messageType === "button")      messageText = message.button?.text || ""
+      if      (messageType === "text")        messageText  = message.text?.body || ""
+      else if (messageType === "button")      messageText  = message.button?.text || ""
       else if (messageType === "interactive") {
         messageText = message.interactive?.button_reply?.title
           || message.interactive?.list_reply?.title || ""
-      } else if (messageType === "image")     mediaCaption = message.image?.caption || ""
-      else if (messageType === "video")       mediaCaption = message.video?.caption || ""
-      else if (messageType === "document")    mediaCaption = message.document?.caption || ""
+      }
+      else if (messageType === "image")    mediaCaption = message.image?.caption    || ""
+      else if (messageType === "video")    mediaCaption = message.video?.caption    || ""
+      else if (messageType === "document") mediaCaption = message.document?.caption || ""
 
-      // If there's a caption on media, treat it as text so AI can respond meaningfully
-      const effectiveText  = messageText || mediaCaption
-      const isTextMessage  = ["text","button","interactive"].includes(messageType) || !!mediaCaption
-      const isMediaNoText  = !isTextMessage && ["image","video","audio","document","sticker"].includes(messageType)
+      const effectiveText = messageText || mediaCaption
+      const isTextMessage = ["text","button","interactive"].includes(messageType) || !!mediaCaption
+      const isMediaNoText = !isTextMessage && ["image","video","audio","document","sticker"].includes(messageType)
 
       console.log(`📩 [${phoneNumberId}] From ${fromNumber} (${contactName}): "${effectiveText || "[" + messageType + "]"}"`)
 
@@ -213,20 +215,19 @@ export async function POST(req) {
       // ── Skip AI if disabled ──────────────────────────────────────
       if (conversation?.ai_enabled === false) { console.log("⏸️ AI disabled"); continue }
 
-      // ── Handle media with NO caption ────────────────────────────
-      // At this point if there's no usable text, send a generic reply
+      // ── Handle pure media with no caption ───────────────────────
       if (isMediaNoText) {
         await sendAndSave({
           phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber,
-          message: "Thanks for sharing! 😊 If you'd like to know more or have any questions, just type them here.",
+          message: "Thanks for sharing! 😊 If you have any questions or want to know more, just type here.",
           userId, conversationId: conversation?.id, customerPhone: formattedPhone
         })
         continue
       }
 
       // ══ 6. LOAD BUSINESS INTELLIGENCE ═══════════════════════════
-      // IMPORTANT: Load everything BEFORE any AI or intent logic.
-      // The AI must know what this business sells before it responds.
+      // Load EVERYTHING before any AI logic.
+      // AI only runs after it knows the full business context.
       const [
         { data: bizSettings },
         { data: rawHistory },
@@ -238,12 +239,13 @@ export async function POST(req) {
           .select("message_text, direction, is_ai, created_at")
           .eq("conversation_id", conversation?.id)
           .order("created_at", { ascending: false }).limit(14),
-        supabaseAdmin.from("services").select("name, price, duration, capacity, category, is_active").eq("user_id", userId),
+        supabaseAdmin.from("services")
+          .select("name, price, duration, capacity, category, description, service_type, is_active")
+          .eq("user_id", userId),
         supabaseAdmin.from("business_knowledge").select("*").eq("user_id", userId).maybeSingle()
       ])
 
-      // ── Deep merge: business_settings + business_knowledge ──────
-      // business_knowledge wins on overlap since it's the "AI brain" content
+      // Deep merge — business_knowledge (AI brain) enriches business_settings
       const biz = {
         ...(bizSettings  || {}),
         ...(bizKnowledge || {}),
@@ -256,12 +258,12 @@ export async function POST(req) {
         ].filter(Boolean).join("\n\n") || ""
       }
 
-      // Active services only — what the business currently offers
+      // Active services only
       const activeServices = (servicesList || []).filter(s => s.is_active !== false)
 
-      console.log("🧠 Business:", {
-        name: biz.business_name,
-        type: biz.business_type,
+      console.log("🧠 Business loaded:", {
+        name:     biz.business_name,
+        type:     biz.business_type,
         services: activeServices.length,
         hasAIBrain: !!(biz.ai_instructions)
       })
@@ -273,8 +275,7 @@ export async function POST(req) {
 
       const conversationHistory = buildAlternatingHistory(historyRaw)
 
-      // ── Load persisted booking state from conversation ───────────
-      // This prevents losing context across messages
+      // Load persisted booking state
       let persistedBookingState = null
       try {
         if (conversation?.booking_state) {
@@ -285,11 +286,10 @@ export async function POST(req) {
       } catch(e) { persistedBookingState = null }
 
       // ══ 7. DETECT INTENT ════════════════════════════════════════
-      // Pass activeServices so detection is 100% DB-driven, zero hardcoded keywords
       const intent = detectIntent(conversationHistory, effectiveText, activeServices, persistedBookingState)
-      console.log("🎯 Intent:", intent.type, "| State:", JSON.stringify(intent.bookingState))
+      console.log("🎯 Intent:", intent.type, "| Booking state:", JSON.stringify(intent.bookingState))
 
-      // ── Persist updated booking state ────────────────────────────
+      // Persist booking state if anything was collected
       if (conversation?.id && (intent.bookingState.service || intent.bookingState.date || intent.bookingState.time)) {
         try {
           await supabaseAdmin.from("conversations")
@@ -298,21 +298,18 @@ export async function POST(req) {
         } catch(e) { console.warn("booking_state persist failed:", e.message) }
       }
 
-      // ══ 7b. DETECT EXTERNAL BOOKING REQUESTS ════════════════════
-      // Only triggers if customer explicitly asks for something outside this business
-      const isExternalVenue = /\b(restaurant|resto|hotel|cafe|diner|bar|dhaba|club|resort|lounge|movie|flight|train|bus)\b/i.test(effectiveText)
-      const isBookingVerb   = /\b(book|reserve|table|seat|reservation|ticket)\b/i.test(effectiveText)
-      if (isExternalVenue && isBookingVerb) {
-        const businessName   = biz.business_name || "us"
+      // ══ 7b. EXTERNAL BOOKING GUARD ══════════════════════════════
+      const isExternalVenue  = /\b(restaurant|resto|hotel|cafe|diner|bar|dhaba|club|resort|lounge|movie|flight|train|bus)\b/i.test(effectiveText)
+      const isExternalVerb   = /\b(book|reserve|table|seat|reservation|ticket)\b/i.test(effectiveText)
+      if (isExternalVenue && isExternalVerb) {
         const servicesPreview = activeServices.slice(0, 3).map(s => s.name).join(", ")
-        const rejectMsg = `Hi! I can only help with bookings for ${businessName} 😊${servicesPreview ? `\n\nWe offer: ${servicesPreview}${activeServices.length > 3 ? " and more" : ""}.\n\nWould you like to book with us?` : ""}`
+        const rejectMsg = `Hi! I can only help with bookings for *${biz.business_name || "us"}* 😊${servicesPreview ? `\n\nWe offer: ${servicesPreview}${activeServices.length > 3 ? " and more" : ""}.\n\nWould you like to book with us?` : ""}`
         await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: rejectMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
         continue
       }
 
-      // ══ 8. INSTANT REPLIES (no AI needed) ═══════════════════════
-      // These use business settings data directly — fast, accurate, no AI cost
-      if (intent.type === "pricing" && !intent.bookingState.service) {
+      // ══ 8. INSTANT REPLIES — no AI needed ═══════════════════════
+      if (intent.type === "pricing") {
         const priceReply = buildPricingReply(activeServices, biz)
         await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: priceReply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
         continue
@@ -337,25 +334,28 @@ export async function POST(req) {
           .order("booking_date", { ascending: true }).limit(1).maybeSingle()
 
         if (existingBooking) {
-          const slotFree = await isSlotAvailable({
-            userId, date: intent.bookingState.date, time: intent.bookingState.time,
-            service: existingBooking.service, servicesList: activeServices,
-            excludeBookingId: existingBooking.id
-          })
-          if (!slotFree) {
-            const altSlot = await findNextAvailableSlot({ userId, date: intent.bookingState.date, service: existingBooking.service, servicesList: activeServices })
-            const busyMsg = altSlot
-              ? `That slot is full 😅 Next available: *${altSlot}*\n\nShall I book that instead? ✅`
-              : `That slot is fully booked 😅 Please suggest another time?`
-            await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: busyMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
-            continue
+          const matchedSvc = matchService(existingBooking.service, activeServices)
+          // Only check slots if the service is time-based (has duration/capacity)
+          if (isTimeBased(matchedSvc)) {
+            const slotFree = await isSlotAvailable({
+              userId, date: intent.bookingState.date, time: intent.bookingState.time,
+              service: existingBooking.service, servicesList: activeServices,
+              excludeBookingId: existingBooking.id
+            })
+            if (!slotFree) {
+              const altSlot = await findNextAvailableSlot({ userId, date: intent.bookingState.date, service: existingBooking.service, servicesList: activeServices })
+              const busyMsg = altSlot
+                ? `That slot is full 😅 Next available: *${altSlot}*\n\nShall I book that instead? ✅`
+                : `That slot is fully booked 😅 Please suggest another time?`
+              await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: busyMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+              continue
+            }
           }
           await supabaseAdmin.from("bookings")
             .update({ booking_date: intent.bookingState.date, booking_time: intent.bookingState.time, status: "confirmed" })
             .eq("id", existingBooking.id)
           const rescheduleMsg = buildRescheduleConfirmation(existingBooking.service, intent.bookingState.date, intent.bookingState.time, biz.business_name || "our business")
           await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: rescheduleMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
-          // Clear booking state after reschedule
           try { await supabaseAdmin.from("conversations").update({ booking_state: null }).eq("id", conversation.id) } catch(e) {}
           continue
         }
@@ -365,14 +365,18 @@ export async function POST(req) {
       if (intent.type === "booking" && intent.bookingState.readyToBook) {
         const { date, time, service } = intent.bookingState
         const matchedService = matchService(service, activeServices)
-        const slotFree = await isSlotAvailable({ userId, date, time, service: matchedService?.name || service, servicesList: activeServices })
-        if (!slotFree) {
-          const altSlot = await findNextAvailableSlot({ userId, date, service: matchedService?.name || service, servicesList: activeServices })
-          const busyMsg = altSlot
-            ? `That slot is taken 😅 How about *${altSlot}*? Shall I book that? ✅`
-            : `That time slot is fully booked 😅 Could you suggest another time?`
-          await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: busyMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
-          continue
+
+        // Slot check only applies to time-based services
+        if (isTimeBased(matchedService) && date && time) {
+          const slotFree = await isSlotAvailable({ userId, date, time, service: matchedService?.name || service, servicesList: activeServices })
+          if (!slotFree) {
+            const altSlot = await findNextAvailableSlot({ userId, date, service: matchedService?.name || service, servicesList: activeServices })
+            const busyMsg = altSlot
+              ? `That slot is taken 😅 How about *${altSlot}*? Shall I book that? ✅`
+              : `That time slot is fully booked 😅 Could you suggest another time?`
+            await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: busyMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+            continue
+          }
         }
 
         const { data: newBooking, error: bookErr } = await supabaseAdmin.from("bookings").insert({
@@ -381,8 +385,8 @@ export async function POST(req) {
           customer_phone: formattedPhone,
           customer_id:    customer?.id || null,
           service:        matchedService?.name || service || "Appointment",
-          booking_date:   date,
-          booking_time:   time,
+          booking_date:   date || null,
+          booking_time:   time || null,
           amount:         matchedService?.price || 0,
           status:         "confirmed",
           ai_booked:      true,
@@ -390,31 +394,32 @@ export async function POST(req) {
         }).select().single()
 
         if (!bookErr && newBooking) {
-          console.log("✅ Booking created:", newBooking.id, service, date, time)
+          console.log("✅ Booking created:", newBooking.id)
           try {
-            const { count: bookingCount } = await supabaseAdmin.from("bookings").select("id", { count: "exact" })
-              .eq("customer_phone", formattedPhone).eq("user_id", userId).in("status", ["confirmed","completed"])
+            const { count: bookingCount } = await supabaseAdmin.from("bookings")
+              .select("id", { count: "exact" })
+              .eq("customer_phone", formattedPhone).eq("user_id", userId)
+              .in("status", ["confirmed","completed"])
             const newTag = bookingCount >= 5 ? "vip" : bookingCount >= 2 ? "returning" : "new_lead"
-            await supabaseAdmin.from("customers").update({ tag: newTag, last_visit_at: new Date().toISOString() })
+            await supabaseAdmin.from("customers")
+              .update({ tag: newTag, last_visit_at: new Date().toISOString() })
               .eq("phone", formattedPhone).eq("user_id", userId)
           } catch(e) {}
           try {
-            await supabaseAdmin.from("leads").update({ status: "converted", last_message_at: new Date().toISOString() })
+            await supabaseAdmin.from("leads")
+              .update({ status: "converted", last_message_at: new Date().toISOString() })
               .eq("customer_id", customer?.id).eq("user_id", userId).eq("status", "open")
           } catch(e) {}
-          // Clear booking state after successful booking
           try { await supabaseAdmin.from("conversations").update({ booking_state: null }).eq("id", conversation.id) } catch(e) {}
         }
 
-        const confirmMsg = buildConfirmationMessage(matchedService?.name || service, date, time, biz.business_name || "our business")
+        const confirmMsg = buildConfirmationMessage(matchedService?.name || service, date, time, biz.business_name || "our business", isTimeBased(matchedService))
         await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: confirmMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
         await supabaseAdmin.from("conversations").update({ last_message: "✅ Booking Confirmed — " + (matchedService?.name || service) }).eq("id", conversation?.id)
         continue
       }
 
       // ══ 11. AI REPLY ═════════════════════════════════════════════
-      // By this point biz, activeServices, and conversationHistory are all loaded.
-      // The AI gets the full business context — it knows what this business sells.
       const aiReply = await generateAIReply({
         customerMessage: effectiveText,
         bizSettings:     biz,
@@ -437,23 +442,43 @@ export async function POST(req) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// INTENT DETECTION — fully generic, no niche assumptions
+// SERVICE TYPE HELPER
+// time-based  = salon, clinic, spa, gym → has duration/capacity → slot checking applies
+// package-based = agency, consulting, SaaS → just name + price → no slot checking
+// ════════════════════════════════════════════════════════════════════
+
+function isTimeBased(service) {
+  if (!service) return false
+  // Explicit service_type field (set from settings UI)
+  if (service.service_type === "time") return true
+  if (service.service_type === "package") return false
+  // Auto-detect: if it has a duration it's time-based
+  return !!(service.duration && service.duration > 0)
+}
+
+// ════════════════════════════════════════════════════════════════════
+// INTENT DETECTION
 // ════════════════════════════════════════════════════════════════════
 
 function detectIntent(history, latestMessage, servicesList, persistedState) {
   const latestLower = (latestMessage || "").toLowerCase().trim()
   const allText     = [...history.map(m => m.content), latestMessage].join(" ").toLowerCase()
 
+  // Intent keyword lists
   const rescheduleKw = ["reschedule","change booking","change appointment","change timing","postpone","shift booking","move booking","different time","different date","another time","another day","change slot"]
   const cancelKw     = ["cancel","cancellation","don't want","not coming","cant come","cannot come","won't come","nahi aana","cancel karo"]
-  const bookingKw    = ["book","appointment","slot","schedule","availab","fix appointment","want to come","coming in","visit","book karo","booking","reserve","enquire","inquiry","interested"]
-  const pricingKw    = ["price","cost","rate","how much","charges","kitna","ekkuva","entha","fees","charge","amount","pricing","plans","packages","offer"]
-  const locationKw   = ["location","address","where are you","where is","directions","maps","navigate","how to reach","how to come","landmark","find you"]
-  const hoursKw      = ["timing","timings","hours","open","close","when","working hours","available","availability","what time","office hours","business hours"]
 
-  // ── Multilingual greeting detection ─────────────────────────────
-  // Covers English, Hindi, Telugu, Tamil, Kannada, Marathi, Bengali, Gujarati
-  const greetingRx = /^(hi|hello|hey|hii|helo|hai|hiya|gm|heyyy|sup|whats\s*up|good\s*(morning|afternoon|evening|night)|namaste|namaskar|vanakkam|nomoskar|namaskaara|pranam|kem\s*cho|kasa\s*kay|sat\s*sri\s*akal|assalam|wa\s*alaikum|haan|bolo|bol|yo|wassup|ayyo|ayo)[!\s.]*$/i
+  // booking: specific action words only — NOT "interested" or "enquire" (too broad)
+  const bookingKw    = ["book","appointment","slot","schedule","availab","fix appointment","want to come","coming in","visit","book karo","booking","reserve","set up a call","schedule a call","schedule a demo","book a demo","book a call","fix a meeting","set a meeting"]
+
+  // pricing: anything asking about cost/services
+  const pricingKw    = ["price","cost","rate","how much","charges","kitna","ekkuva","entha","fees","charge","amount","pricing","plans","packages","offer","services","what do you","what you offer","what you provide","tell me about","what are your","list","menu"]
+
+  const locationKw   = ["location","address","where are you","where is","directions","maps","navigate","how to reach","how to come","landmark","find you"]
+  const hoursKw      = ["timing","timings","hours","open","close","when","working hours","available when","what time","office hours","business hours"]
+
+  // Multilingual greetings — EN/HI/TE/TA/KN/MR/BN/GU/PA
+  const greetingRx = /^(hi|hello|hey|hii|helo|hai|hiya|gm|heyyy|sup|whats\s*up|good\s*(morning|afternoon|evening|night)|namaste|namaskar|vanakkam|nomoskar|namaskaara|pranam|kem\s*cho|kasa\s*kay|sat\s*sri\s*akal|haan|bolo|bol|yo|wassup|ayyo|ayo|howdy|greetings|welcome)[!\s.]*$/i
 
   const isReschedule = rescheduleKw.some(kw => latestLower.includes(kw))
   const isCancel     = cancelKw.some(kw => latestLower.includes(kw))
@@ -463,15 +488,15 @@ function detectIntent(history, latestMessage, servicesList, persistedState) {
   const isHours      = hoursKw.some(kw => latestLower.includes(kw))
   const isGreeting   = greetingRx.test(latestLower)
 
-  // ── Extract booking details using ONLY DB services (no hardcoded keywords) ──
   const bookingState = extractBookingDetails(history, latestMessage, allText, latestLower, servicesList, persistedState)
 
+  // Intent priority order matters
   let type = "general"
   if      (isCancel)     type = "cancel"
   else if (isReschedule) type = "reschedule"
+  else if (isPricing)    type = "pricing"   // pricing checked BEFORE booking
   else if (isBooking || bookingState.service || bookingState.date || bookingState.time) type = "booking"
   else if (isGreeting)   type = "greeting"
-  else if (isPricing)    type = "pricing"
   else if (isHours)      type = "hours"
   else if (isLocation)   type = "location"
 
@@ -486,43 +511,35 @@ function detectIntent(history, latestMessage, servicesList, persistedState) {
 
 // ════════════════════════════════════════════════════════════════════
 // BOOKING DETAILS EXTRACTOR
+// 100% DB-driven service detection — zero hardcoded keywords
+// Works for any business: salon, agency, clinic, consulting, SaaS
 // ════════════════════════════════════════════════════════════════════
-// KEY CHANGE: Service detection uses ONLY servicesList from DB.
-// No hardcoded keywords. If the business sells "Automation Setup" or
-// "Immigration Consultation" or "Roof Repair" — it will be detected.
-// The persistedState arg carries forward any partially collected info
-// from previous messages via the conversations.booking_state column.
 
 function extractBookingDetails(history, latestMessage, allText, latestLower, servicesList, persistedState) {
   const now = new Date()
 
-  // Start from persisted state if available (cross-message memory)
   const state = {
-    service:      persistedState?.service      || null,
-    date:         persistedState?.date         || null,
-    time:         persistedState?.time         || null,
-    readyToBook:  false
+    service:     persistedState?.service     || null,
+    date:        persistedState?.date        || null,
+    time:        persistedState?.time        || null,
+    readyToBook: false
   }
 
-  // ── SERVICE DETECTION: 100% DB-driven ───────────────────────────
-  // Check servicesList from DB against conversation text.
-  // No hardcoded keywords. Works for ANY business type.
+  // ── SERVICE DETECTION — DB driven only ──────────────────────────
   if (!state.service && servicesList?.length) {
-    const textToCheck = allText.toLowerCase()
-    // Priority 1: exact match
+    const text = allText.toLowerCase()
+    // Pass 1: exact full name match
     for (const svc of servicesList) {
-      if (textToCheck.includes(svc.name.toLowerCase())) {
-        state.service = svc.name
-        break
+      if (text.includes(svc.name.toLowerCase())) {
+        state.service = svc.name; break
       }
     }
-    // Priority 2: partial word match (e.g. "automation" matches "Automation Setup")
+    // Pass 2: any significant word from service name (>3 chars)
     if (!state.service) {
       for (const svc of servicesList) {
         const words = svc.name.toLowerCase().split(/\s+/).filter(w => w.length > 3)
-        if (words.some(w => textToCheck.includes(w))) {
-          state.service = svc.name
-          break
+        if (words.some(w => text.includes(w))) {
+          state.service = svc.name; break
         }
       }
     }
@@ -531,7 +548,7 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
   // ── DATE EXTRACTION ──────────────────────────────────────────────
   if (!state.date) {
     const hasDateInLatest =
-      /\b(today|tomorrow|kal|parso|sun|mon|tue|wed|thu|fri|sat|sunday|monday|tuesday|wednesday|thursday|friday|saturday|aaj|kal)\b/i.test(latestMessage) ||
+      /\b(today|tomorrow|kal|parso|aaj|sun|mon|tue|wed|thu|fri|sat|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i.test(latestMessage) ||
       /\d{1,2}[\/\-]\d{1,2}/.test(latestMessage) ||
       /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(latestMessage) ||
       /\d{1,2}(st|nd|rd|th)/i.test(latestMessage)
@@ -539,9 +556,9 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
     const dateText = hasDateInLatest ? latestLower : allText
     const todayStr = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0")
 
-    if (dateText.includes("today") || dateText.includes("aaj")) {
+    if      (dateText.includes("today") || dateText.includes("aaj")) {
       state.date = todayStr
-    } else if (dateText.includes("tomorrow") || dateText.includes("kal ") || dateText.includes("kal\n")) {
+    } else if (dateText.includes("tomorrow") || /\bkal\b/.test(dateText)) {
       const t = new Date(now); t.setDate(now.getDate()+1)
       state.date = t.getFullYear() + "-" + String(t.getMonth()+1).padStart(2,"0") + "-" + String(t.getDate()).padStart(2,"0")
     } else if (dateText.includes("parso") || dateText.includes("day after")) {
@@ -549,13 +566,13 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
       state.date = t.getFullYear() + "-" + String(t.getMonth()+1).padStart(2,"0") + "-" + String(t.getDate()).padStart(2,"0")
     } else {
       const days = [
-        {idx:0, names:["sunday","sun"]}, {idx:1, names:["monday","mon"]},
-        {idx:2, names:["tuesday","tue"]}, {idx:3, names:["wednesday","wed"]},
-        {idx:4, names:["thursday","thu"]}, {idx:5, names:["friday","fri"]},
-        {idx:6, names:["saturday","sat"]}
+        {idx:0,names:["sunday","sun"]},{idx:1,names:["monday","mon"]},
+        {idx:2,names:["tuesday","tue"]},{idx:3,names:["wednesday","wed"]},
+        {idx:4,names:["thursday","thu"]},{idx:5,names:["friday","fri"]},
+        {idx:6,names:["saturday","sat"]}
       ]
       for (const day of days) {
-        if (day.names.some(n => new RegExp("\\b" + n + "\\b","i").test(dateText))) {
+        if (day.names.some(n => new RegExp("\\b"+n+"\\b","i").test(dateText))) {
           let diff = (day.idx - now.getDay() + 7) % 7
           if (diff === 0) diff = 7
           const d = new Date(now); d.setDate(now.getDate()+diff)
@@ -563,28 +580,26 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
           break
         }
       }
-    }
-
-    if (!state.date) {
-      const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
-      const src = hasDateInLatest ? latestMessage : allText
-      for (let i = 0; i < months.length; i++) {
-        const re = new RegExp("(\\d{1,2})(?:st|nd|rd|th)?\\s*" + months[i] + "|" + months[i] + "\\s*(\\d{1,2})(?:st|nd|rd|th)?", "i")
-        const m  = src.match(re)
-        if (m) {
-          const day = parseInt(m[1] || m[2])
-          if (day >= 1 && day <= 31) {
-            state.date = now.getFullYear() + "-" + String(i+1).padStart(2,"0") + "-" + String(day).padStart(2,"0")
-            break
+      if (!state.date) {
+        const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
+        const src = hasDateInLatest ? latestMessage : allText
+        for (let i = 0; i < months.length; i++) {
+          const re = new RegExp("(\\d{1,2})(?:st|nd|rd|th)?\\s*"+months[i]+"|"+months[i]+"\\s*(\\d{1,2})(?:st|nd|rd|th)?","i")
+          const m  = src.match(re)
+          if (m) {
+            const day = parseInt(m[1]||m[2])
+            if (day >= 1 && day <= 31) {
+              state.date = now.getFullYear()+"-"+String(i+1).padStart(2,"0")+"-"+String(day).padStart(2,"0")
+              break
+            }
           }
         }
       }
-    }
-
-    if (!state.date) {
-      const src = hasDateInLatest ? latestMessage : allText
-      const m   = src.match(/(\d{1,2})[\/\-](\d{1,2})/)
-      if (m) state.date = now.getFullYear() + "-" + String(m[2]).padStart(2,"0") + "-" + String(m[1]).padStart(2,"0")
+      if (!state.date) {
+        const src = hasDateInLatest ? latestMessage : allText
+        const m   = src.match(/(\d{1,2})[\/\-](\d{1,2})/)
+        if (m) state.date = now.getFullYear()+"-"+String(m[2]).padStart(2,"0")+"-"+String(m[1]).padStart(2,"0")
+      }
     }
   }
 
@@ -598,10 +613,10 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
 
     const timeText = hasTimeInLatest ? latestMessage : allText
 
-    if      (/\b(morning|subah)\b/i.test(timeText) && !hasTimeInLatest)        state.time = "10:00"
-    else if (/\b(afternoon|dopahar)\b/i.test(timeText) && !hasTimeInLatest)    state.time = "14:00"
-    else if (/\b(evening|shaam)\b/i.test(timeText) && !hasTimeInLatest)        state.time = "17:00"
-    else if (/\b(night|raat)\b/i.test(timeText) && !hasTimeInLatest)           state.time = "19:00"
+    if      (/\b(morning|subah)\b/i.test(timeText)    && !hasTimeInLatest) state.time = "10:00"
+    else if (/\b(afternoon|dopahar)\b/i.test(timeText) && !hasTimeInLatest) state.time = "14:00"
+    else if (/\b(evening|shaam)\b/i.test(timeText)    && !hasTimeInLatest) state.time = "17:00"
+    else if (/\b(night|raat)\b/i.test(timeText)        && !hasTimeInLatest) state.time = "19:00"
     else {
       const tm = timeText.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i) || timeText.match(/(\d{2}):(\d{2})/)
       if (tm) {
@@ -610,14 +625,14 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
         const ampm = tm[3]?.toLowerCase()
         if (ampm === "pm" && hour < 12) hour += 12
         if (ampm === "am" && hour === 12) hour = 0
-        if (hour >= 7 && hour <= 22) state.time = String(hour).padStart(2,"0") + ":" + min.padStart(2,"0")
+        if (hour >= 7 && hour <= 22) state.time = String(hour).padStart(2,"0")+":"+min.padStart(2,"0")
       }
     }
   }
 
   // ── CONFIRM DETECTION ────────────────────────────────────────────
   const confirmWords = ["yes","yeah","yep","yup","ok","okay","sure","confirm","correct","right","haan","ha","ji","theek","done","book it","go ahead","please book","book karo","sounds good","perfect","great","yeahh","yess","k","👍","✅","proceed","do it","bilkul","zaroor"]
-  const isConfirming = confirmWords.some(w => latestLower.trim() === w || latestLower.trim().startsWith(w + " ") || latestLower.trim().endsWith(" " + w))
+  const isConfirming = confirmWords.some(w => latestLower.trim() === w || latestLower.trim().startsWith(w+" ") || latestLower.trim().endsWith(" "+w))
   const lastAiMsg = [...history].reverse().find(m => m.role === "assistant")
   const aiAskedConfirm = lastAiMsg && (
     lastAiMsg.content.toLowerCase().includes("shall i book") ||
@@ -630,7 +645,7 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
     lastAiMsg.content.toLowerCase().includes("confirm that")
   )
 
-  if (state.service && state.date && state.time && isConfirming && aiAskedConfirm) {
+  if (state.service && isConfirming && aiAskedConfirm) {
     state.readyToBook = true
   }
 
@@ -638,87 +653,104 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
 }
 
 // ════════════════════════════════════════════════════════════════════
-// AI REPLY GENERATOR — v8.0
-// FULLY GENERIC: system prompt is 100% data-driven from business settings.
-// The AI knows nothing about salons, clinics, or any niche by default.
-// It only knows what THIS business has configured in their settings.
+// AI REPLY GENERATOR — v9.0
+// Generic system prompt — adapts to ANY business type automatically
 // ════════════════════════════════════════════════════════════════════
 
 async function generateAIReply({ customerMessage, bizSettings, history, customerName, intent, servicesList }) {
-  const firstName      = (customerName || "").split(" ")[0] || "there"
-  const businessName   = bizSettings?.business_name   || "our business"
-  const businessType   = bizSettings?.business_type   || "business"
-  const location       = bizSettings?.location        || ""
-  const mapsLink       = bizSettings?.maps_link       || ""
-  const workingHours   = bizSettings?.working_hours   || ""
+  const firstName    = (customerName || "").split(" ")[0] || "there"
+  const businessName = bizSettings?.business_name || "our business"
+  const businessType = bizSettings?.business_type || ""
+  const location     = bizSettings?.location      || ""
+  const mapsLink     = bizSettings?.maps_link     || ""
+  const workingHours = bizSettings?.working_hours || ""
   const aiInstructions = bizSettings?.ai_instructions || ""
-  const greetingStyle  = bizSettings?.greeting_message|| ""
-  const aiLanguage     = bizSettings?.ai_language     || "English"
-  const description    = bizSettings?.description     || ""
+  const greetingStyle  = bizSettings?.greeting_message || ""
+  const aiLanguage     = bizSettings?.ai_language || "English"
+  const description    = bizSettings?.description || ""
 
-  // Build services text dynamically from DB — no assumptions about what they sell
-  const servicesText = servicesList.length > 0
-    ? servicesList.map(s => {
-        let line = `• ${s.name}: ₹${s.price}`
-        if (s.duration) line += ` (${s.duration} min)`
-        if (s.category) line += ` [${s.category}]`
-        return line
-      }).join("\n")
-    : ""
+  // Build services block — smart format based on service type
+  // time-based: show duration | package-based: show description if available
+  let servicesText = ""
+  if (servicesList.length > 0) {
+    servicesText = servicesList.map(s => {
+      let line = `• ${s.name}: ₹${s.price}`
+      if (isTimeBased(s) && s.duration) line += ` (${s.duration} min)`
+      if (!isTimeBased(s) && s.description) line += ` — ${s.description}`
+      if (s.category) line += ` [${s.category}]`
+      return line
+    }).join("\n")
+  }
 
-  // Build booking hint from current intent state
+  // Booking state hint for AI
   const bs = intent.bookingState
   let bookingHint = ""
   if (bs.service || bs.date || bs.time) {
     const collected = [], missing = []
     if (bs.service) collected.push("service: " + bs.service)
     else missing.push("which service they want")
-    if (bs.date) collected.push("date: " + new Date(bs.date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short" }))
-    else missing.push("their preferred date")
+    if (bs.date) {
+      const matchedSvc = matchService(bs.service, servicesList)
+      if (!bs.service || isTimeBased(matchedSvc)) {
+        collected.push("date: " + new Date(bs.date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"}))
+      }
+    } else {
+      const matchedSvc = matchService(bs.service, servicesList)
+      if (!bs.service || isTimeBased(matchedSvc)) missing.push("preferred date")
+    }
     if (bs.time) collected.push("time: " + bs.time)
-    else missing.push("their preferred time")
+    else {
+      const matchedSvc = matchService(bs.service, servicesList)
+      if (!bs.service || isTimeBased(matchedSvc)) missing.push("preferred time")
+    }
     bookingHint = "\n\nBOOKING PROGRESS:"
-    if (collected.length) bookingHint += "\nAlready collected: " + collected.join(", ")
+    if (collected.length) bookingHint += "\nCollected: " + collected.join(", ")
     if (missing.length)   bookingHint += "\nStill need: " + missing.join(", ")
     if (!missing.length)  bookingHint += "\nAll details collected — ask customer to confirm!"
   }
 
   const intentHint =
-    intent.type === "reschedule" ? "\nCUSTOMER INTENT: Wants to reschedule — collect new date and time only." :
-    intent.type === "cancel"     ? "\nCUSTOMER INTENT: Wants to cancel — acknowledge warmly, offer to reschedule instead." : ""
+    intent.type === "reschedule" ? "\nCUSTOMER INTENT: Reschedule — ask for new date/time only." :
+    intent.type === "cancel"     ? "\nCUSTOMER INTENT: Cancel — acknowledge warmly, offer to reschedule." : ""
 
-  // ── GENERIC SYSTEM PROMPT ────────────────────────────────────────
-  // This prompt works for a salon, a law firm, an automation agency,
-  // a dental clinic, a tutoring center — anything. It reads its
-  // knowledge entirely from what the business owner configured.
-  const systemPrompt = `You are the AI assistant for ${businessName}${businessType ? ` (${businessType})` : ""}${location ? `, located at ${location}` : ""}.
+  // Determine booking flow based on service types
+  const hasTimeBased    = servicesList.some(s => isTimeBased(s))
+  const hasPackageBased = servicesList.some(s => !isTimeBased(s))
+  let bookingFlowNote = ""
+  if (hasTimeBased && hasPackageBased) {
+    bookingFlowNote = "Some services require date+time booking, others are packages — ask what's relevant for the chosen service."
+  } else if (hasPackageBased && !hasTimeBased) {
+    bookingFlowNote = "Services are packages/projects — collect: which service they want, and a preferred date/time to connect or start. No need to check slot availability."
+  } else {
+    bookingFlowNote = "Collect: service → date → time → confirm."
+  }
 
-Your job is to help customers by answering questions about this business and helping them book appointments or services.
+  const systemPrompt = `You are the AI assistant for *${businessName}*${businessType ? ` (${businessType})` : ""}${location ? `, based in ${location}` : ""}.
 
-CRITICAL RULES:
-1. You ONLY represent ${businessName}. Never help book or recommend other businesses.
-2. Keep replies SHORT — maximum 3-4 lines. Customers are on WhatsApp, not reading emails.
-3. Be warm, friendly, and conversational. Not robotic. Not repetitive.
-4. Never show your reasoning or thinking. Send only the final reply.
-5. If a customer asks about something this business doesn't offer, politely say so and mention what you do offer.
+Your role is to help customers with questions about this business and assist them in booking services or appointments.
+
+STRICT RULES:
+1. You ONLY represent *${businessName}*. Never help with bookings at other places.
+2. Replies must be SHORT — 3 lines max. This is WhatsApp, not email.
+3. Be warm, natural, conversational. Sound like a helpful human, not a bot.
+4. Never show thinking or reasoning. Only send the final reply.
+5. Never repeat information the customer already gave you.
+6. Always address the customer by their first name when relevant.
 ${description ? `\nABOUT THIS BUSINESS:\n${description}` : ""}
-${servicesText ? `\nSERVICES THIS BUSINESS OFFERS:\n${servicesText}` : "\nThis business has not listed their services yet — if asked, say you'll check and get back to them."}
+${servicesText ? `\nSERVICES & PRICING:\n${servicesText}` : "\nServices not configured yet — if asked, say you'll check and get back shortly."}
 ${workingHours ? `\nWORKING HOURS: ${workingHours}` : ""}
 ${location ? `\nADDRESS: ${location}` : ""}
-${mapsLink ? `\nMAPS LINK: ${mapsLink}` : ""}
-${aiInstructions ? `\nBUSINESS OWNER'S INSTRUCTIONS FOR YOU:\n${aiInstructions}` : ""}
+${mapsLink ? `\nMAPS: ${mapsLink}` : ""}
+${aiInstructions ? `\nOWNER INSTRUCTIONS (follow these carefully):\n${aiInstructions}` : ""}
 ${greetingStyle ? `\nGREETING STYLE: ${greetingStyle}` : ""}
 
-BOOKING FLOW — when a customer wants to book, collect ONE piece of info at a time:
-1. Which service? (from the list above — don't suggest services not on the list)
-2. Which date?
-3. Which time?
-4. Once all 3 collected → say exactly: "Shall I confirm booking for [service] on [date] at [time]? ✅"
-5. If customer says yes → booking is auto-created, you don't need to do anything else
+BOOKING FLOW: ${bookingFlowNote}
+When booking, ask ONE question at a time. Once all details collected say:
+"Shall I confirm booking for [service] on [date] at [time]? ✅"
+If customer says yes — booking is created automatically, nothing more needed.
 ${intentHint}${bookingHint}
 
-LANGUAGE: Reply in ${aiLanguage}. If the customer writes in a different language, match their language naturally.
-TONE: Conversational, helpful, brief. 1-2 emojis max. No lengthy paragraphs.`
+LANGUAGE: Reply in ${aiLanguage}. Match customer's language if they write differently.`
 
   // Try Sarvam AI
   if (process.env.SARVAM_API_KEY) {
@@ -728,7 +760,7 @@ TONE: Conversational, helpful, brief. 1-2 emojis max. No lengthy paragraphs.`
         ...history,
         { role: "user", content: customerMessage }
       ]
-      console.log("🔄 Calling Sarvam | history length:", history.length)
+      console.log("🔄 Calling Sarvam | history:", history.length, "msgs")
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method:  "POST",
         headers: { "Content-Type": "application/json", "api-subscription-key": process.env.SARVAM_API_KEY },
@@ -749,32 +781,32 @@ TONE: Conversational, helpful, brief. 1-2 emojis max. No lengthy paragraphs.`
     }
   }
 
-  console.warn("⚠️ Sarvam unavailable — using smart fallback")
-  return smartFallback({ msg: customerMessage, intent, businessName, servicesText, firstName, location, mapsLink, bookingState: bs, servicesList })
+  console.warn("⚠️ Sarvam unavailable — smart fallback")
+  return smartFallback({ msg: customerMessage, intent, biz: bizSettings, firstName, servicesList, bookingState: bs })
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SARVAM REPLY EXTRACTOR — v7.1 (unchanged, proven stable)
+// SARVAM REPLY EXTRACTOR (proven stable from v7.1)
 // ════════════════════════════════════════════════════════════════════
 
 function extractSarvamReply(rawContent) {
-  if (!rawContent || !rawContent.trim()) return null
-  console.log("📨 Sarvam raw (400):", rawContent.substring(0, 400))
+  if (!rawContent?.trim()) return null
+  console.log("📨 Sarvam raw (400):", rawContent.substring(0,400))
   if (rawContent.includes("</think>")) {
-    const afterThink = rawContent.split("</think>").pop().trim()
-    if (afterThink && afterThink.length > 3) { console.log("✅ Pattern A"); return afterThink }
+    const after = rawContent.split("</think>").pop().trim()
+    if (after?.length > 3) { console.log("✅ Pattern A"); return after }
   }
   if (!rawContent.includes("<think>") && !rawContent.includes("</think>")) {
     const reply = rawContent.trim()
     if (reply.length > 3) { console.log("✅ Pattern D"); return reply }
   }
-  const stripped = rawContent.replace(/<\/think>/g, "").replace(/<think>/g, "").trim()
-  const lines = stripped.split("\n").map(l => l.trim()).filter(l => l.length > 2)
+  const stripped = rawContent.replace(/<\/think>/g,"").replace(/<think>/g,"").trim()
+  const lines = stripped.split("\n").map(l=>l.trim()).filter(l=>l.length>2)
   const reasoningStarters = ["so ","the ","wait","let me","first","i need","i should","okay,","okay.","but ","now,","now.","since ","the user","looking at","according","maybe ","perhaps ","however","alternatively","the assistant","the response","the booking","to summarize","in summary","so the","so i","i'll","i will","that means","this means","the customer","based on"]
-  const isReasoning = (line) => line.length > 200 || reasoningStarters.some(s => line.toLowerCase().startsWith(s))
-  const replyStarters = [/^(hi|hello|hey|sure|great|got it|perfect|of course|absolutely|no problem)/i,/^[\u{1F600}-\u{1F9FF}]/u,/^(sure|ok|okay|yes|no problem|thanks|thank you)/i,/^\*/,/^(your|we |here|happy to|would you|what (date|time|service)|which)/i,/^[A-Z][a-z].*\?$/]
-  const isReply = (line) => replyStarters.some(rx => rx.test(line.trim()))
-  for (let i = lines.length - 1; i >= 0; i--) {
+  const isReasoning = l => l.length > 200 || reasoningStarters.some(s => l.toLowerCase().startsWith(s))
+  const replyStarters = [/^(hi|hello|hey|sure|great|got it|perfect|of course|absolutely|no problem)/i,/^[\u{1F600}-\u{1F9FF}]/u,/^(sure|ok|okay|yes|no problem|thanks)/i,/^\*/,/^(your|we |here|happy to|would you|what |which)/i,/^[A-Z][a-z].*\?$/]
+  const isReply = l => replyStarters.some(rx => rx.test(l.trim()))
+  for (let i = lines.length-1; i >= 0; i--) {
     const line = lines[i]
     if (line.length < 200 && !isReasoning(line)) {
       if (isReply(line) || line.endsWith("?") || line.endsWith("😊") || line.endsWith("✅")) {
@@ -782,108 +814,127 @@ function extractSarvamReply(rawContent) {
       }
     }
   }
-  const paragraphs = stripped.split("\n\n").map(p => p.trim()).filter(p => p.length > 3)
-  for (let i = paragraphs.length - 1; i >= 0; i--) {
+  const paragraphs = stripped.split("\n\n").map(p=>p.trim()).filter(p=>p.length>3)
+  for (let i = paragraphs.length-1; i >= 0; i--) {
     if (paragraphs[i].length < 150) { console.log("✅ Pattern C"); return paragraphs[i] }
   }
-  const responseMatch = stripped.match(/(?:response should be|reply should be|answer should be|say something like)[:\s]*[""]?([^""\n]+)[""]?/i)
-  if (responseMatch?.[1]) { const e = responseMatch[1].trim().replace(/^[""]|[""]$/g,""); if (e.length>3&&e.length<300) return e }
-  const lastLine = lines[lines.length - 1]
-  if (lastLine && lastLine.length < 400) { console.log("✅ Last resort"); return lastLine }
-  console.warn("⚠️ Could not extract Sarvam reply")
+  const match = stripped.match(/(?:response should be|reply should be|say something like)[:\s]*[""]?([^""\n]+)[""]?/i)
+  if (match?.[1]) { const e = match[1].trim().replace(/^[""]|[""]$/g,""); if (e.length>3&&e.length<300) return e }
+  const lastLine = lines[lines.length-1]
+  if (lastLine?.length < 400) { console.log("✅ Last resort"); return lastLine }
   return null
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SMART FALLBACK — also generic, uses servicesList from DB
+// SMART FALLBACK — generic, uses DB services
 // ════════════════════════════════════════════════════════════════════
 
-function smartFallback({ msg, intent, businessName, servicesText, firstName, location, mapsLink, bookingState: bs, servicesList }) {
-  const m = (msg || "").toLowerCase().trim()
+function smartFallback({ msg, intent, biz, firstName, servicesList, bookingState: bs }) {
+  const m            = (msg||"").toLowerCase().trim()
+  const businessName = biz?.business_name || "our business"
+  const location     = biz?.location || ""
+  const mapsLink     = biz?.maps_link || ""
+
+  const servicePreview = servicesList?.length
+    ? servicesList.slice(0,3).map(s=>s.name).join(", ") + (servicesList.length > 3 ? " and more" : "")
+    : ""
+
   if (intent.type === "reschedule") {
     if (!bs.date && !bs.time) return `Sure ${firstName}! 📅 What new date and time works for you?`
-    if (bs.date  && !bs.time) return `Got the date! ⏰ What time would you prefer?`
+    if (bs.date  && !bs.time) return `Got the date! ⏰ What time works for you?`
     if (!bs.date &&  bs.time) return `Got the time! 📅 What date works for you?`
     return `Reschedule to ${bs.date} at ${bs.time} — shall I confirm? ✅`
   }
-  if (intent.type === "cancel") return `I understand you want to cancel 😔\n\nWould you prefer to reschedule instead? We'd love to help you!`
-  if (intent.type === "greeting") return `Hi ${firstName}! 👋 Welcome to *${businessName}*!\n\nHow can I help you today? 😊`
+  if (intent.type === "cancel")   return `I understand you want to cancel 😔 Would you prefer to reschedule instead? We'd love to have you!`
+  if (intent.type === "greeting") {
+    const svcLine = servicePreview ? `\n\nWe offer: ${servicePreview} 😊` : ""
+    return `Hi ${firstName}! 👋 Welcome to *${businessName}*!${svcLine}\n\nHow can I help you today?`
+  }
   if (intent.type === "pricing") {
-    if (servicesText) return `*Our Services & Pricing*\n\n${servicesText}\n\nInterested in any of these? 😊`
-    return `I'll check our latest pricing and get back to you shortly! 🙌`
+    if (servicesList?.length) {
+      const list = servicesList.map(s => {
+        let line = `• *${s.name}* — ₹${s.price}`
+        if (isTimeBased(s) && s.duration) line += ` (${s.duration} min)`
+        return line
+      }).join("\n")
+      return `*${businessName} Services*\n\n${list}\n\nInterested in any of these? 😊`
+    }
+    return `I'll check our latest services and get back to you shortly! 🙌`
   }
   if (intent.type === "hours") {
-    const hours = bizSettings?.working_hours
-    if (hours) return `⏰ *Our Hours*\n\n${hours}\n\nFeel free to reach out anytime! 😊`
-    return `I'll check our working hours and let you know! 🙌`
+    if (biz?.working_hours) return `⏰ *Our Hours*\n\n${biz.working_hours}\n\nAnything else I can help with? 😊`
+    return `I'll check our working hours and let you know shortly! ⏰`
   }
   if (intent.type === "location") {
     if (location && mapsLink) return `📍 ${location}\n\n🗺️ ${mapsLink}\n\nSee you soon! 😊`
-    if (location)             return `📍 We're at: ${location}`
+    if (location)             return `📍 We're at: *${location}*`
     return `I'll share our location shortly 📍`
   }
   if (intent.type === "booking") {
+    const matchedSvc = bs.service ? matchService(bs.service, servicesList) : null
+    const needsTime  = !bs.service || isTimeBased(matchedSvc)
     if (!bs.service) {
-      if (servicesList?.length) {
-        const topServices = servicesList.slice(0, 3).map(s => s.name).join(", ")
-        return `I'd love to help you book! 😊\n\nWe offer: ${topServices}${servicesList.length > 3 ? " and more" : ""}.\n\nWhich service interests you?`
-      }
-      return `I'd love to help you book! 😊\n\nWhich service are you interested in?`
+      if (servicePreview) return `I'd love to help! 😊\n\nWe offer: ${servicePreview}.\n\nWhich service interests you?`
+      return `I'd love to help you book! 😊 Which service are you interested in?`
     }
-    if (bs.service && !bs.date) return `Sure! 📅 What date works for your ${bs.service}?`
-    if (bs.service && bs.date && !bs.time) return `Almost there! ⏰ What time works for you?`
-    return `Shall I confirm booking for *${bs.service}* on ${bs.date} at ${bs.time}? ✅`
+    if (bs.service && !bs.date && needsTime) return `Great choice! 📅 What date works for your *${bs.service}*?`
+    if (bs.service && bs.date  && !bs.time && needsTime) return `Almost there! ⏰ What time works for you?`
+    if (bs.service && !bs.date && !needsTime) return `Got it! 📅 What date would you like to start or connect?`
+    return `Shall I confirm booking for *${bs.service}*${bs.date ? " on " + bs.date : ""}${bs.time ? " at " + bs.time : ""}? ✅`
   }
-  if (/thank|thanks|ok|okay|great|perfect|good|noted|done|alright/.test(m)) return `You're welcome! 😊 Looking forward to seeing you at *${businessName}*!`
-  if (/speak|human|owner|manager|staff|agent/.test(m)) return `Of course! 🙌 I'll notify our team and someone will reach out shortly.`
-  // Generic fallback — lists actual services from DB
-  const serviceList = servicesList?.length
-    ? servicesList.slice(0, 3).map(s => s.name).join(", ")
-    : ""
-  return `Thanks for reaching out to *${businessName}*! 😊\n\n${serviceList ? `We offer ${serviceList} and more.\n\n` : ""}How can I help?\n📅 Book an appointment\n💰 Services & pricing\n📍 Find us`
+  if (/thank|thanks|ok|okay|great|perfect|good|noted|done|alright/.test(m))
+    return `You're welcome! 😊 Looking forward to connecting at *${businessName}*!`
+  if (/speak|human|owner|manager|staff|agent/.test(m))
+    return `Of course! 🙌 I'll notify our team and someone will reach out shortly.`
+  return `Thanks for reaching out to *${businessName}*! 😊${servicePreview ? `\n\nWe offer: ${servicePreview}.` : ""}\n\nHow can I help?\n📅 Book an appointment\n💰 Services & pricing\n📍 Our location`
 }
 
 // ════════════════════════════════════════════════════════════════════
-// INSTANT REPLY BUILDERS — 100% from DB settings
+// INSTANT REPLY BUILDERS
 // ════════════════════════════════════════════════════════════════════
 
 function buildPricingReply(servicesList, biz) {
-  if (!servicesList?.length) return `Please reach us directly for our latest pricing 🙏\n\nOr ask about any specific service!`
+  if (!servicesList?.length)
+    return `Please reach us directly for our latest pricing 🙏\n\nOr ask about any specific service!`
   const list = servicesList.map(s => {
     let line = `• *${s.name}* — ₹${s.price}`
-    if (s.duration) line += ` (${s.duration} min)`
+    if (isTimeBased(s) && s.duration) line += ` (${s.duration} min)`
+    if (!isTimeBased(s) && s.description) line += `\n  ${s.description}`
     return line
   }).join("\n")
-  return `*${biz.business_name || "Our"} Services*\n\n${list}\n\nWant to book? Just let me know! 😊`
+  return `*${biz.business_name || "Our"} Services*\n\n${list}\n\nWant to know more or book? Just ask! 😊`
 }
 
 function buildLocationReply(biz) {
   const location = biz?.location || ""
   const mapsLink = biz?.maps_link || ""
   if (location && mapsLink) return `📍 *${biz.business_name || "We're"}* at:\n${location}\n\n🗺️ ${mapsLink}\n\nSee you soon! 😊`
-  if (location)             return `📍 We're at: *${location}*\n\nWant to book? 😊`
+  if (location)             return `📍 We're at: *${location}*\n\nAnything else I can help with? 😊`
   return `I'll get our address for you shortly! 📍`
 }
 
 function buildHoursReply(biz) {
   const hours = biz?.working_hours || ""
-  const name  = biz?.business_name || "We"
-  if (hours) return `⏰ *${name}* is open:\n\n${hours}\n\nAnything else I can help with? 😊`
+  if (hours) return `⏰ *${biz.business_name || "We"}* is open:\n\n${hours}\n\nAnything else? 😊`
   return `I'll check our working hours and get back to you! ⏰`
 }
 
-function buildConfirmationMessage(service, date, time, businessName) {
-  const formatted = date ? new Date(date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" }) : date
-  return `✅ *Booking Confirmed!*\n\n📋 Service: ${service}\n📅 Date: ${formatted || date}${time ? `\n⏰ Time: ${time}` : ""}\n\nSee you soon at *${businessName}*! 😊`
+function buildConfirmationMessage(service, date, time, businessName, timeBased) {
+  const formatted = date ? new Date(date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"}) : null
+  let msg = `✅ *Booking Confirmed!*\n\n📋 Service: ${service}`
+  if (formatted || date) msg += `\n📅 Date: ${formatted || date}`
+  if (time && timeBased)  msg += `\n⏰ Time: ${time}`
+  msg += `\n\nSee you soon at *${businessName}*! 😊`
+  return msg
 }
 
 function buildRescheduleConfirmation(service, date, time, businessName) {
-  const formatted = date ? new Date(date + "T12:00:00").toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long" }) : date
-  return `✅ *Booking Rescheduled!*\n\n📋 Service: ${service}\n📅 New Date: ${formatted || date}${time ? `\n⏰ New Time: ${time}` : ""}\n\nAll updated! See you at *${businessName}* 😊`
+  const formatted = date ? new Date(date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"}) : null
+  return `✅ *Rescheduled!*\n\n📋 Service: ${service}\n📅 New Date: ${formatted||date}${time?`\n⏰ New Time: ${time}`:""}\n\nAll updated! See you at *${businessName}* 😊`
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SLOT AVAILABILITY ENGINE (unchanged from v7.1)
+// SLOT AVAILABILITY — only used for time-based services
 // ════════════════════════════════════════════════════════════════════
 
 async function isSlotAvailable({ userId, date, time, service, servicesList, excludeBookingId }) {
@@ -911,8 +962,8 @@ async function findNextAvailableSlot({ userId, date, service, servicesList }) {
   for (const time of slots) {
     const free = await isSlotAvailable({ userId, date, time, service, servicesList })
     if (free) {
-      const dt = new Date(date + "T" + time + ":00")
-      return dt.toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short" }) + " at " + time
+      const dt = new Date(date+"T"+time+":00")
+      return dt.toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"}) + " at " + time
     }
   }
   return null
@@ -927,11 +978,11 @@ function matchService(serviceName, servicesList) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// CONVERSATION HISTORY BUILDER (unchanged from v7.1)
+// CONVERSATION HISTORY BUILDER
 // ════════════════════════════════════════════════════════════════════
 
 function buildAlternatingHistory(rawHistory) {
-  if (!rawHistory || rawHistory.length === 0) return []
+  if (!rawHistory?.length) return []
   const deduped = []
   for (const msg of rawHistory) {
     if (deduped.length === 0 || deduped[deduped.length-1].role !== msg.role) {
@@ -946,7 +997,7 @@ function buildAlternatingHistory(rawHistory) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// WHATSAPP SENDER + MESSAGE SAVER (unchanged from v7.1)
+// WHATSAPP SENDER + MESSAGE SAVER
 // ════════════════════════════════════════════════════════════════════
 
 async function sendAndSave({ phoneNumberId, accessToken, toNumber, message, userId, conversationId, customerPhone }) {
@@ -970,10 +1021,10 @@ async function sendAndSave({ phoneNumberId, accessToken, toNumber, message, user
 
 async function sendWhatsAppMessage({ phoneNumberId, accessToken, toNumber, message }) {
   try {
-    const res = await fetch("https://graph.facebook.com/v18.0/" + phoneNumberId + "/messages", {
+    const res = await fetch("https://graph.facebook.com/v18.0/"+phoneNumberId+"/messages", {
       method:  "POST",
-      headers: { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json" },
-      body:    JSON.stringify({ messaging_product: "whatsapp", to: toNumber, type: "text", text: { body: message, preview_url: false } })
+      headers: { "Authorization": "Bearer "+accessToken, "Content-Type": "application/json" },
+      body:    JSON.stringify({ messaging_product:"whatsapp", to:toNumber, type:"text", text:{ body:message, preview_url:false } })
     })
     const data = await res.json()
     if (data.error) console.error("❌ WA send error:", JSON.stringify(data.error))
