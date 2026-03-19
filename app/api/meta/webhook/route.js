@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import "@/lib/env"
 
 // ════════════════════════════════════════════════════════════════════
 // FASTRILL WEBHOOK — VERSION 9.1
@@ -10,6 +11,7 @@ import { createClient } from "@supabase/supabase-js"
 //           so business_name / type / location always come from settings
 // ✅ FIX 3: Greeting instant reply added — no API call for "hi/hello"
 // ✅ FIX 4: booking_state migration SQL provided (see bottom of file)
+// ✅ FIX 5: env.js validation on startup
 //
 // All v9.0 features retained:
 // ✅ 100% generic — works for ANY business niche
@@ -271,14 +273,10 @@ export async function POST(req) {
         supabaseAdmin.from("business_knowledge").select("*").eq("user_id", userId).maybeSingle()
       ])
 
-      // ── FIX 2: Correct merge order ──────────────────────────────
-      // bizKnowledge = AI brain content (notes, custom instructions)
-      // bizSettings  = source of truth for name, type, location etc.
-      // Settings must OVERRIDE knowledge — never let stale knowledge
-      // data wipe out the real business name or location.
+      // bizSettings overrides bizKnowledge — real identity always wins
       const biz = {
-        ...(bizKnowledge || {}),   // base: brain content
-        ...(bizSettings  || {}),   // override: real business identity always wins
+        ...(bizKnowledge || {}),
+        ...(bizSettings  || {}),
         ai_instructions: [
           bizSettings?.ai_instructions,
           bizKnowledge?.content,
@@ -288,7 +286,6 @@ export async function POST(req) {
         ].filter(Boolean).join("\n\n") || ""
       }
 
-      // Active services only
       const activeServices = (servicesList || []).filter(s => s.is_active !== false)
 
       console.log("🧠 Business loaded:", {
@@ -298,7 +295,6 @@ export async function POST(req) {
         hasAIBrain: !!(biz.ai_instructions)
       })
 
-      // Build alternating conversation history
       const historyRaw = (rawHistory || []).reverse().map(m => ({
         role:    m.direction === "inbound" ? "user" : "assistant",
         content: (m.message_text || "").trim()
@@ -306,7 +302,6 @@ export async function POST(req) {
 
       const conversationHistory = buildAlternatingHistory(historyRaw)
 
-      // Load persisted booking state
       let persistedBookingState = null
       try {
         if (conversation?.booking_state) {
@@ -320,7 +315,6 @@ export async function POST(req) {
       const intent = detectIntent(conversationHistory, effectiveText, activeServices, persistedBookingState)
       console.log("🎯 Intent:", intent.type, "| Booking state:", JSON.stringify(intent.bookingState))
 
-      // Persist booking state if anything collected
       if (conversation?.id && (intent.bookingState.service || intent.bookingState.date || intent.bookingState.time)) {
         try {
           await supabaseAdmin.from("conversations")
@@ -340,11 +334,10 @@ export async function POST(req) {
       }
 
       // ══ 8. INSTANT REPLIES — no AI call needed ══════════════════
-      // FIX 3: Greeting handled instantly — no Sarvam API call for "hi"
       if (intent.type === "greeting") {
-        const firstName      = contactName.split(" ")[0] || "there"
+        const firstName       = contactName.split(" ")[0] || "there"
         const servicesPreview = activeServices.slice(0, 3).map(s => s.name).join(", ")
-        const greetingMsg    = `Hi ${firstName}! 👋 Welcome to *${biz.business_name || "us"}*!${servicesPreview ? `\n\nWe offer: ${servicesPreview}${activeServices.length > 3 ? " and more" : ""}.` : ""}\n\nHow can I help you today? 😊`
+        const greetingMsg     = `Hi ${firstName}! 👋 Welcome to *${biz.business_name || "us"}*!${servicesPreview ? `\n\nWe offer: ${servicesPreview}${activeServices.length > 3 ? " and more" : ""}.` : ""}\n\nHow can I help you today? 😊`
         await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: greetingMsg, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
         await supabaseAdmin.from("conversations").update({ last_message: greetingMsg, last_message_at: new Date().toISOString() }).eq("id", conversation?.id)
         continue
@@ -493,8 +486,6 @@ export async function POST(req) {
 
 // ════════════════════════════════════════════════════════════════════
 // SERVICE TYPE HELPER
-// time-based  = salon/clinic/spa/gym — has duration → slot checking ON
-// package-based = agency/consulting/SaaS — no duration → no slot checking
 // ════════════════════════════════════════════════════════════════════
 
 function isTimeBased(service) {
@@ -505,7 +496,7 @@ function isTimeBased(service) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// INTENT DETECTION — multi-language, priority-ordered
+// INTENT DETECTION
 // ════════════════════════════════════════════════════════════════════
 
 function detectIntent(history, latestMessage, servicesList, persistedState) {
@@ -530,7 +521,6 @@ function detectIntent(history, latestMessage, servicesList, persistedState) {
 
   const bookingState = extractBookingDetails(history, latestMessage, allText, latestLower, servicesList, persistedState)
 
-  // Priority order matters — pricing before booking to handle "what services do you have"
   let type = "general"
   if      (isCancel)     type = "cancel"
   else if (isReschedule) type = "reschedule"
@@ -551,8 +541,6 @@ function detectIntent(history, latestMessage, servicesList, persistedState) {
 
 // ════════════════════════════════════════════════════════════════════
 // BOOKING DETAILS EXTRACTOR
-// 100% DB-driven service detection — zero hardcoded keywords
-// Booking state persisted across messages via conversations.booking_state
 // ════════════════════════════════════════════════════════════════════
 
 function extractBookingDetails(history, latestMessage, allText, latestLower, servicesList, persistedState) {
@@ -565,27 +553,19 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
     readyToBook: false
   }
 
-  // ── SERVICE: DB-driven only — no hardcoded keywords ─────────────
   if (!state.service && servicesList?.length) {
     const text = allText.toLowerCase()
-    // Pass 1: exact full name match
     for (const svc of servicesList) {
-      if (text.includes(svc.name.toLowerCase())) {
-        state.service = svc.name; break
-      }
+      if (text.includes(svc.name.toLowerCase())) { state.service = svc.name; break }
     }
-    // Pass 2: significant word match (words > 3 chars from service name)
     if (!state.service) {
       for (const svc of servicesList) {
         const words = svc.name.toLowerCase().split(/\s+/).filter(w => w.length > 3)
-        if (words.some(w => text.includes(w))) {
-          state.service = svc.name; break
-        }
+        if (words.some(w => text.includes(w))) { state.service = svc.name; break }
       }
     }
   }
 
-  // ── DATE EXTRACTION ──────────────────────────────────────────────
   if (!state.date) {
     const hasDateInLatest =
       /\b(today|tomorrow|kal|parso|aaj|sun|mon|tue|wed|thu|fri|sat|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i.test(latestMessage) ||
@@ -642,7 +622,6 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
     }
   }
 
-  // ── TIME EXTRACTION ──────────────────────────────────────────────
   if (!state.time) {
     const hasTimeInLatest =
       /\d{1,2}(:\d{2})?\s*(am|pm)/i.test(latestMessage) ||
@@ -669,7 +648,6 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
     }
   }
 
-  // ── CONFIRM DETECTION ────────────────────────────────────────────
   const confirmWords = ["yes","yeah","yep","yup","ok","okay","sure","confirm","correct","right","haan","ha","ji","theek","done","book it","go ahead","please book","book karo","sounds good","perfect","great","yeahh","yess","k","👍","✅","proceed","do it","bilkul","zaroor"]
   const isConfirming = confirmWords.some(w =>
     latestLower.trim() === w ||
@@ -696,9 +674,7 @@ function extractBookingDetails(history, latestMessage, allText, latestLower, ser
 }
 
 // ════════════════════════════════════════════════════════════════════
-// AI REPLY GENERATOR — v9.1
-// Generic system prompt — adapts to any business type
-// FIX 1: Uses "sarvam-m" (not "sarvam-2")
+// AI REPLY GENERATOR — sarvam-m
 // ════════════════════════════════════════════════════════════════════
 
 async function generateAIReply({ customerMessage, bizSettings, history, customerName, intent, servicesList }) {
@@ -713,7 +689,6 @@ async function generateAIReply({ customerMessage, bizSettings, history, customer
   const aiLanguage     = bizSettings?.ai_language     || "English"
   const description    = bizSettings?.description     || ""
 
-  // Build services block
   let servicesText = ""
   if (servicesList.length > 0) {
     servicesText = servicesList.map(s => {
@@ -725,7 +700,6 @@ async function generateAIReply({ customerMessage, bizSettings, history, customer
     }).join("\n")
   }
 
-  // Booking state hint
   const bs = intent.bookingState
   let bookingHint = ""
   if (bs.service || bs.date || bs.time) {
@@ -782,7 +756,6 @@ ${intentHint}${bookingHint}
 
 LANGUAGE: ${aiLanguage}. Match customer's language if they write differently.`
 
-  // ── FIX 1: Use "sarvam-m" — the working model ──────────────────
   if (process.env.SARVAM_API_KEY) {
     try {
       const sarvamMessages = [
@@ -817,26 +790,22 @@ LANGUAGE: ${aiLanguage}. Match customer's language if they write differently.`
 
 // ════════════════════════════════════════════════════════════════════
 // SARVAM REPLY EXTRACTOR
-// Handles all output patterns from sarvam-m
 // ════════════════════════════════════════════════════════════════════
 
 function extractSarvamReply(rawContent) {
   if (!rawContent?.trim()) return null
   console.log("📨 Sarvam raw (400):", rawContent.substring(0, 400))
 
-  // Pattern A: clean reply after </think> — most common
   if (rawContent.includes("</think>")) {
     const after = rawContent.split("</think>").pop().trim()
     if (after?.length > 3) { console.log("✅ Pattern A"); return after }
   }
 
-  // Pattern D: no think tags — pure reply
   if (!rawContent.includes("<think>") && !rawContent.includes("</think>")) {
     const reply = rawContent.trim()
     if (reply.length > 3) { console.log("✅ Pattern D"); return reply }
   }
 
-  // Pattern B/C/E: reply buried inside think block
   const stripped = rawContent.replace(/<\/think>/g, "").replace(/<think>/g, "").trim()
   const lines    = stripped.split("\n").map(l => l.trim()).filter(l => l.length > 2)
 
@@ -858,7 +827,6 @@ function extractSarvamReply(rawContent) {
   ]
   const isReply = l => replyRx.some(rx => rx.test(l.trim()))
 
-  // Find last short non-reasoning line that looks like a reply
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i]
     if (line.length < 200 && !isReasoning(line)) {
@@ -869,20 +837,17 @@ function extractSarvamReply(rawContent) {
     }
   }
 
-  // Last short paragraph
   const paragraphs = stripped.split("\n\n").map(p => p.trim()).filter(p => p.length > 3)
   for (let i = paragraphs.length - 1; i >= 0; i--) {
     if (paragraphs[i].length < 150) { console.log("✅ Pattern C"); return paragraphs[i] }
   }
 
-  // "So the response should be: X" pattern
   const responseMatch = stripped.match(/(?:response should be|reply should be|say something like)[:\s]*[""]?([^""\n]+)[""]?/i)
   if (responseMatch?.[1]) {
     const e = responseMatch[1].trim().replace(/^[""]|[""]$/g, "")
     if (e.length > 3 && e.length < 300) { console.log("✅ Pattern meta"); return e }
   }
 
-  // Last resort: final non-empty line
   const lastLine = lines[lines.length - 1]
   if (lastLine?.length < 400) { console.log("✅ Last resort"); return lastLine }
 
@@ -890,7 +855,7 @@ function extractSarvamReply(rawContent) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SMART FALLBACK — generic, fully DB-driven
+// SMART FALLBACK
 // ════════════════════════════════════════════════════════════════════
 
 function smartFallback({ msg, intent, biz, firstName, servicesList, bookingState: bs }) {
@@ -908,9 +873,7 @@ function smartFallback({ msg, intent, biz, firstName, servicesList, bookingState
     if (!bs.date &&  bs.time) return `Got the time! 📅 What date works for you?`
     return `Reschedule to ${bs.date} at ${bs.time} — shall I confirm? ✅`
   }
-  if (intent.type === "cancel") {
-    return `I understand you want to cancel 😔\n\nWould you prefer to reschedule instead? We'd love to have you!`
-  }
+  if (intent.type === "cancel") return `I understand you want to cancel 😔\n\nWould you prefer to reschedule instead? We'd love to have you!`
   if (intent.type === "greeting") {
     const svcLine = servicePreview ? `\n\nWe offer: ${servicePreview} 😊` : ""
     return `Hi ${firstName}! 👋 Welcome to *${businessName}*!${svcLine}\n\nHow can I help you today?`
@@ -948,12 +911,8 @@ function smartFallback({ msg, intent, biz, firstName, servicesList, bookingState
     if (bs.service && !bs.date && !needsTime) return `Got it! 📅 When would you like to start or connect?`
     return `Shall I confirm booking for *${bs.service}*${bs.date ? " on " + bs.date : ""}${bs.time ? " at " + bs.time : ""}? ✅`
   }
-  if (/thank|thanks|ok|okay|great|perfect|good|noted|done|alright/.test(m)) {
-    return `You're welcome! 😊 Looking forward to connecting at *${businessName}*!`
-  }
-  if (/speak|human|owner|manager|staff|agent/.test(m)) {
-    return `Of course! 🙌 I'll notify our team and someone will reach out shortly.`
-  }
+  if (/thank|thanks|ok|okay|great|perfect|good|noted|done|alright/.test(m)) return `You're welcome! 😊 Looking forward to connecting at *${businessName}*!`
+  if (/speak|human|owner|manager|staff|agent/.test(m)) return `Of course! 🙌 I'll notify our team and someone will reach out shortly.`
   return `Thanks for reaching out to *${businessName}*! 😊${servicePreview ? `\n\nWe offer: ${servicePreview}.` : ""}\n\nHow can I help?\n📅 Book an appointment\n💰 Services & pricing\n📍 Our location`
 }
 
@@ -962,8 +921,7 @@ function smartFallback({ msg, intent, biz, firstName, servicesList, bookingState
 // ════════════════════════════════════════════════════════════════════
 
 function buildPricingReply(servicesList, biz) {
-  if (!servicesList?.length)
-    return `Please reach us directly for our latest pricing 🙏\n\nOr ask about any specific service!`
+  if (!servicesList?.length) return `Please reach us directly for our latest pricing 🙏\n\nOr ask about any specific service!`
   const list = servicesList.map(s => {
     let line = `• *${s.name}* — ₹${s.price}`
     if (isTimeBased(s) && s.duration) line += ` (${s.duration} min)`
@@ -1002,7 +960,7 @@ function buildRescheduleConfirmation(service, date, time, businessName) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SLOT AVAILABILITY — time-based services only
+// SLOT AVAILABILITY
 // ════════════════════════════════════════════════════════════════════
 
 async function isSlotAvailable({ userId, date, time, service, servicesList, excludeBookingId }) {
@@ -1047,7 +1005,6 @@ function matchService(serviceName, servicesList) {
 
 // ════════════════════════════════════════════════════════════════════
 // CONVERSATION HISTORY BUILDER
-// Sarvam requires strictly alternating user/assistant messages
 // ════════════════════════════════════════════════════════════════════
 
 function buildAlternatingHistory(rawHistory) {
@@ -1106,8 +1063,5 @@ async function sendWhatsAppMessage({ phoneNumberId, accessToken, toNumber, messa
 
 // ════════════════════════════════════════════════════════════════════
 // REQUIRED SQL MIGRATION (run once in Supabase SQL Editor)
-// ════════════════════════════════════════════════════════════════════
-//
 // ALTER TABLE conversations ADD COLUMN IF NOT EXISTS booking_state JSONB;
-//
 // ════════════════════════════════════════════════════════════════════
