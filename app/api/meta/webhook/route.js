@@ -698,7 +698,7 @@ RULES:
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method:  "POST",
         headers: { "Content-Type": "application/json", "api-subscription-key": process.env.SARVAM_API_KEY },
-        body:    JSON.stringify({ model: "sarvam-m", messages: sarvamMessages, max_tokens: 500, temperature: 0.65 })
+        body:    JSON.stringify({ model: "sarvam-2", messages: sarvamMessages, max_tokens: 500, temperature: 0.65 })
       })
       const rawText = await response.text()
       console.log("📨 Sarvam HTTP:", response.status)
@@ -725,7 +725,7 @@ RULES:
 // Problem in v7.0: Case 1b was returning the LAST paragraph inside
 // <think> which is still the reasoning, not the actual reply.
 //
-// Sarvam-m output patterns we handle:
+// sarvam-2 output patterns we handle:
 // Pattern A: <think>reasoning</think>\nActual reply   <- ideal, common
 // Pattern B: <think>reasoning\nActual reply</think>  <- reply stuck inside
 // Pattern C: <think>reasoning</think>                <- nothing after tag
