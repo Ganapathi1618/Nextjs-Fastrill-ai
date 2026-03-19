@@ -20,12 +20,12 @@ const BUSINESS_TYPES = [
   "Salon","Beauty Parlour","Spa","Hair Studio","Nail Studio",
   "Makeup Studio","Skin Clinic","Dermatology Clinic","Dental Clinic",
   "Ayurvedic Clinic","Physiotherapy Clinic","Yoga Studio",
-  "Fitness Studio","Gym","Wellness Center","Medispa","Other"
+  "Fitness Studio","Gym","Wellness Center","Medispa","General clinic","Other"
 ]
 
 const CATEGORIES = [
   "Hair","Skin","Nails","Bridal","Massage","Body",
-  "Dental","Fitness","Ayurveda","Consultation","Membership","Other"
+  "Dental","skin","General","Fitness","Ayurveda","Consultation","Membership","Other"
 ]
 
 const DURATION_OPTIONS = [15,20,30,45,60,75,90,120,150,180]
