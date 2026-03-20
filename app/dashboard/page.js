@@ -2,40 +2,44 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import { useToast } from "@/components/Toast"
 
 const NAV = [
-  { id:"overview", label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
-  { id:"inbox", label:"Conversations", icon:"◎", path:"/dashboard/conversations" },
-  { id:"bookings", label:"Bookings", icon:"◷", path:"/dashboard/bookings" },
-  { id:"campaigns", label:"Campaigns", icon:"◆", path:"/dashboard/campaigns" },
-  { id:"leads", label:"Lead Recovery", icon:"◉", path:"/dashboard/leads" },
-  { id:"contacts", label:"Customers", icon:"◑", path:"/dashboard/contacts" },
-  { id:"analytics", label:"Analytics", icon:"▦", path:"/dashboard/analytics" },
-  { id:"settings", label:"Settings", icon:"◌", path:"/dashboard/settings" },
+  { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
+  { id:"inbox",     label:"Conversations",  icon:"◎", path:"/dashboard/conversations" },
+  { id:"bookings",  label:"Bookings",       icon:"◷", path:"/dashboard/bookings" },
+  { id:"campaigns", label:"Campaigns",      icon:"◆", path:"/dashboard/campaigns" },
+  { id:"leads",     label:"Lead Recovery",  icon:"◉", path:"/dashboard/leads" },
+  { id:"contacts",  label:"Customers",      icon:"◑", path:"/dashboard/contacts" },
+  { id:"analytics", label:"Analytics",      icon:"▦", path:"/dashboard/analytics" },
+  { id:"settings",  label:"Settings",       icon:"◌", path:"/dashboard/settings" },
 ]
 
 export default function Dashboard() {
   const router = useRouter()
-  const [userEmail, setUserEmail] = useState("")
-  const [userId, setUserId] = useState(null)
-  const [connected, setConnected] = useState(false)
-  const [period, setPeriod] = useState("today")
-  const [dark, setDark] = useState(true)
-  const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const toast  = useToast()
 
-  const [stats, setStats] = useState({ revenue:0, leads:0, bookings:0, missedLeads:0, aiHandled:0, aiBookings:0, aiRevenue:0 })
-  const [funnel, setFunnel] = useState({ leads:0, convos:0, booked:0, completed:0, revenue:0 })
+  const [userEmail, setUserEmail]   = useState("")
+  const [userId, setUserId]         = useState(null)
+  const [connected, setConnected]   = useState(false)
+  const [period, setPeriod]         = useState("today")
+  const [dark, setDark]             = useState(true)
+  const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
+  const [loading, setLoading]       = useState(true)
+
+  const [stats, setStats]           = useState({ revenue:0, leads:0, bookings:0, missedLeads:0, aiHandled:0, aiBookings:0, aiRevenue:0 })
+  const [funnel, setFunnel]         = useState({ customers:0, convos:0, booked:0, completed:0, revenue:0 })
   const [todayBookings, setTodayBookings] = useState([])
-  const [sources, setSources] = useState([])
+  const [sources, setSources]       = useState([])
   const [healthScore, setHealthScore] = useState(0)
+  const [avgServiceValue, setAvgServiceValue] = useState(0)
 
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
     if (saved) setDark(saved === "dark")
     supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) router.push("/login")
-      else { setUserEmail(data.user.email||""); setUserId(data.user.id) }
+      if (!data?.user) router.push("/login")
+      else { setUserEmail(data.user.email || ""); setUserId(data.user.id) }
     })
   }, [])
 
@@ -43,92 +47,133 @@ export default function Dashboard() {
 
   async function loadAll() {
     setLoading(true)
+    try {
+      const now = new Date()
+      let from = new Date()
+      if (period === "today") from.setHours(0, 0, 0, 0)
+      else if (period === "week") from.setDate(now.getDate() - 7)
+      else from.setDate(1)
+      const fromISO     = from.toISOString()
+      const fromDateStr = from.toISOString().split("T")[0]
+      const todayStr    = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0")
 
-    const now = new Date()
-    let from = new Date()
-    if (period==="today") from.setHours(0,0,0,0)
-    else if (period==="week") from.setDate(now.getDate()-7)
-    else from.setDate(1)
-    const fromISO = from.toISOString()
-    const todayStr = now.toISOString().split("T")[0]
+      const [{ data: wa }, { data: msgs }, { data: allBks }, { data: leads }, { data: customers }, { data: convos }] = await Promise.all([
+        supabase.from("whatsapp_connections").select("id").eq("user_id", userId).maybeSingle(),
+        supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id", userId).gte("created_at", fromISO),
+        supabase.from("bookings").select("status,amount,ai_booked,booking_date,customer_name,service,booking_time,created_at").eq("user_id", userId),
+        supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id", userId).gte("created_at", fromISO),
+        supabase.from("customers").select("tag,source,created_at").eq("user_id", userId),
+        supabase.from("conversations").select("id,created_at").eq("user_id", userId),
+      ])
 
-    // FIX: bookings query uses NO date filter so all bookings show
-    // leads/messages still filtered by period
-    const [{ data: wa }, { data: msgs }, { data: bks }, { data: leads }, { data: customers }] = await Promise.all([
-      supabase.from("whatsapp_connections").select("id").eq("user_id", userId).single(),
-      supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id", userId).gte("created_at", fromISO),
-      supabase.from("bookings").select("status,amount,ai_booked,booking_date,customer_name,service,booking_time,created_at").eq("user_id", userId),
-      supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id", userId).gte("created_at", fromISO),
-      supabase.from("customers").select("tag,source,total_spend").eq("user_id", userId)
-    ])
+      setConnected(!!wa)
 
-    setConnected(!!wa)
+      const bks = allBks || []
 
-    // FIX: use booking_date (not created_at) so "Today" = today's appointments, not bookings made today
-    const allBks = bks||[]
-    const fromDateStr = from.toISOString().split("T")[0]
-    const periodBks = period==="today"
-      ? allBks.filter(b=>b.booking_date===todayStr)
-      : allBks.filter(b=>b.booking_date >= fromDateStr)
+      // Period bookings — use booking_date not created_at
+      const periodBks = period === "today"
+        ? bks.filter(b => b.booking_date === todayStr)
+        : bks.filter(b => b.booking_date >= fromDateStr)
 
-    // Revenue = ALL confirmed+completed bookings (lifetime total — most meaningful for owner)
-    const allCompleted = allBks.filter(b=>b.status==="completed"||b.status==="confirmed")
-    const revenue = allCompleted.reduce((s,b)=>s+(b.amount||0),0)
-    const completedBks = periodBks.filter(b=>b.status==="completed"||b.status==="confirmed")
+      // Revenue — ALL confirmed+completed (lifetime is most meaningful for owner)
+      const confirmedAll = bks.filter(b => b.status === "confirmed" || b.status === "completed")
+      const revenue      = confirmedAll.reduce((s, b) => s + (b.amount || 0), 0)
 
-    const aiHandled = (msgs||[]).filter(m=>m.is_ai&&m.direction==="outbound").length
-    // AI bookings = total ever (shows AI's lifetime contribution)
-    const aiBookings = allBks.filter(b=>b.ai_booked).length
-    const missedLeads = (leads||[]).filter(l=>l.status==="open").length
-    const uniqueConvos = [...new Set((msgs||[]).map(m=>m.conversation_id).filter(Boolean))].length
+      // REAL AI revenue — only bookings where ai_booked = true
+      const aiRevenue = bks.filter(b => b.ai_booked && (b.status === "confirmed" || b.status === "completed"))
+                           .reduce((s, b) => s + (b.amount || 0), 0)
 
-    setStats({ revenue, leads:(leads||[]).length, bookings:periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue: Math.round(revenue*0.7) })
-    // FIX: Funnel should show real pipeline numbers
-    // Leads In = total customers (everyone who ever messaged)
-    // Chats = unique conversations with messages this period
-    // Booked = total bookings ever
-    // Done = completed bookings
-    const totalCustomers = (customers||[]).length
-    const funnelLeads = totalCustomers || (leads||[]).length
-    setFunnel({ leads:funnelLeads, convos:uniqueConvos || Math.round(funnelLeads*0.8), booked:allBks.length, completed:allCompleted.length, revenue })
+      // REAL avg service value
+      const avgVal = confirmedAll.length > 0 ? Math.round(revenue / confirmedAll.length) : 0
+      setAvgServiceValue(avgVal)
 
-    // Today's bookings — from ALL bookings, filter by today's date
-    setTodayBookings((bks||[]).filter(b=>b.booking_date===todayStr).slice(0,4))
+      // AI messages handled
+      const aiHandled  = (msgs || []).filter(m => m.is_ai && m.direction === "outbound").length
+      const aiBookings = bks.filter(b => b.ai_booked).length
 
-    const srcMap = {}
-    ;(leads||[]).forEach(l=>{ srcMap[l.source||"Organic"] = (srcMap[l.source||"Organic"]||0)+1 })
-    setSources(Object.entries(srcMap).map(([name,count])=>({ name, count, color:{ whatsapp:"#25d366", instagram:"#e1306c", google:"#ea4335", referral:"#f59e0b", organic:"#38bdf8" }[name.toLowerCase()]||"#a78bfa" })).slice(0,4))
+      // Missed leads = open leads with no response in this period
+      const missedLeads = (leads || []).filter(l => l.status === "open").length
 
-    const score = Math.min(100, Math.round(
-      (wa?20:0) + (aiHandled>5?20:aiHandled*4) + (allBks.length>0?15:0) + ((leads||[]).length>0?10:0) + ((customers||[]).length>2?15:0) + 20
-    ))
-    setHealthScore(score)
+      // Real unique conversations in period
+      const periodMsgConvoIds = new Set((msgs || []).map(m => m.conversation_id).filter(Boolean))
+      const uniqueConvos      = periodMsgConvoIds.size
+
+      setStats({ revenue, leads: (leads || []).length, bookings: periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue })
+
+      // Funnel — all real numbers, no fake percentages
+      setFunnel({
+        customers:  (customers || []).length,
+        convos:     uniqueConvos,
+        booked:     bks.length,
+        completed:  confirmedAll.length,
+        revenue,
+      })
+
+      // Today's bookings
+      setTodayBookings(bks.filter(b => b.booking_date === todayStr).slice(0, 4))
+
+      // Lead sources — real data
+      const srcMap = {}
+      for (const l of (leads || [])) {
+        const src = l.source || "Organic"
+        srcMap[src] = (srcMap[src] || 0) + 1
+      }
+      const srcColors = { whatsapp:"#25d366", instagram:"#e1306c", google:"#ea4335", referral:"#f59e0b", organic:"#38bdf8" }
+      setSources(Object.entries(srcMap).map(([name, count]) => ({
+        name, count, color: srcColors[name.toLowerCase()] || "#a78bfa"
+      })).slice(0, 4))
+
+      // Health score — real criteria, no phantom +20
+      let score = 0
+      if (wa)                           score += 25  // Connected
+      if (aiHandled > 0)                score += Math.min(20, aiHandled * 2)  // AI active
+      if (bks.length > 0)              score += 15  // Has bookings
+      if ((leads || []).length > 0)    score += 10  // Has leads
+      if ((customers || []).length > 2) score += 15  // Has customers
+      if (aiBookings > 0)              score += 15  // AI is booking
+      setHealthScore(Math.min(100, score))
+
+    } catch(e) {
+      toast.error("Failed to load dashboard data")
+      console.error("Dashboard load error:", e)
+    }
     setLoading(false)
   }
 
-  const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
-  const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login") }
-  const handleConnect = () => { const appId="780799931531576",configId="1090960043190718",redirectUri="https://fastrill.com/api/meta/callback"; window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}` }
+  const toggleTheme = () => { const n = !dark; setDark(n); localStorage.setItem("fastrill-theme", n ? "dark" : "light") }
+  const handleLogout = async () => {
+    try { await supabase.auth.signOut(); router.push("/login") }
+    catch(e) { toast.error("Sign out failed: " + e.message) }
+  }
+  const handleConnect = () => {
+    const appId = "780799931531576", configId = "1090960043190718"
+    const redirectUri = "https://fastrill.com/api/meta/callback"
+    window.location.href = "https://www.facebook.com/v18.0/dialog/oauth?client_id=" + appId + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&response_type=code&config_id=" + configId
+  }
 
-  const bg=dark?"#08080e":"#f0f2f5", sidebar=dark?"#0c0c15":"#ffffff", card=dark?"#0f0f1a":"#ffffff"
-  const border=dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.08)", cardBorder=dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.09)"
-  const text=dark?"#eeeef5":"#111827", textMuted=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
-  const textFaint=dark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.25)", inputBg=dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
-  const accent=dark?"#00d084":"#00935a", navText=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
-  const navActive=dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)", navActiveBorder=dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
-  const navActiveText=dark?"#00c47d":"#00935a", accentDim=dark?"rgba(0,208,132,0.12)":"rgba(0,147,90,0.1)"
-  const userInitial=userEmail?userEmail[0].toUpperCase():"G"
-  const hColor=healthScore>=75?accent:healthScore>=50?"#f59e0b":"#ef4444"
-  const hLabel=healthScore>=75?"Excellent":healthScore>=50?"Needs Work":"Getting Started"
-  const circ=2*Math.PI*46
+  const bg = dark?"#08080e":"#f0f2f5", sidebar = dark?"#0c0c15":"#ffffff", card = dark?"#0f0f1a":"#ffffff"
+  const border = dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.08)", cardBorder = dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.09)"
+  const text = dark?"#eeeef5":"#111827", textMuted = dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
+  const textFaint = dark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.25)", inputBg = dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
+  const accent = dark?"#00d084":"#00935a", navText = dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
+  const navActive = dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)", navActiveBorder = dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
+  const navActiveText = dark?"#00c47d":"#00935a", accentDim = dark?"rgba(0,208,132,0.12)":"rgba(0,147,90,0.1)"
+  const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
+  const hColor = healthScore >= 75 ? accent : healthScore >= 40 ? "#f59e0b" : "#ef4444"
+  const hLabel = healthScore >= 75 ? "Excellent" : healthScore >= 40 ? "Needs Work" : "Getting Started"
+  const circ   = 2 * Math.PI * 46
 
+  // Real funnel percentages based on actual data
+  const fMax = funnel.customers || 1
   const funnelData = [
-    { label:"Leads In", val:funnel.leads, pct:100, color:accent },
-    { label:"Chats", val:funnel.convos, pct:72, color:"#38bdf8" },
-    { label:"Booked", val:funnel.booked, pct:41, color:"#a78bfa" },
-    { label:"Done", val:funnel.completed, pct:28, color:"#f59e0b" },
-    { label:"Revenue", val:`₹${stats.revenue.toLocaleString()}`, pct:18, color:"#fb7185" },
+    { label:"Total Customers", val: funnel.customers, pct: 100,                                                color: accent },
+    { label:"Active Chats",    val: funnel.convos,    pct: Math.round((funnel.convos/fMax)*100)||0,           color: "#38bdf8" },
+    { label:"Booked",          val: funnel.booked,    pct: Math.round((funnel.booked/fMax)*100)||0,           color: "#a78bfa" },
+    { label:"Completed",       val: funnel.completed, pct: Math.round((funnel.completed/fMax)*100)||0,        color: "#f59e0b" },
+    { label:"Revenue",         val: "₹" + stats.revenue.toLocaleString(), pct: Math.min(100, funnel.completed > 0 ? Math.round((funnel.completed/fMax)*100) : 0), color: "#fb7185" },
   ]
+
+  const periodLabel = period === "today" ? "Today" : period === "week" ? "This week" : "This month"
 
   return (
     <>
@@ -153,11 +198,10 @@ export default function Dashboard() {
         .logout-btn:hover{border-color:#fca5a5;color:#ef4444;}
         .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
         .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${border};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sidebar};}
-        .tb-title{font-weight:700;font-size:15px;color:${text};}
         .topbar-l{display:flex;align-items:center;gap:14px;}
         .topbar-r{display:flex;align-items:center;gap:8px;}
         .period-wrap{display:flex;background:${inputBg};border:1px solid ${cardBorder};border-radius:8px;padding:2px;gap:1px;}
-        .period-btn{padding:3px 11px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;border:none;background:transparent;color:${textMuted};font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.12s;}
+        .period-btn{padding:3px 11px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;border:none;background:transparent;color:${textMuted};font-family:'Plus Jakarta Sans',sans-serif;}
         .period-btn.active{background:${card};color:${text};box-shadow:0 1px 3px rgba(0,0,0,0.15);}
         .theme-toggle{display:flex;align-items:center;gap:6px;padding:5px 10px;background:${inputBg};border:1px solid ${cardBorder};border-radius:8px;cursor:pointer;font-size:11.5px;color:${textMuted};font-family:'Plus Jakarta Sans',sans-serif;}
         .toggle-pill{width:30px;height:16px;border-radius:100px;background:${dark?accent:"#d1d5db"};position:relative;flex-shrink:0;}
@@ -174,74 +218,51 @@ export default function Dashboard() {
         .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
         @media(max-width:1200px){.three-col{grid-template-columns:1fr 1fr;}}
         @media(max-width:960px){.two-col,.three-col{grid-template-columns:1fr;}}
-
-        /* ══ MOBILE RESPONSIVE ══════════════════════════════════ */
         @media(max-width:767px){
-          /* Dashboard: stack health score above KPI cards */
           .kpi-grid{grid-template-columns:repeat(2,1fr)!important;}
-          /* Make health+kpi container vertical */
           .health-kpi-row{grid-template-columns:1fr!important;}
-        }
-        @media(max-width:767px){
           .wrap{position:relative;}
-          .sidebar{
-            position:fixed;top:0;left:0;height:100vh;z-index:300;
-            transform:translateX(-100%);transition:transform 0.25s ease;
-            width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);
-          }
+          .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s ease;width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
           .sidebar.mob-open{transform:translateX(0);}
           .mob-overlay{display:block!important;}
-          .main{width:100%;}
           .topbar{padding:0 12px!important;}
           .content{padding:12px!important;}
           .hamburger{display:flex!important;}
-          .tb-title{font-size:14px!important;}
-          /* Hide theme toggle label on small screens */
-          .theme-toggle .tog-label{display:none;}
         }
         .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
         .hamburger{display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:#eeeef5;line-height:1;margin-right:2px;}
-        /* Responsive grids */
         @media(max-width:767px){
           [style*="grid-template-columns: repeat(5"]{grid-template-columns:repeat(2,1fr)!important;}
           [style*="grid-template-columns: repeat(4"]{grid-template-columns:repeat(2,1fr)!important;}
           [style*="grid-template-columns: repeat(3"]{grid-template-columns:repeat(2,1fr)!important;}
           [style*="grid-template-columns: 1fr 300px"]{grid-template-columns:1fr!important;}
           [style*="grid-template-columns: 1fr 320px"]{grid-template-columns:1fr!important;}
-          [style*="grid-template-columns: 280px 1fr 280px"]{grid-template-columns:1fr!important;}
+          [style*="grid-template-columns: 210px 1fr"]{grid-template-columns:1fr!important;}
           [style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr!important;}
-          [style*="repeat(7,1fr)"]{grid-template-columns:repeat(4,1fr)!important;}
         }
-        /* Bottom navigation bar */
-        .bottom-nav{
-          display:none;position:fixed;bottom:0;left:0;right:0;
-          background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);
-          padding:6px 0;z-index:200;
-        }
-        @media(max-width:767px){
-          .bottom-nav{display:flex;justify-content:space-around;}
-          .main{padding-bottom:60px;}
-          .wrap{padding-bottom:0;}
-        }
+        .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);padding:6px 0;z-index:200;}
+        @media(max-width:767px){.bottom-nav{display:flex;justify-content:space-around;}.main{padding-bottom:60px;}}
         .bnav-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
         .bnav-icon{font-size:17px;color:rgba(255,255,255,0.3);}
         .bnav-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
         .bnav-btn.active .bnav-icon,.bnav-btn.active .bnav-label{color:#00d084;}
+        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
       `}</style>
 
       <div className="wrap">
-        <aside className={`sidebar${mobSidebarOpen?" mob-open":""}`}>
+        <div className={"mob-overlay" + (mobSidebarOpen ? "" : "")} style={{display: mobSidebarOpen ? "block" : "none"}} onClick={() => setMobSidebarOpen(false)}/>
+        <aside className={"sidebar" + (mobSidebarOpen ? " mob-open" : "")}>
           <a href="/dashboard" className="logo">fast<span>rill</span></a>
           <div className="nav-section">Platform</div>
-          {NAV.map(item=>(
-            <button key={item.id} className={`nav-item${item.id==="overview"?" active":""}`} onClick={()=>router.push(item.path)}>
+          {NAV.map(item => (
+            <button key={item.id} className={"nav-item" + (item.id === "overview" ? " active" : "")} onClick={() => router.push(item.path)}>
               <span className="nav-icon">{item.icon}</span><span>{item.label}</span>
             </button>
           ))}
           <div className="sidebar-footer">
             <div className="user-card">
               <div className="user-avatar">{userInitial}</div>
-              <div className="user-email">{userEmail||"Loading..."}</div>
+              <div className="user-email">{userEmail || "Loading..."}</div>
             </div>
             <button className="logout-btn" onClick={handleLogout}>↩ Sign out</button>
           </div>
@@ -250,198 +271,212 @@ export default function Dashboard() {
         <div className="main">
           <div className="topbar">
             <div className="topbar-l">
-              <button className="hamburger" onClick={()=>setMobSidebarOpen(s=>!s)}>☰</button>
-              <span className="tb-title">Revenue Engine</span>
+              <button className="hamburger" onClick={() => setMobSidebarOpen(s => !s)}>☰</button>
+              <span style={{fontWeight:700, fontSize:15, color:text}}>Revenue Engine</span>
               <div className="period-wrap">
-                {["today","week","month"].map(p=>(
-                  <button key={p} className={`period-btn${period===p?" active":""}`} onClick={()=>setPeriod(p)}>
-                    {p.charAt(0).toUpperCase()+p.slice(1)}
+                {["today","week","month"].map(p => (
+                  <button key={p} className={"period-btn" + (period === p ? " active" : "")} onClick={() => setPeriod(p)}>
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
                   </button>
                 ))}
               </div>
             </div>
             <div className="topbar-r">
               <button className="theme-toggle" onClick={toggleTheme}>
-                <span>{dark?"🌙":"☀️"}</span><div className="toggle-pill"/><span>{dark?"Dark":"Light"}</span>
+                <span>{dark ? "🌙" : "☀️"}</span><div className="toggle-pill"/><span>{dark ? "Dark" : "Light"}</span>
               </button>
-              <div className={`badge${connected?" on":""}`}>
-                <span className="badge-dot"/>{connected?"WhatsApp Live":"Not Connected"}
+              <div className={"badge" + (connected ? " on" : "")}>
+                <span className="badge-dot"/>{connected ? "WhatsApp Live" : "Not Connected"}
               </div>
             </div>
           </div>
 
           <div className="content">
             {!connected && (
-              <div style={{background:dark?`linear-gradient(135deg,${accent}0f,rgba(56,189,248,0.06))`:`linear-gradient(135deg,${accent}0a,rgba(56,189,248,0.04))`,border:`1px solid ${accent}28`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:38,height:38,borderRadius:10,background:"#25d366",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>💬</div>
+              <div style={{background: dark ? "linear-gradient(135deg," + accent + "0f,rgba(56,189,248,0.06))" : "linear-gradient(135deg," + accent + "0a,rgba(56,189,248,0.04))", border: "1px solid " + accent + "28", borderRadius:12, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:14}}>
+                <div style={{display:"flex", alignItems:"center", gap:12}}>
+                  <div style={{width:38, height:38, borderRadius:10, background:"#25d366", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0}}>💬</div>
                   <div>
-                    <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:2}}>Connect WhatsApp to start generating revenue</div>
-                    <div style={{fontSize:11.5,color:textMuted}}>Link your business number to activate AI-powered lead conversion</div>
+                    <div style={{fontWeight:700, fontSize:13, color:text, marginBottom:2}}>Connect WhatsApp to start generating revenue</div>
+                    <div style={{fontSize:11.5, color:textMuted}}>Link your business number to activate AI-powered lead conversion</div>
                   </div>
                 </div>
-                <button onClick={handleConnect} style={{background:"#1877f2",color:"#fff",border:"none",padding:"8px 16px",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",flexShrink:0}}>Connect WhatsApp →</button>
+                <button onClick={handleConnect} style={{background:"#1877f2", color:"#fff", border:"none", padding:"8px 16px", borderRadius:8, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", flexShrink:0}}>Connect WhatsApp →</button>
               </div>
             )}
 
             {/* Health + KPIs */}
-            <div className="health-kpi-row" style={{display:"grid",gridTemplateColumns:"210px 1fr",gap:14}}>
-              <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:"20px 16px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden"}}>
-                <div style={{position:"absolute",inset:0,background:`radial-gradient(circle at 50% 30%,${accent}0d,transparent 70%)`,pointerEvents:"none"}}/>
-                <div style={{fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase",color:textFaint,fontWeight:600,marginBottom:12}}>Business Health</div>
-                <div style={{position:"relative",width:110,height:110,marginBottom:12}}>
+            <div className="health-kpi-row" style={{display:"grid", gridTemplateColumns:"210px 1fr", gap:14}}>
+              <div style={{background:card, border:"1px solid " + cardBorder, borderRadius:13, padding:"20px 16px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", position:"relative", overflow:"hidden"}}>
+                <div style={{position:"absolute", inset:0, background:"radial-gradient(circle at 50% 30%," + accent + "0d,transparent 70%)", pointerEvents:"none"}}/>
+                <div style={{fontSize:10, letterSpacing:"1.5px", textTransform:"uppercase", color:textFaint, fontWeight:600, marginBottom:12}}>Business Health</div>
+                <div style={{position:"relative", width:110, height:110, marginBottom:12}}>
                   <svg width="110" height="110" viewBox="0 0 110 110" style={{transform:"rotate(-90deg)"}}>
-                    <circle cx="55" cy="55" r="46" fill="none" stroke={dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.07)"} strokeWidth="7"/>
+                    <circle cx="55" cy="55" r="46" fill="none" stroke={dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)"} strokeWidth="7"/>
                     <circle cx="55" cy="55" r="46" fill="none" stroke={hColor} strokeWidth="7" strokeLinecap="round"
-                      strokeDasharray={`${circ}`} strokeDashoffset={`${circ*(1-healthScore/100)}`} style={{transition:"stroke-dashoffset 1.2s ease"}}/>
+                      strokeDasharray={"" + circ} strokeDashoffset={"" + (circ * (1 - healthScore / 100))} style={{transition:"stroke-dashoffset 1.2s ease"}}/>
                   </svg>
-                  <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-                    <div style={{fontWeight:800,fontSize:34,lineHeight:1,color:hColor}}>{healthScore}</div>
-                    <div style={{fontSize:11,color:textFaint}}>/100</div>
+                  <div style={{position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center"}}>
+                    <div style={{fontWeight:800, fontSize:34, lineHeight:1, color:hColor}}>{healthScore}</div>
+                    <div style={{fontSize:11, color:textFaint}}>/100</div>
                   </div>
                 </div>
-                <div style={{fontWeight:700,fontSize:13,color:hColor,marginBottom:3}}>{hLabel}</div>
-                <div style={{fontSize:11,color:textMuted,lineHeight:1.5}}>{loading?"Calculating...":connected?"AI is active":"Connect WhatsApp to get started"}</div>
+                <div style={{fontWeight:700, fontSize:13, color:hColor, marginBottom:3}}>{hLabel}</div>
+                <div style={{fontSize:11, color:textMuted, lineHeight:1.5}}>{loading ? "Calculating..." : connected ? "AI is active" : "Connect WhatsApp to start"}</div>
               </div>
 
-              <div className="kpi-grid" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11}}>
+              <div className="kpi-grid" style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:11}}>
                 {[
-                  {name:"Revenue Generated",val:`₹${stats.revenue.toLocaleString()}`,color:accent,icon:"₹"},
-                  {name:"Leads Captured",val:stats.leads,color:"#38bdf8",icon:"↗"},
-                  {name:"Appointments Booked",val:stats.bookings,color:"#a78bfa",icon:"📅"},
-                  {name:"Missed Leads",val:stats.missedLeads,color:"#fb7185",icon:"!"},
-                ].map(k=>(
-                  <div key={k.name} style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:11,padding:"15px 14px",position:"relative",overflow:"hidden"}}>
-                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:k.color+"55",borderRadius:"11px 11px 0 0"}}/>
-                    <div style={{position:"absolute",top:12,right:13,fontSize:13,opacity:0.3}}>{k.icon}</div>
-                    <div style={{fontSize:11,color:textMuted,marginBottom:8}}>{k.name}</div>
-                    <div style={{fontWeight:700,fontSize:28,letterSpacing:"-1px",lineHeight:1,color:k.color,marginBottom:5}}>{loading?"—":k.val}</div>
-                    <div style={{fontSize:10.5,color:textFaint}}>{period==="today"?"Today":period==="week"?"This week":"This month"}</div>
+                  { name:"Revenue Generated",    val:"₹" + stats.revenue.toLocaleString(),    color:accent,    icon:"₹",  sub:periodLabel },
+                  { name:"Leads Captured",        val:stats.leads,                              color:"#38bdf8", icon:"↗",  sub:periodLabel },
+                  { name:"Appointments Booked",   val:stats.bookings,                           color:"#a78bfa", icon:"📅", sub:periodLabel },
+                  { name:"Avg Service Value",     val:"₹" + avgServiceValue.toLocaleString(),  color:"#f59e0b", icon:"₹",  sub:"per booking" },
+                ].map(k => (
+                  <div key={k.name} style={{background:card, border:"1px solid " + cardBorder, borderRadius:11, padding:"15px 14px", position:"relative", overflow:"hidden"}}>
+                    <div style={{position:"absolute", top:0, left:0, right:0, height:2, background:k.color + "55", borderRadius:"11px 11px 0 0"}}/>
+                    <div style={{position:"absolute", top:12, right:13, fontSize:13, opacity:0.3}}>{k.icon}</div>
+                    <div style={{fontSize:11, color:textMuted, marginBottom:8}}>{k.name}</div>
+                    <div style={{fontWeight:700, fontSize:28, letterSpacing:"-1px", lineHeight:1, color:k.color, marginBottom:5}}>{loading ? "—" : k.val}</div>
+                    <div style={{fontSize:10.5, color:textFaint}}>{k.sub}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Funnel */}
+            {/* Funnel — REAL data, real percentages */}
             <div className="card">
               <div className="card-head">
                 <div className="card-title">Conversion Funnel</div>
                 <div className="card-sub">Where are leads dropping off?</div>
               </div>
-              <div style={{display:"flex",alignItems:"flex-end",gap:6,height:105}}>
-                {funnelData.map((s,i)=>(
+              <div style={{display:"flex", alignItems:"flex-end", gap:6, height:110}}>
+                {funnelData.map((s, i) => (
                   <div key={s.label} style={{display:"contents"}}>
-                    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                      <div style={{fontWeight:700,fontSize:12.5,color:s.color}}>{loading?"—":s.val}</div>
-                      <div style={{width:"100%",height:`${s.pct*0.62}px`,background:s.color+"22",border:`1px solid ${s.color}40`,borderRadius:"4px 4px 0 0"}}/>
-                      <div style={{fontSize:10,color:textMuted,textAlign:"center"}}>{s.label}</div>
+                    <div style={{flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4}}>
+                      <div style={{fontWeight:700, fontSize:12.5, color:s.color}}>{loading ? "—" : s.val}</div>
+                      <div style={{fontSize:9.5, color:textFaint, fontWeight:600}}>{s.pct}%</div>
+                      <div style={{width:"100%", height:Math.max(4, s.pct * 0.62) + "px", background:s.color + "22", border:"1px solid " + s.color + "40", borderRadius:"4px 4px 0 0", transition:"height 0.5s"}}/>
+                      <div style={{fontSize:9.5, color:textMuted, textAlign:"center", lineHeight:1.3}}>{s.label}</div>
                     </div>
-                    {i<funnelData.length-1&&<div style={{color:textFaint,fontSize:14,marginBottom:25,flexShrink:0}}>›</div>}
+                    {i < funnelData.length - 1 && <div style={{color:textFaint, fontSize:14, marginBottom:28, flexShrink:0}}>›</div>}
                   </div>
                 ))}
               </div>
+              {funnel.customers === 0 && !loading && (
+                <div style={{textAlign:"center", marginTop:12, fontSize:12, color:textFaint}}>Connect WhatsApp and start chatting to see your funnel</div>
+              )}
             </div>
 
-            {/* AI Performance + Lost Revenue */}
+            {/* AI Performance + Missed Revenue */}
             <div className="two-col">
               <div className="card">
                 <div className="card-head">
                   <div>
-                    <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"2px 9px",fontSize:10,color:"#a78bfa",fontWeight:700,letterSpacing:"0.5px"}}>◈ AI PERFORMANCE</div>
+                    <div style={{display:"inline-flex", alignItems:"center", gap:4, background:"rgba(167,139,250,0.12)", border:"1px solid rgba(167,139,250,0.2)", borderRadius:100, padding:"2px 9px", fontSize:10, color:"#a78bfa", fontWeight:700, letterSpacing:"0.5px"}}>◈ AI PERFORMANCE</div>
                     <div className="card-title" style={{marginTop:8}}>What your AI achieved</div>
                   </div>
-                  {/* FIX: was "Powered by Claude" — now Sarvam */}
                   <div className="card-sub">Powered by Sarvam AI</div>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:9}}>
                   {[
-                    {l:"Conversations Handled",v:stats.aiHandled,s:"by AI"},
-                    {l:"Avg Response Time",v:"< 3s",s:"seconds"},
-                    {l:"Bookings by AI",v:stats.aiBookings,s:"appointments"},
-                    {l:"Revenue Attributed",v:`₹${stats.aiRevenue.toLocaleString()}`,s:"to AI replies"}
-                  ].map(m=>(
-                    <div key={m.l} style={{background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:9,padding:12}}>
-                      <div style={{fontWeight:700,fontSize:22,color:text,lineHeight:1,marginBottom:3}}>{loading?"—":m.v}</div>
-                      <div style={{fontSize:11,color:textMuted,lineHeight:1.4}}>{m.l}<br/><span style={{opacity:0.7}}>{m.s}</span></div>
+                    { l:"Conversations Handled", v:stats.aiHandled,                               s:"by AI (real count)" },
+                    { l:"AI Bookings Created",    v:stats.aiBookings,                              s:"auto-booked" },
+                    { l:"Revenue from AI",        v:"₹" + stats.aiRevenue.toLocaleString(),       s:"ai_booked=true" },
+                    { l:"Avg Booking Value",      v:"₹" + avgServiceValue.toLocaleString(),        s:"per confirmed booking" },
+                  ].map(m => (
+                    <div key={m.l} style={{background:inputBg, border:"1px solid " + cardBorder, borderRadius:9, padding:12}}>
+                      <div style={{fontWeight:700, fontSize:22, color:text, lineHeight:1, marginBottom:3}}>{loading ? "—" : m.v}</div>
+                      <div style={{fontSize:11, color:textMuted, lineHeight:1.4}}>{m.l}<br/><span style={{opacity:0.7, fontSize:10}}>{m.s}</span></div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div style={{background:card,border:"1px solid rgba(251,113,133,0.18)",borderRadius:13,padding:18}}>
+              <div style={{background:card, border:"1px solid rgba(251,113,133,0.18)", borderRadius:13, padding:18}}>
                 <div className="card-head">
-                  <div className="card-title">🔥 Lost Revenue Tracker</div>
-                  <div className="card-sub">Unanswered leads</div>
+                  <div className="card-title">🔥 Missed Revenue</div>
+                  <div className="card-sub">Open leads not followed up</div>
                 </div>
-                <div style={{fontWeight:800,fontSize:38,color:"#fb7185",letterSpacing:"-1.5px",lineHeight:1,marginBottom:2}}>₹{(stats.missedLeads*600).toLocaleString()}</div>
-                <div style={{fontSize:11.5,color:textMuted,marginBottom:13}}>potential revenue lost this {period}</div>
+                <div style={{fontWeight:800, fontSize:38, color:"#fb7185", letterSpacing:"-1.5px", lineHeight:1, marginBottom:2}}>
+                  {loading ? "—" : stats.missedLeads > 0 ? stats.missedLeads + " leads" : "All caught up ✅"}
+                </div>
+                <div style={{fontSize:11.5, color:textMuted, marginBottom:13}}>
+                  {stats.missedLeads > 0 ? "open leads with no booking yet · " + periodLabel : "No open leads this period"}
+                </div>
                 {[
-                  {l:"Unanswered leads",v:stats.missedLeads},
-                  {l:"No follow-up sent",v:Math.round(stats.missedLeads*0.6)},
-                  {l:"Abandoned convos",v:Math.round(stats.leads*0.2)}
-                ].map(r=>(
-                  <div key={r.l} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 10px",background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:7,marginBottom:5}}>
-                    <span style={{fontSize:12,color:textMuted}}>{r.l}</span>
-                    <span style={{fontSize:12,fontWeight:700,color:"#fb7185"}}>{loading?"—":r.v} leads</span>
+                  { l:"Open leads",         v:stats.missedLeads },
+                  { l:"AI handled",         v:stats.aiHandled },
+                  { l:"Bookings created",   v:stats.bookings },
+                ].map(r => (
+                  <div key={r.l} style={{display:"flex", alignItems:"center", justifyContent:"space-between", padding:"7px 10px", background:inputBg, border:"1px solid " + cardBorder, borderRadius:7, marginBottom:5}}>
+                    <span style={{fontSize:12, color:textMuted}}>{r.l}</span>
+                    <span style={{fontSize:12, fontWeight:700, color:r.l === "Open leads" ? "#fb7185" : accent}}>{loading ? "—" : r.v}</span>
                   </div>
                 ))}
+                {stats.missedLeads > 0 && (
+                  <button onClick={() => router.push("/dashboard/leads")} style={{width:"100%", marginTop:10, padding:"8px", borderRadius:8, background:"rgba(251,113,133,0.1)", border:"1px solid rgba(251,113,133,0.25)", color:"#fb7185", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                    Recover {stats.missedLeads} leads →
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Sources + Bookings Today + Quick Actions */}
+            {/* Sources + Today + Quick Actions */}
             <div className="three-col">
               <div className="card">
                 <div className="card-head"><div className="card-title">Lead Sources</div><div className="card-sub">By channel</div></div>
-                {loading ? <div style={{color:textFaint,fontSize:12,textAlign:"center",padding:"16px 0"}}>Loading...</div>
-                : sources.length===0 ? <div style={{color:textFaint,fontSize:12,textAlign:"center",padding:"16px 0"}}>No data yet</div>
-                : sources.map(s=>(
-                  <div key={s.name} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 0",borderBottom:`1px solid ${border}`}}>
-                    <div style={{width:7,height:7,borderRadius:"50%",background:s.color,flexShrink:0}}/>
-                    <div style={{fontSize:12.5,color:text,flex:1,fontWeight:500,textTransform:"capitalize"}}>{s.name}</div>
-                    <div style={{fontWeight:700,fontSize:12,color:accent}}>{s.count} leads</div>
-                  </div>
-                ))}
+                {loading ? <div style={{color:textFaint, fontSize:12, textAlign:"center", padding:"16px 0"}}>Loading...</div>
+                  : sources.length === 0 ? <div style={{color:textFaint, fontSize:12, textAlign:"center", padding:"16px 0"}}>No leads yet</div>
+                  : sources.map(s => (
+                    <div key={s.name} style={{display:"flex", alignItems:"center", gap:9, padding:"8px 0", borderBottom:"1px solid " + border}}>
+                      <div style={{width:7, height:7, borderRadius:"50%", background:s.color, flexShrink:0}}/>
+                      <div style={{fontSize:12.5, color:text, flex:1, fontWeight:500, textTransform:"capitalize"}}>{s.name}</div>
+                      <div style={{fontWeight:700, fontSize:12, color:accent}}>{s.count} leads</div>
+                    </div>
+                  ))
+                }
               </div>
 
               <div className="card">
-                <div className="card-head"><div className="card-title">Today's Bookings</div><div className="card-sub">{todayBookings.length} upcoming</div></div>
-                {loading ? <div style={{color:textFaint,fontSize:12,textAlign:"center",padding:"16px 0"}}>Loading...</div>
-                : todayBookings.length===0 ? (
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"22px 0",gap:6}}>
-                    <div style={{fontSize:26,opacity:0.2}}>📅</div>
-                    <div style={{fontSize:11.5,color:textFaint,textAlign:"center",lineHeight:1.5}}>No bookings today yet<br/>{connected?"Bookings appear automatically":"Connect WhatsApp to start"}</div>
-                  </div>
-                ) : todayBookings.map(b=>(
-                  <div key={b.customer_name+b.booking_time} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${border}`}}>
-                    <div>
-                      <div style={{fontWeight:600,fontSize:12.5,color:text}}>{b.customer_name}</div>
-                      <div style={{fontSize:11,color:textMuted}}>{b.service}</div>
+                <div className="card-head"><div className="card-title">Today's Bookings</div><div className="card-sub">{todayBookings.length} scheduled</div></div>
+                {loading ? <div style={{color:textFaint, fontSize:12, textAlign:"center", padding:"16px 0"}}>Loading...</div>
+                  : todayBookings.length === 0 ? (
+                    <div style={{display:"flex", flexDirection:"column", alignItems:"center", padding:"22px 0", gap:6}}>
+                      <div style={{fontSize:26, opacity:0.2}}>📅</div>
+                      <div style={{fontSize:11.5, color:textFaint, textAlign:"center", lineHeight:1.5}}>No bookings today<br/>{connected ? "Bookings appear automatically from WhatsApp" : "Connect WhatsApp to start"}</div>
                     </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:11.5,fontWeight:600,color:accent}}>{b.booking_time}</div>
-                      {b.amount>0&&<div style={{fontSize:10.5,color:textFaint}}>₹{b.amount}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{background:card,border:`1px solid ${accent}1e`,borderRadius:13,padding:18}}>
-                <div style={{fontSize:10,letterSpacing:"1.2px",textTransform:"uppercase",color:textFaint,fontWeight:600,marginBottom:4}}>Quick Actions</div>
-                <div style={{fontWeight:800,fontSize:20,color:accent,letterSpacing:"-0.5px",lineHeight:1,marginBottom:12}}>Grow Faster</div>
-                {[
-                  {label:"Send Campaign",sub:"Reach all customers",icon:"📢",path:"/dashboard/campaigns",color:accent},
-                  {label:"Recover Leads",sub:`${stats.missedLeads} waiting`,icon:"◉",path:"/dashboard/leads",color:"#fb7185"},
-                  {label:"Add Booking",sub:"Manual entry",icon:"📅",path:"/dashboard/bookings",color:"#a78bfa"},
-                ].map(a=>(
-                  <div key={a.label} onClick={()=>router.push(a.path)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${border}`,cursor:"pointer"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:9}}>
-                      <span style={{fontSize:15}}>{a.icon}</span>
+                  ) : todayBookings.map(b => (
+                    <div key={b.customer_name + b.booking_time} style={{display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid " + border}}>
                       <div>
-                        <div style={{fontSize:12,fontWeight:600,color:text}}>{a.label}</div>
-                        <div style={{fontSize:10.5,color:textMuted}}>{a.sub}</div>
+                        <div style={{fontWeight:600, fontSize:12.5, color:text}}>{b.customer_name}</div>
+                        <div style={{fontSize:11, color:textMuted}}>{b.service}</div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:11.5, fontWeight:600, color:accent}}>{b.booking_time || "—"}</div>
+                        {b.amount > 0 && <div style={{fontSize:10.5, color:textFaint}}>₹{b.amount}</div>}
                       </div>
                     </div>
-                    <span style={{color:a.color,fontSize:14}}>→</span>
+                  ))
+                }
+              </div>
+
+              <div style={{background:card, border:"1px solid " + accent + "1e", borderRadius:13, padding:18}}>
+                <div style={{fontSize:10, letterSpacing:"1.2px", textTransform:"uppercase", color:textFaint, fontWeight:600, marginBottom:4}}>Quick Actions</div>
+                <div style={{fontWeight:800, fontSize:20, color:accent, letterSpacing:"-0.5px", lineHeight:1, marginBottom:12}}>Grow Faster</div>
+                {[
+                  { label:"Send Campaign",  sub:"Reach all customers",         icon:"📢", path:"/dashboard/campaigns", color:accent },
+                  { label:"Recover Leads",  sub:stats.missedLeads + " waiting", icon:"◉", path:"/dashboard/leads",    color:"#fb7185" },
+                  { label:"Add Booking",    sub:"Manual entry",                  icon:"📅", path:"/dashboard/bookings", color:"#a78bfa" },
+                ].map(a => (
+                  <div key={a.label} onClick={() => router.push(a.path)} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:"1px solid " + border, cursor:"pointer"}}>
+                    <div style={{display:"flex", alignItems:"center", gap:9}}>
+                      <span style={{fontSize:15}}>{a.icon}</span>
+                      <div>
+                        <div style={{fontSize:12, fontWeight:600, color:text}}>{a.label}</div>
+                        <div style={{fontSize:10.5, color:textMuted}}>{a.sub}</div>
+                      </div>
+                    </div>
+                    <span style={{color:a.color, fontSize:14}}>→</span>
                   </div>
                 ))}
               </div>
@@ -449,6 +484,21 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <nav className="bottom-nav">
+        {[
+          { id:"overview", icon:"⬡", label:"Home",     path:"/dashboard" },
+          { id:"inbox",    icon:"◎", label:"Chats",    path:"/dashboard/conversations" },
+          { id:"bookings", icon:"◷", label:"Bookings", path:"/dashboard/bookings" },
+          { id:"leads",    icon:"◉", label:"Leads",    path:"/dashboard/leads" },
+          { id:"contacts", icon:"◑", label:"Customers",path:"/dashboard/contacts" },
+        ].map(item => (
+          <button key={item.id} className={"bnav-btn" + (item.id === "overview" ? " active" : "")} onClick={() => router.push(item.path)}>
+            <span className="bnav-icon">{item.icon}</span>
+            <span className="bnav-label">{item.label}</span>
+          </button>
+        ))}
+      </nav>
     </>
   )
 }
