@@ -3,19 +3,261 @@ import { createClient } from "@supabase/supabase-js"
 import "@/lib/env"
 
 // ════════════════════════════════════════════════════════════════════
-// FASTRILL WEBHOOK — VERSION 10.1
+// FASTRILL WEBHOOK — VERSION 10.2 — FINAL
 // ════════════════════════════════════════════════════════════════════
-// Fixes from v10.0:
-// ✅ FIX 1: Ambiguous date ("25") → Sarvam must confirm full date
-// ✅ FIX 2: Ambiguous time ("11") → Sarvam checks hours, clarifies am/pm
-// ✅ FIX 3: Fallback is now context-aware (booking in progress = continue flow)
-// ✅ FIX 4: Today's date injected into prompt so Sarvam knows current month/year
+// Architecture: Sarvam = brain. Code = executor.
+//
+// KEY PRINCIPLES:
+// 1. ALL calendar math done in JS — Sarvam never calculates dates
+// 2. Full 14-day calendar injected into every prompt
+// 3. Human tone — apology when AI made mistake, empathy always
+// 4. Ambiguous date ("25") → JS finds the date, Sarvam confirms warmly
+// 5. Ambiguous time ("11") → checked against business hours
+// 6. "Did you book for me?" → DB lookup before replying
+// 7. Corrections ("actually 5pm") → update only that field, keep rest
+// 8. Context-aware fallback — never shows generic menu mid-booking
+// 9. Voice note → polite text-only message
+// 10. Anger/frustration → empathy first, help second
 // ════════════════════════════════════════════════════════════════════
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
+
+// ════════════════════════════════════════════════════════════════════
+// CALENDAR UTILITY — All date math lives here, never in Sarvam
+// ════════════════════════════════════════════════════════════════════
+
+function buildCalendarContext() {
+  // Use IST timezone for all calculations
+  const nowIST  = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
+  const pad     = n => String(n).padStart(2, "0")
+  const toISO   = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+  const toFull  = d => d.toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long", year:"numeric", timeZone:"Asia/Kolkata" })
+  const toShort = d => d.toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short", timeZone:"Asia/Kolkata" })
+
+  const days   = []
+  const named  = {} // "monday" → { iso, full, short }
+  const byDate = {} // 25 → { iso, full, short, month }
+
+  for (let i = 0; i <= 14; i++) {
+    const d    = new Date(nowIST)
+    d.setDate(nowIST.getDate() + i)
+    const iso  = toISO(d)
+    const full = toFull(d)
+    const short= toShort(d)
+    const dayName = d.toLocaleDateString("en-IN", { weekday:"long", timeZone:"Asia/Kolkata" }).toLowerCase()
+    const dateNum = d.getDate()
+    const monthName = d.toLocaleDateString("en-IN", { month:"long", timeZone:"Asia/Kolkata" })
+
+    days.push({ i, iso, full, short, dayName, dateNum, monthName })
+
+    // Map day names — only store the FIRST (nearest) occurrence
+    if (!named[dayName]) named[dayName] = { iso, full, short }
+    // Short versions
+    const shortDay = dayName.substring(0, 3)
+    if (!named[shortDay]) named[shortDay] = { iso, full, short }
+
+    // Map date numbers — store all so we can handle "25" → find next 25th
+    if (!byDate[dateNum]) byDate[dateNum] = { iso, full, short, monthName }
+  }
+
+  // Special entries
+  const today    = days[0]
+  const tomorrow = days[1]
+  const dayAfter = days[2]
+
+  // Weekend
+  const saturday = days.find(d => d.dayName === "saturday")
+  const sunday   = days.find(d => d.dayName === "sunday")
+
+  // Build the calendar string to inject into prompt
+  const calStr = days.slice(0, 14).map(d => {
+    const label = d.i === 0 ? " ← TODAY" : d.i === 1 ? " ← TOMORROW" : ""
+    return `${d.dayName.charAt(0).toUpperCase()+d.dayName.slice(1)}, ${d.dateNum} ${d.monthName} ${d.iso.split("-")[0]}${label}`
+  }).join("\n")
+
+  return {
+    today, tomorrow, dayAfter,
+    saturday, sunday,
+    named, byDate, days,
+    calStr,
+    nowIST
+  }
+}
+
+// Parse what a customer means when they say a date
+// Returns { iso, full, short, ambiguous, options } or null
+function resolveCustomerDate(text, cal) {
+  const t = (text || "").toLowerCase().trim()
+
+  if (/\btoday\b|\baaj\b/.test(t))                        return { ...cal.today,    ambiguous: false }
+  if (/\btomorrow\b|\bkal\b|\bkl\b/.test(t))              return { ...cal.tomorrow,  ambiguous: false }
+  if (/\bday after\b|\bparso\b/.test(t))                  return { ...cal.dayAfter,  ambiguous: false }
+  if (/\bthis weekend\b/.test(t) && cal.saturday)         return { ambiguous: true, options: [cal.saturday, cal.sunday].filter(Boolean) }
+
+  // "next monday" / "this friday" / just "friday"
+  for (const [name, info] of Object.entries(cal.named)) {
+    if (new RegExp("\\b" + name + "\\b").test(t)) return { ...info, ambiguous: false }
+  }
+
+  // "30th", "25", "the 10th", "10th march", "march 10"
+  const numMatch = t.match(/\b(\d{1,2})(?:st|nd|rd|th)?\b/)
+  if (numMatch) {
+    const n = parseInt(numMatch[1])
+    if (n >= 1 && n <= 31) {
+      // Check if specific month mentioned
+      const months = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12,
+                       january:1,february:2,march:3,april:4,june:6,july:7,august:8,september:9,october:10,november:11,december:12 }
+      let targetMonth = null
+      for (const [mn, mv] of Object.entries(months)) {
+        if (t.includes(mn)) { targetMonth = mv; break }
+      }
+
+      if (targetMonth) {
+        // Specific month mentioned — calculate exact date
+        const d = new Date(cal.nowIST.getFullYear(), targetMonth - 1, n)
+        if (d.getMonth() !== targetMonth - 1) return null // invalid date
+        const pad = x => String(x).padStart(2, "0")
+        const iso = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+        const full = d.toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long", year:"numeric", timeZone:"Asia/Kolkata" })
+        const short = d.toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short", timeZone:"Asia/Kolkata" })
+        return { iso, full, short, ambiguous: false }
+      } else {
+        // Just a number — look it up in next 14 days
+        if (cal.byDate[n]) return { ...cal.byDate[n], ambiguous: true, justNumber: true, num: n }
+      }
+    }
+  }
+
+  // "DD/MM" or "DD-MM"
+  const slashMatch = t.match(/(\d{1,2})[\/\-](\d{1,2})/)
+  if (slashMatch) {
+    const day = parseInt(slashMatch[1])
+    const mon = parseInt(slashMatch[2])
+    const d   = new Date(cal.nowIST.getFullYear(), mon - 1, day)
+    if (d.getMonth() === mon - 1) {
+      const pad = x => String(x).padStart(2, "0")
+      const iso = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+      const full = d.toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long", year:"numeric" })
+      const short = d.toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short" })
+      return { iso, full, short, ambiguous: true }
+    }
+  }
+
+  return null
+}
+
+// Parse time from customer message
+// Returns { time24, display, ambiguous, hour } or null
+function resolveCustomerTime(text, workingHours) {
+  const t = (text || "").toLowerCase().trim()
+
+  // Parse working hours — handles any format a business owner might type
+  let openHour = 9, closeHour = 21 // safe defaults
+  if (workingHours) {
+    const wh = workingHours.toLowerCase()
+    if (wh.includes("24/7") || wh.includes("24 hour") || wh.includes("always open")) {
+      openHour = 0; closeHour = 23
+    } else {
+      // Try am/pm format first — most reliable
+      const ampmMatches = workingHours.match(/(\d{1,2})(?:[:.]\d{2})?\s*(am|pm)/gi) || []
+      if (ampmMatches.length >= 2) {
+        const parsed = ampmMatches.map(h => {
+          const m = h.match(/(\d{1,2})(?:[:.]\d{2})?\s*(am|pm)/i)
+          if (!m) return null
+          let hr = parseInt(m[1])
+          if (m[2].toLowerCase() === "pm" && hr < 12) hr += 12
+          if (m[2].toLowerCase() === "am" && hr === 12) hr = 0
+          return hr
+        }).filter(n => n !== null)
+        openHour = Math.min(...parsed); closeHour = Math.max(...parsed)
+      } else {
+        // Fallback: plain numbers like "9-5", "10 to 22", "8-8"
+        const numMatches = workingHours.match(/\b(\d{1,2})(?::\d{2})?\b/g) || []
+        if (numMatches.length >= 2) {
+          const nums = numMatches.map(n => parseInt(n)).filter(n => n >= 0 && n <= 23)
+          if (nums.length >= 2) {
+            let open = nums[0], close = nums[nums.length - 1]
+            // If close < open and small (e.g. 5), it's 5pm → add 12
+            if (close < open && close <= 12) close += 12
+            else if (close < 12 && open < close) close += 12
+            openHour = open; closeHour = close
+          }
+        }
+      }
+    }
+  }
+
+  // Named times
+  if (/\bnoon\b|\b12\s*pm\b/.test(t))     return { time24: "12:00", display: "12:00 PM", ambiguous: false, hour: 12 }
+  if (/\bmidnight\b/.test(t))              return { time24: "00:00", display: "12:00 AM", ambiguous: false, hour: 0 }
+
+  // "morning" / "afternoon" / "evening" / "night" without specific time
+  if (/\bmorning\b|\bsubah\b/.test(t) && !/\d/.test(t)) return { ambiguous: "vague", vague: "morning", openHour, closeHour }
+  if (/\bafternoon\b|\bdopahar\b/.test(t) && !/\d/.test(t)) return { ambiguous: "vague", vague: "afternoon", openHour, closeHour }
+  if (/\bevening\b|\bshaam\b/.test(t) && !/\d/.test(t)) return { ambiguous: "vague", vague: "evening", openHour, closeHour }
+  if (/\bnight\b|\braat\b/.test(t) && !/\d/.test(t))    return { ambiguous: "vague", vague: "night", openHour, closeHour }
+
+  // "half past 3" → 3:30
+  const halfPast = t.match(/half\s*past\s*(\d{1,2})/)
+  if (halfPast) {
+    const h = parseInt(halfPast[1])
+    const amFits  = h >= openHour && h < closeHour
+    const pmH     = h + 12
+    const pmFits  = pmH >= openHour && pmH < closeHour
+    if (amFits && !pmFits) return { time24: `${String(h).padStart(2,"0")}:30`, display: `${h}:30 AM`, ambiguous: false, hour: h }
+    if (pmFits && !amFits) return { time24: `${String(pmH).padStart(2,"0")}:30`, display: `${h}:30 PM`, ambiguous: false, hour: pmH }
+    return { ambiguous: true, hour: h, min: "30", amFits, pmFits }
+  }
+
+  // Explicit am/pm — "11am", "11 am", "at 11am", "5:30pm", "5.30 pm"
+  const explicit = t.match(/\b(\d{1,2})(?:[:\.](\d{2}))?\s*(am|pm)\b/i)
+  if (explicit) {
+    let h    = parseInt(explicit[1])
+    const mn = explicit[2] || "00"
+    const ap = explicit[3].toLowerCase()
+    if (ap === "pm" && h < 12) h += 12
+    if (ap === "am" && h === 12) h = 0
+    const display = `${h > 12 ? h-12 : h || 12}:${mn} ${ap.toUpperCase()}`
+    return { time24: `${String(h).padStart(2,"0")}:${mn}`, display, ambiguous: false, hour: h }
+  }
+
+  // HH:MM without am/pm — "17:00", "11:00"
+  const hmatch = t.match(/\b(\d{1,2}):(\d{2})\b/)
+  if (hmatch) {
+    const h  = parseInt(hmatch[1])
+    const mn = hmatch[2]
+    if (h >= 0 && h <= 23) {
+      const display = h >= 12 ? `${h === 12 ? 12 : h-12}:${mn} PM` : `${h || 12}:${mn} AM`
+      return { time24: `${String(h).padStart(2,"0")}:${mn}`, display, ambiguous: false, hour: h }
+    }
+  }
+
+  // Just a number — "11", "5", "3"
+  const numOnly = t.match(/\bat\s*(\d{1,2})\b|\b(\d{1,2})\b/)
+  if (numOnly) {
+    const h      = parseInt(numOnly[1] || numOnly[2])
+    if (h >= 1 && h <= 12) {
+      const amH    = h
+      const pmH    = h === 12 ? 12 : h + 12
+      const amFits = amH >= openHour && amH <= closeHour
+      const pmFits = pmH >= openHour && pmH <= closeHour
+      if (amFits && !pmFits) return { time24: `${String(amH).padStart(2,"0")}:00`, display: `${h}:00 AM`, ambiguous: false, hour: amH }
+      if (pmFits && !amFits) return { time24: `${String(pmH).padStart(2,"0")}:00`, display: `${h}:00 PM`, ambiguous: false, hour: pmH }
+      if (amFits && pmFits)  return { ambiguous: true, hour: h, amH, pmH, amFits, pmFits }
+      // Neither fits
+      return { ambiguous: "outofhours", hour: h, openHour, closeHour }
+    }
+  }
+
+  return null
+}
+
+// ════════════════════════════════════════════════════════════════════
+// GET: Webhook verification
+// ════════════════════════════════════════════════════════════════════
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url)
@@ -28,9 +270,13 @@ export async function GET(req) {
   return new Response("Forbidden", { status: 403 })
 }
 
+// ════════════════════════════════════════════════════════════════════
+// POST: Receive messages
+// ════════════════════════════════════════════════════════════════════
+
 export async function POST(req) {
   try {
-    console.log("🚀 FASTRILL WEBHOOK v10.1")
+    console.log("🚀 FASTRILL WEBHOOK v10.2")
     const body = await req.json()
 
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
@@ -68,7 +314,7 @@ export async function POST(req) {
         .from("messages").select("id").eq("wa_message_id", messageId).maybeSingle()
       if (dupMsg) { console.log("⚠️ Duplicate:", messageId); continue }
 
-      // Extract text
+      // Extract text from all message types
       let messageText  = ""
       let mediaCaption = ""
       if      (messageType === "text")        messageText  = message.text?.body || ""
@@ -83,11 +329,12 @@ export async function POST(req) {
 
       const effectiveText = messageText || mediaCaption
       const isTextMessage = ["text","button","interactive"].includes(messageType) || !!mediaCaption
-      const isMediaNoText = !isTextMessage && ["image","video","audio","document","sticker"].includes(messageType)
+      const isAudio       = messageType === "audio"
+      const isMediaNoText = !isTextMessage && !isAudio && ["image","video","document","sticker"].includes(messageType)
 
       console.log(`📩 From ${fromNumber} (${contactName}): "${effectiveText || "[" + messageType + "]"}"`)
 
-      // Find connection
+      // Find connection → user
       const { data: connection } = await supabaseAdmin
         .from("whatsapp_connections")
         .select("user_id, access_token")
@@ -96,12 +343,11 @@ export async function POST(req) {
       if (!connection) { console.error("❌ No WA connection:", phoneNumberId); continue }
       const userId = connection.user_id
 
-      // ── CRM: Upsert customer ──────────────────────────────────────
+      // CRM: Upsert customer
       let customer = null
       const { data: existingCustomer } = await supabaseAdmin
         .from("customers").select("*")
         .eq("phone", formattedPhone).eq("user_id", userId).maybeSingle()
-
       if (existingCustomer) {
         await supabaseAdmin.from("customers")
           .update({ last_visit_at: timestamp, name: existingCustomer.name || contactName })
@@ -113,15 +359,13 @@ export async function POST(req) {
           source: "whatsapp", tag: "new_lead", created_at: timestamp
         }).select().single()
         customer = nc
-        console.log(`✅ New customer: ${contactName}`)
       }
 
-      // ── CRM: Upsert conversation ──────────────────────────────────
+      // CRM: Upsert conversation
       let conversation = null
       const { data: existingConvo } = await supabaseAdmin
         .from("conversations").select("*")
         .eq("phone", formattedPhone).eq("user_id", userId).maybeSingle()
-
       if (existingConvo) {
         const { data: uc } = await supabaseAdmin.from("conversations")
           .update({
@@ -210,12 +454,20 @@ export async function POST(req) {
 
       if (conversation?.ai_enabled === false) { console.log("⏸️ AI disabled"); continue }
 
+      // Voice note — can't read audio
+      if (isAudio) {
+        const firstName = contactName.split(" ")[0] || "there"
+        await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: `Hey ${firstName}! 😊 I can only read text messages right now. Could you type what you'd like to say?`, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
+        continue
+      }
+
+      // Image/video/doc with no caption
       if (isMediaNoText) {
         await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: "Thanks for sharing! 😊 If you have any questions or want to book, just type here.", userId, conversationId: conversation?.id, customerPhone: formattedPhone })
         continue
       }
 
-      // ── Load business context ─────────────────────────────────────
+      // Load business context
       const [
         { data: bizSettings },
         { data: rawHistory },
@@ -253,6 +505,7 @@ export async function POST(req) {
       })).filter(m => m.content && m.content !== "[media message]")
       const conversationHistory = buildAlternatingHistory(historyRaw)
 
+      // Load booking state
       let bookingState = null
       try {
         if (conversation?.booking_state) {
@@ -262,34 +515,66 @@ export async function POST(req) {
         }
       } catch(e) { bookingState = null }
 
-      console.log("🧠 Context:", { biz: biz.business_name, services: activeServices.length, history: conversationHistory.length, state: bookingState })
+      // Build calendar context — JS does ALL date math
+      const cal = buildCalendarContext()
 
-      // ── Call Sarvam Brain ─────────────────────────────────────────
+      // Pre-resolve date and time from customer message
+      const resolvedDate = resolveCustomerDate(effectiveText, cal)
+      const resolvedTime = resolveCustomerTime(effectiveText, biz?.working_hours || "")
+
+      // Check if customer is asking about their booking
+      const isBookingQuery = /did you book|my booking|my appointment|booked for me|check my booking|what did i book/i.test(effectiveText)
+      let existingBookingInfo = null
+      if (isBookingQuery) {
+        const { data: recentBooking } = await supabaseAdmin.from("bookings").select("*")
+          .eq("customer_phone", formattedPhone).eq("user_id", userId)
+          .in("status", ["confirmed","pending"])
+          .order("created_at", { ascending: false }).limit(1).maybeSingle()
+        existingBookingInfo = recentBooking
+      }
+
+      console.log("🧠 Context:", {
+        biz: biz.business_name,
+        services: activeServices.length,
+        history: conversationHistory.length,
+        state: bookingState,
+        resolvedDate: resolvedDate?.iso,
+        resolvedTime: resolvedTime?.time24,
+        isBookingQuery
+      })
+
+      // Call Sarvam brain
       const sarvamResult = await callSarvamBrain({
         customerMessage: effectiveText,
         customerName:    contactName,
         biz,
         activeServices,
         conversationHistory,
-        bookingState
+        bookingState,
+        cal,
+        resolvedDate,
+        resolvedTime,
+        existingBookingInfo
       })
 
-      console.log("🤖 Sarvam:", sarvamResult.action, "|", sarvamResult.reply?.substring(0, 80))
+      console.log("🤖 Sarvam:", sarvamResult.action, "|", sarvamResult.reply?.substring(0, 100))
 
       const { reply, action, booking: newBookingData } = sarvamResult
 
-      // Send reply
+      // Send reply immediately
       await sendAndSave({ phoneNumberId, accessToken: connection.access_token, toNumber: fromNumber, message: reply, userId, conversationId: conversation?.id, customerPhone: formattedPhone })
       await supabaseAdmin.from("conversations").update({ last_message: reply, last_message_at: new Date().toISOString() }).eq("id", conversation?.id)
 
-      // ── Execute action ────────────────────────────────────────────
+      // Execute action
       console.log("⚡ Action:", action, "| Data:", JSON.stringify(newBookingData))
 
       if (action === "update_state" || action === "confirm_booking") {
         if (newBookingData && Object.keys(newBookingData).some(k => newBookingData[k])) {
-          const mergedState = { ...(bookingState || {}), ...newBookingData }
-          // Remove null values from merge
-          Object.keys(mergedState).forEach(k => { if (mergedState[k] === null) delete mergedState[k] })
+          const mergedState = { ...(bookingState || {}) }
+          // Only overwrite fields that have actual values
+          if (newBookingData.service) mergedState.service = newBookingData.service
+          if (newBookingData.date)    mergedState.date    = newBookingData.date
+          if (newBookingData.time)    mergedState.time    = newBookingData.time
           try {
             await supabaseAdmin.from("conversations")
               .update({ booking_state: JSON.stringify(mergedState) })
@@ -300,7 +585,6 @@ export async function POST(req) {
 
       else if (action === "create_booking" && newBookingData?.service) {
         const matchedSvc = matchService(newBookingData.service, activeServices)
-
         // Slot check
         if (isTimeBased(matchedSvc) && newBookingData.date && newBookingData.time) {
           const slotFree = await isSlotAvailable({ userId, date: newBookingData.date, time: newBookingData.time, service: newBookingData.service, servicesList: activeServices })
@@ -313,7 +597,6 @@ export async function POST(req) {
             continue
           }
         }
-
         const { data: newBooking, error: bookErr } = await supabaseAdmin.from("bookings").insert({
           user_id:        userId,
           customer_name:  contactName,
@@ -327,7 +610,6 @@ export async function POST(req) {
           ai_booked:      true,
           created_at:     new Date().toISOString()
         }).select().single()
-
         if (!bookErr && newBooking) {
           console.log("✅ Booking created:", newBooking.id)
           try {
@@ -384,7 +666,6 @@ export async function POST(req) {
 
       else if (action === "clear_state") {
         try { await supabaseAdmin.from("conversations").update({ booking_state: null }).eq("id", conversation.id) } catch(e) {}
-        console.log("🗑️ State cleared")
       }
     }
 
@@ -396,14 +677,11 @@ export async function POST(req) {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// SARVAM BRAIN — v10.1
-// Key improvements:
-// 1. Today's date injected so Sarvam knows current month/year
-// 2. Explicit rules for ambiguous dates and times
-// 3. Business hours used to resolve am/pm ambiguity
+// SARVAM BRAIN — Final version
+// JS pre-resolves dates and times, Sarvam just replies intelligently
 // ════════════════════════════════════════════════════════════════════
 
-async function callSarvamBrain({ customerMessage, customerName, biz, activeServices, conversationHistory, bookingState }) {
+async function callSarvamBrain({ customerMessage, customerName, biz, activeServices, conversationHistory, bookingState, cal, resolvedDate, resolvedTime, existingBookingInfo }) {
   const firstName    = (customerName || "").split(" ")[0] || "there"
   const businessName = biz?.business_name   || "our business"
   const businessType = biz?.business_type   || ""
@@ -414,163 +692,163 @@ async function callSarvamBrain({ customerMessage, customerName, biz, activeServi
   const aiLanguage   = biz?.ai_language     || "English"
   const description  = biz?.description     || ""
 
-  // Inject today's date so Sarvam can resolve relative dates correctly
-  const now         = new Date()
-  const todayIST    = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
-  const todayStr    = todayIST.toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long", year:"numeric" })
-  const todayISO    = `${todayIST.getFullYear()}-${String(todayIST.getMonth()+1).padStart(2,"0")}-${String(todayIST.getDate()).padStart(2,"0")}`
-
   const servicesText = activeServices.length > 0
     ? activeServices.map(s => {
-        let line = `- ${s.name}: ₹${s.price}`
-        if (s.duration) line += ` (${s.duration} min)`
-        if (s.description) line += ` — ${s.description}`
-        return line
+        let l = `- ${s.name}: ₹${s.price}`
+        if (s.duration) l += ` (${s.duration} min)`
+        if (s.description) l += ` — ${s.description}`
+        return l
       }).join("\n")
     : "No services configured yet."
 
-  const stateDesc = bookingState && Object.keys(bookingState).length > 0
-    ? `Booking in progress: service=${bookingState.service||"not set"}, date=${bookingState.date||"not set"}, time=${bookingState.time||"not set"}`
+  const stateDesc = bookingState && Object.keys(bookingState).some(k => bookingState[k])
+    ? `IN PROGRESS: service="${bookingState.service||"not set"}", date="${bookingState.date||"not set"}", time="${bookingState.time||"not set"}"`
     : "No booking in progress."
+
+  // Build date resolution hint for Sarvam
+  let dateHint = ""
+  if (resolvedDate) {
+    if (resolvedDate.ambiguous && resolvedDate.justNumber) {
+      dateHint = `\nDATE RESOLUTION: Customer said "${resolvedDate.num}" which JS resolved as ${resolvedDate.full} (${resolvedDate.iso}). This is ambiguous — confirm with customer: "Did you mean ${resolvedDate.short}? 😊"`
+    } else if (resolvedDate.ambiguous && resolvedDate.options) {
+      dateHint = `\nDATE RESOLUTION: Customer said "this weekend" which means ${resolvedDate.options.map(o=>o.short).join(" or ")}. Ask which one they prefer.`
+    } else if (resolvedDate.ambiguous) {
+      dateHint = `\nDATE RESOLUTION: Customer's date is ambiguous. JS computed it as ${resolvedDate.full} (${resolvedDate.iso}). Confirm with customer before using.`
+    } else {
+      dateHint = `\nDATE RESOLUTION: Customer's date = ${resolvedDate.full} (${resolvedDate.iso}). Use this exact date. Do NOT recalculate.`
+    }
+  }
+
+  // Build time resolution hint for Sarvam
+  let timeHint = ""
+  if (resolvedTime) {
+    if (resolvedTime.ambiguous === true) {
+      timeHint = `\nTIME RESOLUTION: Customer said a number that could be ${resolvedTime.amH}:00 AM or ${resolvedTime.pmH}:00 PM. Business hours: ${workingHours || "not set"}. Both fit within hours — ask: "Do you mean ${resolvedTime.hour} AM or ${resolvedTime.hour} PM? 😊"`
+    } else if (resolvedTime.ambiguous === "vague") {
+      const suggestions = {
+        morning:   "10 AM or 11 AM",
+        afternoon: "1 PM, 2 PM, or 3 PM",
+        evening:   "5 PM, 6 PM, or 7 PM",
+        night:     "7 PM or 8 PM"
+      }
+      timeHint = `\nTIME RESOLUTION: Customer said "${resolvedTime.vague}" which is vague. Ask: "What time in the ${resolvedTime.vague}? ${suggestions[resolvedTime.vague] || "Please give a specific time"} 😊"`
+    } else if (resolvedTime.ambiguous === "outofhours") {
+      timeHint = `\nTIME RESOLUTION: Customer's time (${resolvedTime.hour}) is outside business hours (${workingHours}). Tell them our hours and ask for a valid time.`
+    } else {
+      timeHint = `\nTIME RESOLUTION: Customer's time = ${resolvedTime.display} (${resolvedTime.time24}). Use this exact time. Do NOT recalculate.`
+    }
+  }
+
+  // Booking query hint
+  let bookingQueryHint = ""
+  if (existingBookingInfo) {
+    const b = existingBookingInfo
+    const fd = b.booking_date ? new Date(b.booking_date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"}) : null
+    bookingQueryHint = `\nEXISTING BOOKING FOUND: Service="${b.service}", Date="${fd||b.booking_date}", Time="${b.booking_time||"not set"}", Status="${b.status}". Tell customer about this booking warmly.`
+  } else if (/did you book|my booking|my appointment/i.test(customerMessage)) {
+    bookingQueryHint = `\nBOOKING QUERY: Customer is asking about their booking. NO booking found in DB. Tell them warmly no booking yet and offer to book now.`
+  }
 
   const systemPrompt = `You are the WhatsApp AI assistant for *${businessName}*${businessType ? ` (${businessType})` : ""}${location ? `, ${location}` : ""}.
 
-TODAY'S DATE: ${todayStr} (${todayISO})
-Use this to resolve dates correctly. "Tomorrow" = one day after today. "25" alone = 25th of current month unless it has already passed, then next month.
-
-BUSINESS HOURS: ${workingHours || "Not specified"}
-Use business hours to resolve am/pm ambiguity.
-
-ABOUT: ${description || "A business using Fastrill for WhatsApp bookings."}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUSINESS INFO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+About: ${description || "A business using Fastrill for WhatsApp bookings."}
+Hours: ${workingHours || "Not specified"}
+${location ? `Address: ${location}` : ""}
 ${mapsLink ? `Maps: ${mapsLink}` : ""}
-${aiInstr ? `\nOwner instructions:\n${aiInstr}` : ""}
+${aiInstr ? `Owner instructions: ${aiInstr}` : ""}
 
-SERVICES WE OFFER (ONLY these — nothing else):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SERVICES (ONLY these — nothing else exists)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${servicesText}
 
-BOOKING STATE RIGHT NOW:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CALENDAR (calculated by system — use EXACTLY as given)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${cal.calStr}
+
+CRITICAL: NEVER calculate dates yourself. Use the calendar above ONLY.
+${dateHint}
+${timeHint}
+${bookingQueryHint}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BOOKING STATE NOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${stateDesc}
 
-CUSTOMER: ${firstName}
-LANGUAGE: ${aiLanguage}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PERSONALITY & TONE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Customer name: ${firstName}
+Language: ${aiLanguage}
+
+You are warm, human, and caring — not a bot. You:
+- Use the customer's name naturally
+- Apologize gracefully when you make a mistake: "You're right, sorry about that! 😊"
+- Empathize when customer is frustrated: "I completely understand, let me fix that right away!"
+- Say things like "Great choice!", "Perfect!", "Of course!" — not robotic confirmations
+- Keep messages SHORT — 2-3 lines max on WhatsApp
+- Never sound like a menu or a bot
+- Match the customer's language (Hindi, Telugu, mix — whatever they use)
+- When thanked: reference the booking context ("You're welcome! See you on [date] 😊")
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RULES — READ CAREFULLY
+BOOKING RULES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-RULE 1 — SERVICES:
-Only book services from the EXACT LIST above.
-If customer asks for something NOT in the list, say warmly:
-"We don't offer [X]. Here's what we have: [list services with prices]. Would you like to book one of these?"
-Never invent services. Never say "we don't have that" and leave them hanging.
-
-RULE 2 — AMBIGUOUS DATE:
-If customer sends ONLY a number like "25" or "5" or "the 10th" without a month:
-- DO NOT assume. Confirm first.
-- Reply: "Did you mean [day] [current month]? Just confirming before I check availability 😊"
-- Set action to "update_state" only AFTER customer confirms.
-If customer says "tomorrow", "next monday" etc. — calculate from TODAY's date above and confirm:
-- Reply: "That's [full date] — does that work for you? 😊"
-
-RULE 3 — AMBIGUOUS TIME:
-If customer sends ONLY a number like "11" or "5" or "3" without am/pm:
-- Check business hours to see if both am and pm are possible.
-- If BOTH are within business hours: ask "Do you mean [X]am or [X]pm? 😊"
-- If only ONE is within business hours: confirm that one. "I'll take that as [X]am — we close at [closing time]. Does that work? 😊"
-- If NEITHER is within business hours: say "We're open [hours]. Which time works for you?"
-- NEVER assume am or pm without asking or logically confirming from hours.
-
-RULE 4 — BOOKING FLOW:
-Collect details in this order: service → date (confirmed) → time (confirmed) → final confirmation → book
-Ask ONE thing at a time. Never skip a step.
-When all details collected and confirmed, ask:
-"Shall I confirm booking for *[service]* on *[full date like Mon, 25 Mar]* at *[time like 11:00 AM]*? ✅"
-When customer says yes → action = create_booking
-When customer says no/wrong/change → action = clear_state, ask what to change naturally
-
-RULE 5 — NATURAL CONVERSATION:
-Be warm, friendly, human. 2-3 lines max per message. This is WhatsApp.
-Match the customer's language.
-Never sound like a bot. Never show system text or internal notes.
+1. Only book services from the list above. If customer asks for something else → warmly say you don't offer it and show what you DO offer with prices.
+2. Flow: service → date → time → confirm → book. One question at a time.
+3. DATES: Use the system-resolved date from DATE RESOLUTION above. Never calculate yourself.
+4. TIMES: Use the system-resolved time from TIME RESOLUTION above. Never assume am/pm.
+5. When you made a mistake (wrong date, wrong day name) and customer corrects you: apologize warmly and fix it.
+6. When customer says "no" to confirmation: ask "No problem! What would you like to change — the service, date, or time? 😊"
+7. When customer changes ONE thing (e.g. "actually 5pm"): update ONLY that field, keep everything else.
+8. Final confirmation must show full details: service + full date with day name + time.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RESPONSE FORMAT — CRITICAL
+RESPONSE FORMAT — JSON ONLY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-YOU MUST RESPOND WITH ONLY VALID JSON. Nothing else. No explanation. No markdown. No text before or after.
+Respond ONLY with valid JSON. No text before or after. No markdown.
 
 {
-  "reply": "the WhatsApp message to send to customer",
+  "reply": "WhatsApp message to send",
   "action": "none|update_state|confirm_booking|create_booking|reschedule|cancel|clear_state",
   "booking": {
-    "service": "exact service name from list or null",
+    "service": "exact service name or null",
     "date": "YYYY-MM-DD or null",
-    "time": "HH:MM (24hr) or null"
+    "time": "HH:MM 24hr or null"
   }
 }
 
-ACTION GUIDE:
+ACTIONS:
 - none: just reply, nothing to save
-- update_state: save booking progress (partial details collected)
-- confirm_booking: you asked customer to confirm, waiting for yes/no — save all details
-- create_booking: customer said yes, create booking now
-- reschedule: customer wants to change date/time of existing booking
-- cancel: customer wants to cancel
-- clear_state: customer rejected or wants to start over
+- update_state: save partial booking progress
+- confirm_booking: all details ready, waiting for yes/no
+- create_booking: customer said yes, book now
+- reschedule: update existing booking
+- cancel: cancel existing booking
+- clear_state: customer wants to start over
 
-DATE RULES FOR JSON:
-- Only put a date in "date" field when it is FULLY CONFIRMED by customer
-- If ambiguous (just "25" or "tomorrow" not yet confirmed), set date to null and use update_state only after customer confirms
-- Always use YYYY-MM-DD format
+DATE RULES:
+- Only put a confirmed, unambiguous date in the "date" field
+- If date is ambiguous (just "25", "tomorrow" not yet confirmed) → set date to null, use update_state only AFTER customer confirms
+- Always YYYY-MM-DD
 
-TIME RULES FOR JSON:
-- Only put a time in "time" field when am/pm is CONFIRMED or unambiguous
-- Use 24hr format: 11am = "11:00", 11pm = "23:00", 5pm = "17:00"
-- If ambiguous (just "11" with no am/pm), set time to null and ask
-
-EXAMPLES:
-
-Customer: "hi"
-{"reply": "Hi ${firstName}! 👋 Welcome to *${businessName}*! How can I help you today? 😊", "action": "none", "booking": {}}
-
-Customer: "what services do you have"
-{"reply": "*${businessName} Services*\\n\\n${activeServices.slice(0,4).map(s=>`• *${s.name}* — ₹${s.price}`).join("\\n")}\\n\\nWant to book one? 😊", "action": "none", "booking": {}}
-
-Customer: "i want hair cut" (haircut NOT in list)
-{"reply": "We don't offer haircut, ${firstName} 😊 But here's what we have:\\n\\n${activeServices.slice(0,4).map(s=>`• *${s.name}* — ₹${s.price}`).join("\\n")}\\n\\nWould you like to book one of these?", "action": "none", "booking": {}}
-
-Customer: "book automation"
-{"reply": "Great choice! 📅 What date works for your *Automation* session?", "action": "update_state", "booking": {"service": "Automation", "date": null, "time": null}}
-
-Customer: "25" (ambiguous — only a number, no month)
-{"reply": "Did you mean March 25th? Just confirming before I check availability 😊", "action": "none", "booking": {}}
-
-Customer: "yes march 25"
-{"reply": "Perfect! ⏰ What time works for you?", "action": "update_state", "booking": {"service": "Automation", "date": "2026-03-25", "time": null}}
-
-Customer: "11" (ambiguous — business hours are 10am-10pm, both 11am and 11pm possible... wait 11pm is after 10pm closing so only 11am works)
-{"reply": "I'll take that as 11:00 AM — we close at 10 PM so that works great! 😊\\n\\nShall I confirm booking for *Automation* on *Wed, 25 Mar* at *11:00 AM*? ✅", "action": "confirm_booking", "booking": {"service": "Automation", "date": "2026-03-25", "time": "11:00"}}
-
-Customer: "11" (ambiguous — business hours are 9am-11pm, BOTH 11am and 11pm are possible)
-{"reply": "Do you mean 11 AM or 11 PM? 😊", "action": "none", "booking": {}}
-
-Customer: "11am"
-{"reply": "Shall I confirm booking for *Automation* on *Wed, 25 Mar* at *11:00 AM*? ✅", "action": "confirm_booking", "booking": {"service": "Automation", "date": "2026-03-25", "time": "11:00"}}
-
-Customer: "yes"
-{"reply": "✅ *Booking Confirmed!*\\n\\n📋 Service: Automation\\n📅 Date: Wednesday, 25 March\\n⏰ Time: 11:00 AM\\n\\nSee you soon at *${businessName}*! 😊", "action": "create_booking", "booking": {"service": "Automation", "date": "2026-03-25", "time": "11:00"}}
-
-Customer: "no i need hair cut instead" (mid-booking, haircut not in list)
-{"reply": "No problem! 😊 We don't offer haircut, but here's what we have:\\n\\n${activeServices.slice(0,4).map(s=>`• *${s.name}* — ₹${s.price}`).join("\\n")}\\n\\nWould you like to book one of these?", "action": "clear_state", "booking": {}}`
+TIME RULES:
+- Only put confirmed time in "time" field
+- If ambiguous (just "11", "evening") → set time to null
+- Always HH:MM 24hr format`
 
   if (process.env.SARVAM_API_KEY) {
     try {
-      const messages = [
+      const msgs = [
         { role: "system", content: systemPrompt },
         ...conversationHistory,
         { role: "user", content: customerMessage }
       ]
-
       console.log("🔄 Calling Sarvam | history:", conversationHistory.length)
       const response = await fetch("https://api.sarvam.ai/v1/chat/completions", {
         method:  "POST",
@@ -580,33 +858,29 @@ Customer: "no i need hair cut instead" (mid-booking, haircut not in list)
         },
         body: JSON.stringify({
           model:       "sarvam-m",
-          messages,
-          max_tokens:  600,
-          temperature: 0.3  // low temperature = consistent JSON
+          messages:    msgs,
+          max_tokens:  700,
+          temperature: 0.3
         })
       })
-
       const rawText = await response.text()
       console.log("📨 Sarvam HTTP:", response.status)
       const data = JSON.parse(rawText)
-
       if (data?.error) {
         console.error("❌ Sarvam error:", JSON.stringify(data.error))
       } else {
         const content = data?.choices?.[0]?.message?.content || ""
         const result  = parseSarvamJSON(content, activeServices)
         if (result) {
-          console.log("✅ Parsed:", result.action, "|", result.reply?.substring(0, 80))
+          console.log("✅ Parsed:", result.action, "|", result.reply?.substring(0, 100))
           return result
         }
       }
-    } catch(err) {
-      console.error("Sarvam exception:", err.message)
-    }
+    } catch(err) { console.error("Sarvam exception:", err.message) }
   }
 
   console.warn("⚠️ Sarvam unavailable — context-aware fallback")
-  return buildFallbackResponse({ customerMessage, businessName, firstName, activeServices, bookingState })
+  return buildFallbackResponse({ customerMessage, businessName, firstName, activeServices, bookingState, existingBookingInfo })
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -615,36 +889,31 @@ Customer: "no i need hair cut instead" (mid-booking, haircut not in list)
 
 function parseSarvamJSON(rawContent, activeServices) {
   if (!rawContent?.trim()) return null
-  console.log("📝 Raw:", rawContent.substring(0, 400))
+  console.log("📝 Raw Sarvam:", rawContent.substring(0, 400))
 
   let content = rawContent
-  // Strip think tags
   content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim()
-  // Strip markdown fences
   content = content.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim()
 
   const jsonMatch = content.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) { console.warn("No JSON in Sarvam response"); return null }
+  if (!jsonMatch) { console.warn("No JSON found"); return null }
 
   try {
     const parsed = JSON.parse(jsonMatch[0])
 
-    if (!parsed.reply || typeof parsed.reply !== "string") {
-      console.warn("Invalid: missing reply"); return null
-    }
+    if (!parsed.reply || typeof parsed.reply !== "string") { console.warn("Missing reply"); return null }
 
     const validActions = ["none","update_state","confirm_booking","create_booking","reschedule","cancel","clear_state"]
     if (!validActions.includes(parsed.action)) parsed.action = "none"
 
     if (!parsed.booking || typeof parsed.booking !== "object") parsed.booking = {}
 
-    // Validate date
+    // Validate date format
     if (parsed.booking.date && !/^\d{4}-\d{2}-\d{2}$/.test(parsed.booking.date)) {
-      console.warn("Bad date format:", parsed.booking.date)
-      parsed.booking.date = null
+      console.warn("Bad date:", parsed.booking.date); parsed.booking.date = null
     }
 
-    // Validate and fix time
+    // Validate and fix time format
     if (parsed.booking.time) {
       const fixed = fixTimeFormat(parsed.booking.time)
       parsed.booking.time = fixed
@@ -656,11 +925,9 @@ function parseSarvamJSON(rawContent, activeServices) {
       if (matched) {
         parsed.booking.service = matched.name
       } else {
-        console.warn("Unknown service from Sarvam:", parsed.booking.service)
+        console.warn("Unknown service:", parsed.booking.service)
         parsed.booking.service = null
-        if (["create_booking","confirm_booking"].includes(parsed.action)) {
-          parsed.action = "none"
-        }
+        if (["create_booking","confirm_booking"].includes(parsed.action)) parsed.action = "none"
       }
     }
 
@@ -673,76 +940,49 @@ function parseSarvamJSON(rawContent, activeServices) {
 
 // ════════════════════════════════════════════════════════════════════
 // CONTEXT-AWARE FALLBACK
-// When Sarvam fails, continue booking flow if one is in progress
 // ════════════════════════════════════════════════════════════════════
 
-function buildFallbackResponse({ customerMessage, businessName, firstName, activeServices, bookingState }) {
+function buildFallbackResponse({ customerMessage, businessName, firstName, activeServices, bookingState, existingBookingInfo }) {
   const msg  = (customerMessage || "").toLowerCase().trim()
   const spAll = activeServices.length > 0
     ? activeServices.map(s => `• *${s.name}* — ₹${s.price}`).join("\n")
     : ""
-  const sp3  = activeServices.slice(0,3).map(s => s.name).join(", ")
+  const sp3  = activeServices.slice(0,3).map(s=>s.name).join(", ")
 
-  // If booking in progress, continue it
+  // Booking query
+  if (existingBookingInfo) {
+    const b  = existingBookingInfo
+    const fd = b.booking_date ? new Date(b.booking_date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"}) : null
+    return {
+      reply:   `Yes ${firstName}! 😊 Here's your booking:\n\n📋 Service: ${b.service}\n📅 Date: ${fd||b.booking_date}${b.booking_time ? `\n⏰ Time: ${b.booking_time}` : ""}\n\nSee you soon! 🙏`,
+      action:  "none",
+      booking: {}
+    }
+  }
+
+  // Continue booking flow if in progress
   if (bookingState) {
     const { service, date, time } = bookingState
-
-    if (!service) {
-      return {
-        reply:   `Which service would you like to book?\n\n${spAll}\n\nJust type the name 😊`,
-        action:  "none",
-        booking: {}
-      }
-    }
-    if (service && !date) {
-      return {
-        reply:   `What date works for your *${service}*? 📅`,
-        action:  "none",
-        booking: {}
-      }
-    }
-    if (service && date && !time) {
-      return {
-        reply:   `What time works for you? ⏰`,
-        action:  "none",
-        booking: {}
-      }
-    }
-    if (service && date && time) {
-      const fd = new Date(date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})
-      return {
-        reply:   `Shall I confirm booking for *${service}* on *${fd}* at *${time}*? ✅`,
-        action:  "confirm_booking",
-        booking: { service, date, time }
-      }
-    }
+    if (!service) return { reply: `Which service would you like?\n\n${spAll}\n\nJust type the name 😊`, action: "none", booking: {} }
+    if (!date)    return { reply: `What date works for your *${service}*? 📅`, action: "none", booking: {} }
+    if (!time)    return { reply: `What time works for you? ⏰`, action: "none", booking: {} }
+    const fd = new Date(date+"T12:00:00").toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})
+    return { reply: `Shall I confirm *${service}* on *${fd}* at *${time}*? ✅`, action: "confirm_booking", booking: { service, date, time } }
   }
 
-  // No booking in progress — generic responses
-  if (/^(hi|hello|hey|hii|hai|namaste)/i.test(msg)) {
-    return {
-      reply:   `Hi ${firstName}! 👋 Welcome to *${businessName}*!${sp3 ? `\n\nWe offer: ${sp3} and more.` : ""}\n\nHow can I help? 😊`,
-      action:  "none",
-      booking: {}
-    }
+  // Generic responses
+  if (/^(hi|hello|hey|hii|hai|namaste|vanakkam)/i.test(msg)) {
+    return { reply: `Hi ${firstName}! 👋 Welcome to *${businessName}*!${sp3?`\n\nWe offer: ${sp3} and more.`:""}\n\nHow can I help? 😊`, action: "none", booking: {} }
   }
   if (/price|cost|services|offer|how much|charges|menu|list/i.test(msg)) {
-    return {
-      reply:   spAll ? `*${businessName} Services*\n\n${spAll}\n\nWant to book? Just ask! 😊` : `Please contact us for pricing 🙏`,
-      action:  "none",
-      booking: {}
-    }
+    return { reply: spAll ? `*${businessName} Services*\n\n${spAll}\n\nWant to book? 😊` : `Please contact us for pricing 🙏`, action: "none", booking: {} }
   }
-  if (/location|address|where|directions|maps/i.test(msg)) {
-    return {
-      reply:   `I'll get our address for you shortly! 📍`,
-      action:  "none",
-      booking: {}
-    }
+  if (/thank|thanks/i.test(msg)) {
+    return { reply: `You're welcome, ${firstName}! 😊 Have a great day! 🌟`, action: "none", booking: {} }
   }
 
   return {
-    reply:   `Thanks for reaching out to *${businessName}*! 😊${sp3 ? `\n\nWe offer: ${sp3}.` : ""}\n\nHow can I help?\n📅 Book an appointment\n💰 Services & pricing\n📍 Our location`,
+    reply:   `Thanks for reaching out to *${businessName}*! 😊${sp3?`\n\nWe offer: ${sp3}.`:""}\n\nHow can I help?\n📅 Book an appointment\n💰 Services & pricing\n📍 Our location`,
     action:  "none",
     booking: {}
   }
@@ -752,14 +992,12 @@ function buildFallbackResponse({ customerMessage, businessName, firstName, activ
 // HELPERS
 // ════════════════════════════════════════════════════════════════════
 
-function fixTimeFormat(timeStr) {
-  if (!timeStr) return null
-  // Already HH:MM
-  if (/^\d{2}:\d{2}$/.test(timeStr)) return timeStr
-  // Handle "5pm", "5:00pm", "17:00:00", "11:00 AM"
-  const m = timeStr.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i)
+function fixTimeFormat(t) {
+  if (!t) return null
+  if (/^\d{2}:\d{2}$/.test(t)) return t
+  const m = t.match(/(\d{1,2})(?:[:\.](\d{2}))?\s*(am|pm)?/i)
   if (!m) return null
-  let h    = parseInt(m[1])
+  let h = parseInt(m[1])
   const mn = m[2] || "00"
   const ap = m[3]?.toLowerCase()
   if (ap === "pm" && h < 12) h += 12
