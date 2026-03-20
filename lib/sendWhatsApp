@@ -1,0 +1,31 @@
+/**
+ * lib/sendWhatsApp.js
+ * Client-side helper to call the secure server send route.
+ * Use this in all pages instead of calling the Graph API directly.
+ *
+ * Usage:
+ *   import { sendWhatsApp } from "@/lib/sendWhatsApp"
+ *   const { success, error } = await sendWhatsApp({ to, message, conversationId, customerPhone })
+ */
+
+import { supabase } from "@/lib/supabase"
+
+export async function sendWhatsApp({ to, message, conversationId, customerPhone }) {
+  // Get the session token to authenticate the server route
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) {
+    return { success: false, error: "Not authenticated" }
+  }
+
+  const res = await fetch("/api/whatsapp/send", {
+    method:  "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "Authorization": "Bearer " + session.access_token,
+    },
+    body: JSON.stringify({ to, message, conversationId, customerPhone })
+  })
+
+  const data = await res.json()
+  return data
+}
