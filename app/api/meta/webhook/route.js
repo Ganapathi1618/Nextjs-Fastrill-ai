@@ -1,7 +1,3 @@
-// app/api/meta/webhook/route.js
-// Fastrill AI v2 — webhook is now just 30 lines
-// All intelligence lives in lib/ai/orchestrator.js
-
 import { orchestrator } from "@/lib/ai/orchestrator"
 
 export async function GET(req) {
