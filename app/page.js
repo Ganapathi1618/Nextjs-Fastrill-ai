@@ -1036,7 +1036,7 @@ footer{background:var(--bg2);border-top:1px solid var(--bd);padding:clamp(40px,5
       <div className="ft-top">
         <div className="ft-brand">
           <a href="/" className="logo">fast<span>rill</span></a>
-          <p className="ft-about">WhatsApp AI growth engine for Indian businesses. Turns every message into a conversion — in any language, 24/7.</p>
+          <p className="ft-about">AI-powered lead conversion platform for modern businesses. Turns conversations into customers — across every channel, 24/7</p>
         </div>
         {[
           {h:"Product",lks:[["Features","#features"],["Pricing","#pricing"],["Demo","#demo"],["How it works","#how"]]},
@@ -1052,7 +1052,7 @@ footer{background:var(--bg2);border-top:1px solid var(--bd);padding:clamp(40px,5
         ))}
       </div>
       <div className="ft-bot">
-        <span>© 2026 Fastrill Technologies Pvt. Ltd. All rights reserved.</span>
+        <span>© 2026 Fastrill a Proudct by Solvabil Pvt. Ltd. All rights reserved.</span>
         <span>Made with ❤️ in India 🇮🇳</span>
       </div>
     </div>
