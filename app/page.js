@@ -615,8 +615,8 @@ footer{background:var(--bg2);border-top:1px solid var(--bd);padding:clamp(40px,5
     <div className="hero-glow"/>
     <div className="hero-in">
       <div className="hero-chip">🇮🇳 WhatsApp AI built for Indian businesses</div>
-      <h1>Your WhatsApp replies<br/>like your <em>best employee</em></h1>
-      <p className="hero-sub">
+    <h1>Turn WhatsApp chats into<br/><em>paying customers — automatically</em></h1> 
+    <p className="hero-sub">
         Fastrill understands what customers actually mean and responds instantly —
         books appointments, qualifies leads, handles queries.
         In Hindi, Telugu, Tamil, and 10 more languages. 24/7.
