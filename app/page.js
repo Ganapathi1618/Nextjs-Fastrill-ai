@@ -1015,7 +1015,7 @@ footer{background:var(--bg2);border-top:1px solid var(--bd);padding:clamp(40px,5
     </div>
   </section>
 
-  {/* ── CTA ─────────────────────────────────── */}
+  {/* ── CTA ──────────────────────────────────────────────────────────────────────────────────────────────────────  */}
   <section className="cta-sec">
     <div className="wrap">
       <div className="cta-card fade">
@@ -1023,7 +1023,7 @@ footer{background:var(--bg2);border-top:1px solid var(--bd);padding:clamp(40px,5
         <p>Don't make them wait. Don't lose them to a competitor who replies faster.<br/>Fastrill answers in 2 seconds — in their language, every time.</p>
         <div className="cta-btns">
           <a href="/signup" className="btn-green">Start Free Trial — No Card Needed →</a>
-          <a href="https://wa.me/919999999999" className="btn-outline">💬 Chat on WhatsApp</a>
+          <a href="https://wa.me/919346079265" className="btn-outline">💬 Chat on WhatsApp</a>
         </div>
         <p className="cta-note">14-day free trial · Setup in 10 minutes · Cancel anytime · No credit card required</p>
       </div>
