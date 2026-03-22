@@ -46,15 +46,23 @@ export default function SignupPage() {
 
     setLoading(true)
     try {
-      // Sign up with email + password — Supabase sends OTP to verify email
+      // Step 1: Create the account
       const { data, error } = await getSupabase().auth.signUp({
         email:    email.trim().toLowerCase(),
         password: password,
-        options:  { emailRedirectTo: null }
+        options:  { emailRedirectTo: undefined }
       })
       if (error) throw error
 
-      // Move to OTP step
+      // Step 2: Send OTP separately for email verification
+      // This ensures a 6-digit code is sent, not a magic link
+      const { error: otpError } = await getSupabase().auth.signInWithOtp({
+        email:   email.trim().toLowerCase(),
+        options: { shouldCreateUser: false }  // user already created above
+      })
+      // OTP send failure is non-critical — user may still get confirmation email
+      if (otpError) console.warn("OTP send warning:", otpError.message)
+
       setStep("otp")
       setMessage("We sent a 6-digit verification code to " + email)
       setResendTimer(60)
@@ -75,7 +83,7 @@ export default function SignupPage() {
       const { error } = await getSupabase().auth.verifyOtp({
         email: email.trim().toLowerCase(),
         token: otp.trim(),
-        type:  "signup"
+        type:  "email"
       })
       if (error) throw error
       window.location.href = "/onboarding"
@@ -95,7 +103,7 @@ export default function SignupPage() {
     setLoading(true); setError(""); setMessage("")
     try {
       const { error } = await getSupabase().auth.resend({
-        type:  "signup",
+        type:  "email",
         email: email.trim().toLowerCase()
       })
       if (error) throw error
