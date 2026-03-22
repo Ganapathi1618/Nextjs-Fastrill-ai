@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { useToast } from "@/components/Toast"
 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
@@ -15,165 +14,249 @@ const NAV = [
   { id:"settings",  label:"Settings",       icon:"◌", path:"/dashboard/settings" },
 ]
 
-export default function Dashboard() {
+const LANGUAGES = ["English","Hindi","Telugu","Tamil","Kannada","Malayalam","Marathi","Bengali","Gujarati","Punjabi"]
+
+// Health & Wellness focused business types
+const BUSINESS_TYPES = [
+  "Salon","Beauty Parlour","Spa","Hair Studio","Nail Studio",
+  "Makeup Studio","Skin Clinic","Dermatology Clinic","Dental Clinic",
+  "Ayurvedic Clinic","Physiotherapy Clinic","Yoga Studio",
+  "Fitness Studio","Gym","Wellness Center","Medispa","Other"
+]
+
+// Health & Wellness focused categories
+const CATEGORIES = [
+  "Hair","Skin","Nails","Bridal","Massage","Body",
+  "Dental","Fitness","Ayurveda","Consultation","Membership","Other"
+]
+
+const TIMES = [
+  "09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30",
+  "13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30",
+  "17:00","17:30","18:00","18:30","19:00","19:30"
+]
+
+const TABS = [
+  { id:"business", label:"Business" },
+  { id:"services", label:"Services" },
+  { id:"ai",       label:"AI Brain" },
+  { id:"whatsapp", label:"WhatsApp" }
+]
+
+export default function Settings() {
   const router = useRouter()
-  const toast  = useToast()
-
-  const [userEmail, setUserEmail]   = useState("")
-  const [userId, setUserId]         = useState(null)
-  const [connected, setConnected]   = useState(false)
-  const [period, setPeriod]         = useState("today")
-  const [dark, setDark]             = useState(true)
+  const [userEmail, setUserEmail] = useState("")
+  const [userId, setUserId]       = useState(null)
+  const [dark, setDark]           = useState(true)
   const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
-  const [loading, setLoading]       = useState(true)
+  const [tab, setTab]             = useState("business")
+  const [saving, setSaving]       = useState(false)
+  const [saved, setSaved]         = useState(false)
+  const [saveError, setSaveError] = useState("")
+  const [loading, setLoading]     = useState(true)
 
-  const [stats, setStats]           = useState({ revenue:0, leads:0, bookings:0, missedLeads:0, aiHandled:0, aiBookings:0, aiRevenue:0 })
-  const [funnel, setFunnel]         = useState({ customers:0, convos:0, booked:0, completed:0, revenue:0 })
-  const [todayBookings, setTodayBookings] = useState([])
-  const [sources, setSources]       = useState([])
-  const [healthScore, setHealthScore] = useState(0)
-  const [avgServiceValue, setAvgServiceValue] = useState(0)
+  const [business, setBusiness] = useState({
+    name:"", type:"Salon", phone:"", location:"", mapsLink:"",
+    description:"", workingHours:""
+  })
+  const [services, setServices] = useState([])
+  const [newService, setNewService] = useState({
+    name:"", price:"", duration:"30", category:"Hair",
+    capacity:"1", service_type:"appointment", description:""
+  })
+  const [ai, setAI] = useState({
+    language:"English", customInstructions:"", autoBooking:true,
+    followUpEnabled:true, greetingMessage:"", missedLeadMessage:""
+  })
+  const [whatsapp, setWhatsapp] = useState(null)
 
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
     if (saved) setDark(saved === "dark")
     supabase.auth.getUser().then(({ data }) => {
-      if (!data?.user) router.push("/login")
+      if (!data.user) router.push("/login")
       else { setUserEmail(data.user.email || ""); setUserId(data.user.id) }
     })
   }, [])
 
-  useEffect(() => { if (userId) loadAll() }, [userId, period])
+  useEffect(() => { if (userId) loadAll() }, [userId])
 
   async function loadAll() {
     setLoading(true)
     try {
-      const now = new Date()
-      let from = new Date()
-      if (period === "today") from.setHours(0, 0, 0, 0)
-      else if (period === "week") from.setDate(now.getDate() - 7)
-      else from.setDate(1)
-      const fromISO     = from.toISOString()
-      const fromDateStr = from.toISOString().split("T")[0]
-      const todayStr    = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0")
-
-      const [{ data: wa }, { data: msgs }, { data: allBks }, { data: leads }, { data: customers }, { data: convos }] = await Promise.all([
-        supabase.from("whatsapp_connections").select("id").eq("user_id", userId).maybeSingle(),
-        supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id", userId).gte("created_at", fromISO),
-        supabase.from("bookings").select("status,amount,ai_booked,booking_date,customer_name,service,booking_time,created_at").eq("user_id", userId),
-        supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id", userId).gte("created_at", fromISO),
-        supabase.from("customers").select("tag,source,created_at").eq("user_id", userId),
-        supabase.from("conversations").select("id,created_at").eq("user_id", userId),
+      const [{ data: bs }, { data: svcs }, { data: wa }] = await Promise.all([
+        supabase.from("business_settings").select("*").eq("user_id", userId).maybeSingle(),
+        supabase.from("services").select("*").eq("user_id", userId).order("category"),
+        supabase.from("whatsapp_connections").select("*").eq("user_id", userId).maybeSingle()
       ])
-
-      setConnected(!!wa)
-
-      const bks = allBks || []
-
-      // Period bookings — use booking_date not created_at
-      const periodBks = period === "today"
-        ? bks.filter(b => b.booking_date === todayStr)
-        : bks.filter(b => b.booking_date >= fromDateStr)
-
-      // Revenue — ALL confirmed+completed (lifetime is most meaningful for owner)
-      const confirmedAll = bks.filter(b => b.status === "confirmed" || b.status === "completed")
-      const revenue      = confirmedAll.reduce((s, b) => s + (b.amount || 0), 0)
-
-      // REAL AI revenue — only bookings where ai_booked = true
-      const aiRevenue = bks.filter(b => b.ai_booked && (b.status === "confirmed" || b.status === "completed"))
-                           .reduce((s, b) => s + (b.amount || 0), 0)
-
-      // REAL avg service value
-      const avgVal = confirmedAll.length > 0 ? Math.round(revenue / confirmedAll.length) : 0
-      setAvgServiceValue(avgVal)
-
-      // AI messages handled
-      const aiHandled  = (msgs || []).filter(m => m.is_ai && m.direction === "outbound").length
-      const aiBookings = bks.filter(b => b.ai_booked).length
-
-      // Missed leads = open leads with no response in this period
-      const missedLeads = (leads || []).filter(l => l.status === "open").length
-
-      // Real unique conversations in period
-      const periodMsgConvoIds = new Set((msgs || []).map(m => m.conversation_id).filter(Boolean))
-      const uniqueConvos      = periodMsgConvoIds.size
-
-      setStats({ revenue, leads: (leads || []).length, bookings: periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue })
-
-      // Funnel — all real numbers, no fake percentages
-      setFunnel({
-        customers:  (customers || []).length,
-        convos:     uniqueConvos,
-        booked:     bks.length,
-        completed:  confirmedAll.length,
-        revenue,
-      })
-
-      // Today's bookings
-      setTodayBookings(bks.filter(b => b.booking_date === todayStr).slice(0, 4))
-
-      // Lead sources — real data
-      const srcMap = {}
-      for (const l of (leads || [])) {
-        const src = l.source || "Organic"
-        srcMap[src] = (srcMap[src] || 0) + 1
+      if (bs) {
+        setBusiness({
+          name:         bs.business_name  || "",
+          type:         bs.business_type  || "Salon",
+          phone:        bs.phone          || "",
+          location:     bs.location       || "",
+          mapsLink:     bs.maps_link      || "",
+          description:  bs.description    || "",
+          workingHours: bs.working_hours  || ""
+        })
+        setAI({
+          language:           bs.ai_language          || "English",
+          customInstructions: bs.ai_instructions      || "",
+          autoBooking:        bs.auto_booking         !== false,
+          followUpEnabled:    bs.follow_up_enabled    !== false,
+          greetingMessage:    bs.greeting_message     || "",
+          missedLeadMessage:  bs.missed_lead_message  || ""
+        })
       }
-      const srcColors = { whatsapp:"#25d366", instagram:"#e1306c", google:"#ea4335", referral:"#f59e0b", organic:"#38bdf8" }
-      setSources(Object.entries(srcMap).map(([name, count]) => ({
-        name, count, color: srcColors[name.toLowerCase()] || "#a78bfa"
-      })).slice(0, 4))
-
-      // Health score — real criteria, no phantom +20
-      let score = 0
-      if (wa)                           score += 25  // Connected
-      if (aiHandled > 0)                score += Math.min(20, aiHandled * 2)  // AI active
-      if (bks.length > 0)              score += 15  // Has bookings
-      if ((leads || []).length > 0)    score += 10  // Has leads
-      if ((customers || []).length > 2) score += 15  // Has customers
-      if (aiBookings > 0)              score += 15  // AI is booking
-      setHealthScore(Math.min(100, score))
-
-    } catch(e) {
-      toast.error("Failed to load dashboard data")
-      console.error("Dashboard load error:", e)
-    }
+      setServices(svcs || [])
+      setWhatsapp(wa || null)
+    } catch(e) { console.error("loadAll error:", e) }
     setLoading(false)
   }
 
-  const toggleTheme = () => { const n = !dark; setDark(n); localStorage.setItem("fastrill-theme", n ? "dark" : "light") }
-  const handleLogout = async () => {
-    try { await supabase.auth.signOut(); router.push("/login") }
-    catch(e) { toast.error("Sign out failed: " + e.message) }
-  }
-  const handleConnect = () => {
-    const appId = "780799931531576", configId = "1090960043190718"
-    const redirectUri = "https://fastrill.com/api/meta/callback"
-    window.location.href = "https://www.facebook.com/v18.0/dialog/oauth?client_id=" + appId + "&redirect_uri=" + encodeURIComponent(redirectUri) + "&response_type=code&config_id=" + configId
+  async function saveBusiness() {
+    if (!business.name.trim()) {
+      setSaveError("Business name is required")
+      setTimeout(() => setSaveError(""), 3000)
+      return
+    }
+    setSaving(true); setSaveError("")
+    try {
+      const payload = {
+        user_id:             userId,
+        business_name:       business.name.trim(),
+        business_type:       business.type,
+        phone:               business.phone.trim(),
+        location:            business.location.trim(),
+        maps_link:           business.mapsLink.trim(),
+        description:         business.description.trim(),
+        working_hours:       business.workingHours.trim(),
+        ai_language:         ai.language,
+        ai_instructions:     ai.customInstructions.trim(),
+        auto_booking:        ai.autoBooking,
+        follow_up_enabled:   ai.followUpEnabled,
+        greeting_message:    ai.greetingMessage.trim(),
+        missed_lead_message: ai.missedLeadMessage.trim(),
+        updated_at:          new Date().toISOString()
+      }
+      const { error: bsErr } = await supabase
+        .from("business_settings").upsert(payload, { onConflict: "user_id" })
+      if (bsErr) { setSaveError("Failed to save: " + bsErr.message); setSaving(false); return }
+
+      // Sync to business_knowledge for AI webhook
+      const knowledgeText = [
+        `Business: ${business.name}`,
+        `Type: ${business.type}`,
+        business.phone       ? `Phone: ${business.phone}`           : "",
+        business.location    ? `Location: ${business.location}`     : "",
+        business.mapsLink    ? `Maps: ${business.mapsLink}`         : "",
+        business.description ? `About: ${business.description}`     : "",
+        business.workingHours? `Hours: ${business.workingHours}`    : "",
+      ].filter(Boolean).join("\n")
+
+      await supabase.from("business_knowledge").upsert(
+        { user_id: userId, category: "business_info", content: knowledgeText },
+        { onConflict: "user_id,category" }
+      )
+      setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch(e) { setSaveError("Unexpected error: " + e.message); setSaving(false) }
   }
 
-  const bg = dark?"#08080e":"#f0f2f5", sidebar = dark?"#0c0c15":"#ffffff", card = dark?"#0f0f1a":"#ffffff"
-  const border = dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.08)", cardBorder = dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.09)"
-  const text = dark?"#eeeef5":"#111827", textMuted = dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
-  const textFaint = dark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.25)", inputBg = dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
-  const accent = dark?"#00d084":"#00935a", navText = dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
-  const navActive = dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)", navActiveBorder = dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
-  const navActiveText = dark?"#00c47d":"#00935a", accentDim = dark?"rgba(0,208,132,0.12)":"rgba(0,147,90,0.1)"
+  async function addService() {
+    if (!newService.name.trim() || !newService.price) return
+    setSaving(true)
+    try {
+      const isPackage = newService.service_type === "package"
+      const payload = {
+        name:         newService.name.trim(),
+        price:        parseInt(newService.price) || 0,
+        duration:     isPackage ? null : (parseInt(newService.duration) || 30),
+        category:     newService.category,
+        capacity:     isPackage ? null : (parseInt(newService.capacity) || 1),
+        service_type: newService.service_type,
+        description:  newService.description.trim() || null,
+        is_active:    true,
+        user_id:      userId
+      }
+      const { data, error } = await supabase.from("services").insert(payload).select().single()
+      if (error) { console.error("Add service error:", error); setSaving(false); return }
+      if (data) {
+        const updated = [...services, data]
+        setServices(updated)
+        setNewService({ name:"", price:"", duration:"30", category:"Hair", capacity:"1", service_type:"appointment", description:"" })
+        await syncServicesToKnowledge(updated)
+      }
+    } catch(e) { console.error("Unexpected error:", e) }
+    setSaving(false)
+  }
+
+  async function deleteService(id) {
+    await supabase.from("services").delete().eq("id", id)
+    const updated = services.filter(s => s.id !== id)
+    setServices(updated)
+    await syncServicesToKnowledge(updated)
+  }
+
+  async function toggleServiceActive(svc) {
+    const newActive = svc.is_active === false ? true : false
+    await supabase.from("services").update({ is_active: newActive }).eq("id", svc.id)
+    const updated = services.map(s => s.id === svc.id ? {...s, is_active: newActive} : s)
+    setServices(updated)
+  }
+
+  async function syncServicesToKnowledge(svcList) {
+    try {
+      const active = svcList.filter(s => s.is_active !== false)
+      const text = active.map(s => {
+        let line = `${s.name}: ₹${s.price}`
+        if (s.service_type !== "package" && s.duration) line += ` (${s.duration} min)`
+        if (s.service_type === "package" && s.description) line += ` — ${s.description}`
+        if (s.capacity > 1) line += ` [${s.capacity} slots]`
+        return line
+      }).join("\n")
+      await supabase.from("business_knowledge").upsert(
+        { user_id: userId, category: "services", content: text || "No services listed." },
+        { onConflict: "user_id,category" }
+      )
+    } catch(e) { console.warn("Knowledge sync failed:", e) }
+  }
+
+  async function disconnectWhatsApp() {
+    if (!confirm("Disconnect WhatsApp? AI will stop responding to customers.")) return
+    await supabase.from("whatsapp_connections").delete().eq("user_id", userId)
+    setWhatsapp(null)
+  }
+
+  const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
+  const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login") }
+
+  // ── Theme tokens ────────────────────────────────────────────────
+  const bg         = dark ? "#08080e"                   : "#f0f2f5"
+  const sidebar    = dark ? "#0c0c15"                   : "#ffffff"
+  const card       = dark ? "#0f0f1a"                   : "#ffffff"
+  const border     = dark ? "rgba(255,255,255,0.07)"    : "rgba(0,0,0,0.08)"
+  const cardBorder = dark ? "rgba(255,255,255,0.08)"    : "rgba(0,0,0,0.09)"
+  const text       = dark ? "#eeeef5"                   : "#111827"
+  const textMuted  = dark ? "rgba(255,255,255,0.45)"    : "rgba(0,0,0,0.5)"
+  const textFaint  = dark ? "rgba(255,255,255,0.2)"     : "rgba(0,0,0,0.25)"
+  const inputBg    = dark ? "rgba(255,255,255,0.04)"    : "rgba(0,0,0,0.03)"
+  const accent     = dark ? "#00d084"                   : "#00935a"
+  const navText    = dark ? "rgba(255,255,255,0.45)"    : "rgba(0,0,0,0.5)"
+  const navActive  = dark ? "rgba(0,196,125,0.1)"       : "rgba(0,180,115,0.08)"
+  const navActiveBorder = dark ? "rgba(0,196,125,0.2)" : "rgba(0,180,115,0.2)"
+  const navActiveText   = dark ? "#00c47d"             : "#00935a"
   const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
-  const hColor = healthScore >= 75 ? accent : healthScore >= 40 ? "#f59e0b" : "#ef4444"
-  const hLabel = healthScore >= 75 ? "Excellent" : healthScore >= 40 ? "Needs Work" : "Getting Started"
-  const circ   = 2 * Math.PI * 46
 
-  // Real funnel percentages based on actual data
-  const fMax = funnel.customers || 1
-  const funnelData = [
-    { label:"Total Customers", val: funnel.customers, pct: 100,                                                color: accent },
-    { label:"Active Chats",    val: funnel.convos,    pct: Math.round((funnel.convos/fMax)*100)||0,           color: "#38bdf8" },
-    { label:"Booked",          val: funnel.booked,    pct: Math.round((funnel.booked/fMax)*100)||0,           color: "#a78bfa" },
-    { label:"Completed",       val: funnel.completed, pct: Math.round((funnel.completed/fMax)*100)||0,        color: "#f59e0b" },
-    { label:"Revenue",         val: "₹" + stats.revenue.toLocaleString(), pct: Math.min(100, funnel.completed > 0 ? Math.round((funnel.completed/fMax)*100) : 0), color: "#fb7185" },
-  ]
+  const inp = {
+    background: inputBg, border: `1px solid ${cardBorder}`, borderRadius: 8,
+    padding: "9px 12px", fontSize: 13, color: text,
+    fontFamily: "'Plus Jakarta Sans',sans-serif", outline: "none", width: "100%"
+  }
 
-  const periodLabel = period === "today" ? "Today" : period === "week" ? "This week" : "This month"
+  // Service type pill colours
+  const svcTypeStyle = (type) => type === "package"
+    ? { color:"#38bdf8", bg:"rgba(56,189,248,0.1)", border:"rgba(56,189,248,0.2)" }
+    : { color: accent,   bg:`${accent}18`,           border:`${accent}33` }
 
   return (
     <>
@@ -198,33 +281,22 @@ export default function Dashboard() {
         .logout-btn:hover{border-color:#fca5a5;color:#ef4444;}
         .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
         .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${border};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sidebar};}
-        .topbar-l{display:flex;align-items:center;gap:14px;}
-        .topbar-r{display:flex;align-items:center;gap:8px;}
-        .period-wrap{display:flex;background:${inputBg};border:1px solid ${cardBorder};border-radius:8px;padding:2px;gap:1px;}
-        .period-btn{padding:3px 11px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;border:none;background:transparent;color:${textMuted};font-family:'Plus Jakarta Sans',sans-serif;}
-        .period-btn.active{background:${card};color:${text};box-shadow:0 1px 3px rgba(0,0,0,0.15);}
         .theme-toggle{display:flex;align-items:center;gap:6px;padding:5px 10px;background:${inputBg};border:1px solid ${cardBorder};border-radius:8px;cursor:pointer;font-size:11.5px;color:${textMuted};font-family:'Plus Jakarta Sans',sans-serif;}
         .toggle-pill{width:30px;height:16px;border-radius:100px;background:${dark?accent:"#d1d5db"};position:relative;flex-shrink:0;}
         .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
-        .badge{display:flex;align-items:center;gap:5px;padding:4px 11px;border-radius:100px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444;white-space:nowrap;}
-        .badge.on{background:${accentDim};border-color:${accent}44;color:${accent};}
-        .badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
-        .content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};display:flex;flex-direction:column;gap:14px;}
-        .card{background:${card};border:1px solid ${cardBorder};border-radius:13px;padding:18px;}
-        .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
-        .card-title{font-weight:700;font-size:13.5px;color:${text};}
-        .card-sub{font-size:11px;color:${textMuted};}
-        .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-        .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
-        @media(max-width:1200px){.three-col{grid-template-columns:1fr 1fr;}}
-        @media(max-width:960px){.two-col,.three-col{grid-template-columns:1fr;}}
+        .content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};}
+        .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid ${border};}
+        .tog{width:38px;height:22px;border-radius:100px;position:relative;cursor:pointer;border:none;flex-shrink:0;transition:background 0.2s;}
+        .tog::after{content:'';position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 0.2s;}
+        select{color-scheme:dark;}
+        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
+        .svc-type-btn{padding:5px 12px;border-radius:7px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.12s;}
         @media(max-width:767px){
-          .kpi-grid{grid-template-columns:repeat(2,1fr)!important;}
-          .health-kpi-row{grid-template-columns:1fr!important;}
           .wrap{position:relative;}
           .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s ease;width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
           .sidebar.mob-open{transform:translateX(0);}
           .mob-overlay{display:block!important;}
+          .main{width:100%;}
           .topbar{padding:0 12px!important;}
           .content{padding:12px!important;}
           .hamburger{display:flex!important;}
@@ -232,13 +304,8 @@ export default function Dashboard() {
         .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
         .hamburger{display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:#eeeef5;line-height:1;margin-right:2px;}
         @media(max-width:767px){
-          [style*="grid-template-columns: repeat(5"]{grid-template-columns:repeat(2,1fr)!important;}
+          [style*="grid-template-columns: 2fr 1fr 1fr 1fr"]{grid-template-columns:1fr 1fr!important;}
           [style*="grid-template-columns: repeat(4"]{grid-template-columns:repeat(2,1fr)!important;}
-          [style*="grid-template-columns: repeat(3"]{grid-template-columns:repeat(2,1fr)!important;}
-          [style*="grid-template-columns: 1fr 300px"]{grid-template-columns:1fr!important;}
-          [style*="grid-template-columns: 1fr 320px"]{grid-template-columns:1fr!important;}
-          [style*="grid-template-columns: 210px 1fr"]{grid-template-columns:1fr!important;}
-          [style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr!important;}
         }
         .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);padding:6px 0;z-index:200;}
         @media(max-width:767px){.bottom-nav{display:flex;justify-content:space-around;}.main{padding-bottom:60px;}}
@@ -246,23 +313,22 @@ export default function Dashboard() {
         .bnav-icon{font-size:17px;color:rgba(255,255,255,0.3);}
         .bnav-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
         .bnav-btn.active .bnav-icon,.bnav-btn.active .bnav-label{color:#00d084;}
-        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
       `}</style>
 
       <div className="wrap">
-        <div className={"mob-overlay" + (mobSidebarOpen ? "" : "")} style={{display: mobSidebarOpen ? "block" : "none"}} onClick={() => setMobSidebarOpen(false)}/>
-        <aside className={"sidebar" + (mobSidebarOpen ? " mob-open" : "")}>
+        <div className="mob-overlay" style={{display: mobSidebarOpen?"block":"none"}} onClick={()=>setMobSidebarOpen(false)}/>
+        <aside className={`sidebar${mobSidebarOpen?" mob-open":""}`}>
           <a href="/dashboard" className="logo">fast<span>rill</span></a>
           <div className="nav-section">Platform</div>
           {NAV.map(item => (
-            <button key={item.id} className={"nav-item" + (item.id === "overview" ? " active" : "")} onClick={() => router.push(item.path)}>
+            <button key={item.id} className={`nav-item${item.id==="settings"?" active":""}`} onClick={()=>router.push(item.path)}>
               <span className="nav-icon">{item.icon}</span><span>{item.label}</span>
             </button>
           ))}
           <div className="sidebar-footer">
             <div className="user-card">
               <div className="user-avatar">{userInitial}</div>
-              <div className="user-email">{userEmail || "Loading..."}</div>
+              <div className="user-email">{userEmail||"Loading..."}</div>
             </div>
             <button className="logout-btn" onClick={handleLogout}>↩ Sign out</button>
           </div>
@@ -270,235 +336,383 @@ export default function Dashboard() {
 
         <div className="main">
           <div className="topbar">
-            <div className="topbar-l">
-              <button className="hamburger" onClick={() => setMobSidebarOpen(s => !s)}>☰</button>
-              <span style={{fontWeight:700, fontSize:15, color:text}}>Revenue Engine</span>
-              <div className="period-wrap">
-                {["today","week","month"].map(p => (
-                  <button key={p} className={"period-btn" + (period === p ? " active" : "")} onClick={() => setPeriod(p)}>
-                    {p.charAt(0).toUpperCase() + p.slice(1)}
-                  </button>
-                ))}
-              </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <button className="hamburger" onClick={()=>setMobSidebarOpen(s=>!s)}>☰</button>
+              <span style={{fontWeight:700,fontSize:15,color:text}}>Settings</span>
             </div>
-            <div className="topbar-r">
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              {(tab==="business"||tab==="ai") && (
+                <button onClick={saveBusiness} disabled={saving} style={{
+                  background: saved?"#22c55e":saveError?"#ef4444":accent,
+                  color:"#000",border:"none",padding:"7px 18px",borderRadius:8,
+                  fontWeight:700,fontSize:12,cursor:saving?"not-allowed":"pointer",
+                  fontFamily:"'Plus Jakarta Sans',sans-serif",transition:"background 0.2s"
+                }}>
+                  {saving?"Saving...":saved?"✓ Saved":saveError?"✗ Error":"Save Changes"}
+                </button>
+              )}
               <button className="theme-toggle" onClick={toggleTheme}>
-                <span>{dark ? "🌙" : "☀️"}</span><div className="toggle-pill"/><span>{dark ? "Dark" : "Light"}</span>
+                <span>{dark?"🌙":"☀️"}</span><div className="toggle-pill"/>
               </button>
-              <div className={"badge" + (connected ? " on" : "")}>
-                <span className="badge-dot"/>{connected ? "WhatsApp Live" : "Not Connected"}
-              </div>
             </div>
           </div>
 
+          {/* Error banner */}
+          {saveError && (
+            <div style={{margin:"0 24px",marginTop:8,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#f87171"}}>
+              ⚠️ {saveError}
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div style={{padding:"0 24px",borderBottom:`1px solid ${border}`,background:sidebar,display:"flex",gap:0,flexShrink:0}}>
+            {TABS.map(t => (
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{
+                padding:"14px 18px",background:"transparent",border:"none",
+                borderBottom:tab===t.id?`2px solid ${accent}`:"2px solid transparent",
+                color:tab===t.id?accent:textMuted,
+                fontWeight:tab===t.id?700:500,fontSize:13,cursor:"pointer",
+                fontFamily:"'Plus Jakarta Sans',sans-serif",transition:"all 0.12s"
+              }}>{t.label}</button>
+            ))}
+          </div>
+
           <div className="content">
-            {!connected && (
-              <div style={{background: dark ? "linear-gradient(135deg," + accent + "0f,rgba(56,189,248,0.06))" : "linear-gradient(135deg," + accent + "0a,rgba(56,189,248,0.04))", border: "1px solid " + accent + "28", borderRadius:12, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:14}}>
-                <div style={{display:"flex", alignItems:"center", gap:12}}>
-                  <div style={{width:38, height:38, borderRadius:10, background:"#25d366", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0}}>💬</div>
-                  <div>
-                    <div style={{fontWeight:700, fontSize:13, color:text, marginBottom:2}}>Connect WhatsApp to start generating revenue</div>
-                    <div style={{fontSize:11.5, color:textMuted}}>Link your business number to activate AI-powered lead conversion</div>
-                  </div>
-                </div>
-                <button onClick={handleConnect} style={{background:"#1877f2", color:"#fff", border:"none", padding:"8px 16px", borderRadius:8, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", flexShrink:0}}>Connect WhatsApp →</button>
-              </div>
-            )}
+            {loading ? (
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:200,color:textFaint}}>Loading...</div>
 
-            {/* Health + KPIs */}
-            <div className="health-kpi-row" style={{display:"grid", gridTemplateColumns:"210px 1fr", gap:14}}>
-              <div style={{background:card, border:"1px solid " + cardBorder, borderRadius:13, padding:"20px 16px", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", position:"relative", overflow:"hidden"}}>
-                <div style={{position:"absolute", inset:0, background:"radial-gradient(circle at 50% 30%," + accent + "0d,transparent 70%)", pointerEvents:"none"}}/>
-                <div style={{fontSize:10, letterSpacing:"1.5px", textTransform:"uppercase", color:textFaint, fontWeight:600, marginBottom:12}}>Business Health</div>
-                <div style={{position:"relative", width:110, height:110, marginBottom:12}}>
-                  <svg width="110" height="110" viewBox="0 0 110 110" style={{transform:"rotate(-90deg)"}}>
-                    <circle cx="55" cy="55" r="46" fill="none" stroke={dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)"} strokeWidth="7"/>
-                    <circle cx="55" cy="55" r="46" fill="none" stroke={hColor} strokeWidth="7" strokeLinecap="round"
-                      strokeDasharray={"" + circ} strokeDashoffset={"" + (circ * (1 - healthScore / 100))} style={{transition:"stroke-dashoffset 1.2s ease"}}/>
-                  </svg>
-                  <div style={{position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center"}}>
-                    <div style={{fontWeight:800, fontSize:34, lineHeight:1, color:hColor}}>{healthScore}</div>
-                    <div style={{fontSize:11, color:textFaint}}>/100</div>
-                  </div>
-                </div>
-                <div style={{fontWeight:700, fontSize:13, color:hColor, marginBottom:3}}>{hLabel}</div>
-                <div style={{fontSize:11, color:textMuted, lineHeight:1.5}}>{loading ? "Calculating..." : connected ? "AI is active" : "Connect WhatsApp to start"}</div>
-              </div>
-
-              <div className="kpi-grid" style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:11}}>
-                {[
-                  { name:"Revenue Generated",    val:"₹" + stats.revenue.toLocaleString(),    color:accent,    icon:"₹",  sub:periodLabel },
-                  { name:"Leads Captured",        val:stats.leads,                              color:"#38bdf8", icon:"↗",  sub:periodLabel },
-                  { name:"Appointments Booked",   val:stats.bookings,                           color:"#a78bfa", icon:"📅", sub:periodLabel },
-                  { name:"Avg Service Value",     val:"₹" + avgServiceValue.toLocaleString(),  color:"#f59e0b", icon:"₹",  sub:"per booking" },
-                ].map(k => (
-                  <div key={k.name} style={{background:card, border:"1px solid " + cardBorder, borderRadius:11, padding:"15px 14px", position:"relative", overflow:"hidden"}}>
-                    <div style={{position:"absolute", top:0, left:0, right:0, height:2, background:k.color + "55", borderRadius:"11px 11px 0 0"}}/>
-                    <div style={{position:"absolute", top:12, right:13, fontSize:13, opacity:0.3}}>{k.icon}</div>
-                    <div style={{fontSize:11, color:textMuted, marginBottom:8}}>{k.name}</div>
-                    <div style={{fontWeight:700, fontSize:28, letterSpacing:"-1px", lineHeight:1, color:k.color, marginBottom:5}}>{loading ? "—" : k.val}</div>
-                    <div style={{fontSize:10.5, color:textFaint}}>{k.sub}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Funnel — REAL data, real percentages */}
-            <div className="card">
-              <div className="card-head">
-                <div className="card-title">Conversion Funnel</div>
-                <div className="card-sub">Where are leads dropping off?</div>
-              </div>
-              <div style={{display:"flex", alignItems:"flex-end", gap:6, height:110}}>
-                {funnelData.map((s, i) => (
-                  <div key={s.label} style={{display:"contents"}}>
-                    <div style={{flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4}}>
-                      <div style={{fontWeight:700, fontSize:12.5, color:s.color}}>{loading ? "—" : s.val}</div>
-                      <div style={{fontSize:9.5, color:textFaint, fontWeight:600}}>{s.pct}%</div>
-                      <div style={{width:"100%", height:Math.max(4, s.pct * 0.62) + "px", background:s.color + "22", border:"1px solid " + s.color + "40", borderRadius:"4px 4px 0 0", transition:"height 0.5s"}}/>
-                      <div style={{fontSize:9.5, color:textMuted, textAlign:"center", lineHeight:1.3}}>{s.label}</div>
+            ) : tab==="business" ? (
+              <div style={{maxWidth:620,display:"flex",flexDirection:"column",gap:20}}>
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:22}}>
+                  <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:16}}>Business Info</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                    <div>
+                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Business Name *</div>
+                      <input placeholder="e.g. Priya Beauty Salon" value={business.name} onChange={e=>setBusiness(p=>({...p,name:e.target.value}))} style={inp}/>
                     </div>
-                    {i < funnelData.length - 1 && <div style={{color:textFaint, fontSize:14, marginBottom:28, flexShrink:0}}>›</div>}
+                    <div>
+                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Business Type</div>
+                      <select value={business.type} onChange={e=>setBusiness(p=>({...p,type:e.target.value}))} style={inp}>
+                        {BUSINESS_TYPES.map(t=><option key={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>WhatsApp Phone Number</div>
+                      <input placeholder="+91 98765 43210" value={business.phone} onChange={e=>setBusiness(p=>({...p,phone:e.target.value}))} style={inp}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Location / Address</div>
+                      <input placeholder="Shop no, Building, Street, City" value={business.location} onChange={e=>setBusiness(p=>({...p,location:e.target.value}))} style={inp}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Google Maps Link</div>
+                      <input placeholder="https://maps.google.com/..." value={business.mapsLink} onChange={e=>setBusiness(p=>({...p,mapsLink:e.target.value}))} style={inp}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>
+                        Working Hours <span style={{color:textFaint}}>(AI uses this to answer availability questions)</span>
+                      </div>
+                      <input placeholder="e.g. Mon–Sat 10am–8pm, Sunday 11am–6pm" value={business.workingHours} onChange={e=>setBusiness(p=>({...p,workingHours:e.target.value}))} style={inp}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>
+                        About Your Business <span style={{color:textFaint}}>(AI uses this to answer customer questions)</span>
+                      </div>
+                      <textarea
+                        placeholder="Tell customers what makes your salon/spa/clinic special — your experience, specialties, certifications, awards, and what to expect when they visit..."
+                        value={business.description}
+                        onChange={e=>setBusiness(p=>({...p,description:e.target.value}))}
+                        style={{...inp,resize:"vertical",minHeight:90,lineHeight:1.5}}
+                      />
+                    </div>
                   </div>
-                ))}
-              </div>
-              {funnel.customers === 0 && !loading && (
-                <div style={{textAlign:"center", marginTop:12, fontSize:12, color:textFaint}}>Connect WhatsApp and start chatting to see your funnel</div>
-              )}
-            </div>
-
-            {/* AI Performance + Missed Revenue */}
-            <div className="two-col">
-              <div className="card">
-                <div className="card-head">
-                  <div>
-                    <div style={{display:"inline-flex", alignItems:"center", gap:4, background:"rgba(167,139,250,0.12)", border:"1px solid rgba(167,139,250,0.2)", borderRadius:100, padding:"2px 9px", fontSize:10, color:"#a78bfa", fontWeight:700, letterSpacing:"0.5px"}}>◈ AI PERFORMANCE</div>
-                    <div className="card-title" style={{marginTop:8}}>What your AI achieved</div>
-                  </div>
-                  <div className="card-sub">Powered by Sarvam AI</div>
                 </div>
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:9}}>
+                <div style={{fontSize:12,color:textFaint,textAlign:"center"}}>
+                  💡 After saving, your AI will immediately use this info to answer customer questions
+                </div>
+              </div>
+
+            ) : tab==="services" ? (
+              <div style={{maxWidth:720,display:"flex",flexDirection:"column",gap:16}}>
+
+                {/* Add service form */}
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:20}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                    <div style={{fontWeight:700,fontSize:14,color:text}}>Add Service</div>
+                    {/* Service type toggle */}
+                    <div style={{display:"flex",gap:4,background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:8,padding:3}}>
+                      {[
+                        {val:"appointment", label:"Appointment"},
+                        {val:"package",     label:"Package"}
+                      ].map(opt => {
+                        const active = newService.service_type === opt.val
+                        return (
+                          <button key={opt.val}
+                            onClick={()=>setNewService(p=>({...p,service_type:opt.val}))}
+                            style={{
+                              padding:"5px 12px",borderRadius:6,fontSize:11.5,fontWeight:600,
+                              cursor:"pointer",border:"none",fontFamily:"'Plus Jakarta Sans',sans-serif",
+                              background: active ? (opt.val==="package"?"rgba(56,189,248,0.15)":accent+"22") : "transparent",
+                              color: active ? (opt.val==="package"?"#38bdf8":accent) : textMuted,
+                              transition:"all 0.12s"
+                            }}>
+                            {opt.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Type hint */}
+                  <div style={{fontSize:11.5,color:textFaint,marginBottom:14,padding:"8px 12px",background:inputBg,borderRadius:7,borderLeft:`2px solid ${newService.service_type==="package"?"#38bdf8":accent}`}}>
+                    {newService.service_type==="appointment"
+                      ? "⏰ Appointment — has duration and time slot booking (e.g. Haircut 45 min, Facial 60 min)"
+                      : "📦 Package — sold as a bundle, no slot booking needed (e.g. 10-session membership, Bridal Package)"}
+                  </div>
+
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {/* Row 1: name, price, category */}
+                    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10}}>
+                      <div>
+                        <div style={{fontSize:11,color:textMuted,marginBottom:4}}>Service Name *</div>
+                        <input placeholder={newService.service_type==="appointment"?"e.g. Hair Colour, Facial":"e.g. Bridal Package, 10 Sessions"} value={newService.name} onChange={e=>setNewService(p=>({...p,name:e.target.value}))} style={inp}/>
+                      </div>
+                      <div>
+                        <div style={{fontSize:11,color:textMuted,marginBottom:4}}>Price (₹) *</div>
+                        <input type="number" placeholder="500" value={newService.price} onChange={e=>setNewService(p=>({...p,price:e.target.value}))} style={inp}/>
+                      </div>
+                      <div>
+                        <div style={{fontSize:11,color:textMuted,marginBottom:4}}>Category</div>
+                        <select value={newService.category} onChange={e=>setNewService(p=>({...p,category:e.target.value}))} style={inp}>
+                          {CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Row 2: duration + capacity (appointment only) OR description (package only) */}
+                    {newService.service_type==="appointment" ? (
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                        <div>
+                          <div style={{fontSize:11,color:textMuted,marginBottom:4}}>Duration (minutes)</div>
+                          <select value={newService.duration} onChange={e=>setNewService(p=>({...p,duration:e.target.value}))} style={inp}>
+                            {[15,20,30,45,60,75,90,120,150,180].map(d=><option key={d} value={d}>{d} min</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <div style={{fontSize:11,color:textMuted,marginBottom:4}}>
+                            Capacity <span style={{color:textFaint,fontSize:10}}>(parallel bookings per slot)</span>
+                          </div>
+                          <input type="number" min="1" max="20" placeholder="1" value={newService.capacity} onChange={e=>setNewService(p=>({...p,capacity:e.target.value}))} style={inp}/>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{fontSize:11,color:textMuted,marginBottom:4}}>
+                          Package Description <span style={{color:textFaint}}>(AI tells customers what's included)</span>
+                        </div>
+                        <input placeholder="e.g. Includes 10 sessions, valid for 3 months" value={newService.description} onChange={e=>setNewService(p=>({...p,description:e.target.value}))} style={inp}/>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={addService}
+                      disabled={saving||!newService.name||!newService.price}
+                      style={{
+                        background:(saving||!newService.name||!newService.price)?"rgba(0,208,132,0.3)":accent,
+                        color:"#000",border:"none",padding:"10px",borderRadius:8,fontWeight:700,
+                        fontSize:13,cursor:(saving||!newService.name||!newService.price)?"not-allowed":"pointer",
+                        fontFamily:"'Plus Jakarta Sans',sans-serif"
+                      }}>
+                      {saving?"Adding...":"+ Add Service"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Services list */}
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,overflow:"hidden"}}>
+                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{fontWeight:700,fontSize:13,color:text}}>Your Services ({services.length})</div>
+                    <div style={{fontSize:11,color:textFaint}}>
+                      {services.filter(s=>s.service_type!=="package").length} appointments · {services.filter(s=>s.service_type==="package").length} packages
+                    </div>
+                  </div>
+                  {services.length===0 ? (
+                    <div style={{textAlign:"center",padding:"32px",color:textFaint,fontSize:12}}>
+                      No services yet — add your first service above
+                    </div>
+                  ) : CATEGORIES.filter(cat=>services.some(s=>s.category===cat)).map(cat=>(
+                    <div key={cat}>
+                      <div style={{padding:"7px 16px",background:inputBg,fontSize:10,fontWeight:700,color:textFaint,letterSpacing:"1px",textTransform:"uppercase"}}>{cat}</div>
+                      {services.filter(s=>s.category===cat).map(s=>{
+                        const typeStyle = svcTypeStyle(s.service_type)
+                        return (
+                          <div key={s.id} style={{display:"flex",alignItems:"center",padding:"10px 16px",borderBottom:`1px solid ${border}`,gap:10,opacity:s.is_active===false?0.45:1}}>
+                            {/* Service type badge */}
+                            <span style={{fontSize:9.5,fontWeight:700,color:typeStyle.color,background:typeStyle.bg,border:`1px solid ${typeStyle.border}`,borderRadius:100,padding:"1px 7px",flexShrink:0}}>
+                              {s.service_type==="package"?"pkg":"appt"}
+                            </span>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontWeight:600,fontSize:13,color:text}}>{s.name}</div>
+                              {s.service_type==="package" && s.description && (
+                                <div style={{fontSize:11,color:textFaint,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.description}</div>
+                              )}
+                            </div>
+                            {s.service_type!=="package" && s.duration && (
+                              <div style={{fontSize:11.5,color:textMuted,flexShrink:0}}>{s.duration} min</div>
+                            )}
+                            {s.service_type!=="package" && (s.capacity||1)>1 && (
+                              <div style={{fontSize:10.5,fontWeight:700,color:"#38bdf8",background:"rgba(56,189,248,0.1)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:100,padding:"1px 7px",flexShrink:0}}>
+                                {s.capacity} slots
+                              </div>
+                            )}
+                            <div style={{fontWeight:700,fontSize:13,color:accent,flexShrink:0}}>₹{parseInt(s.price||0).toLocaleString()}</div>
+                            <button
+                              onClick={()=>toggleServiceActive(s)}
+                              style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100,flexShrink:0,
+                                border:`1px solid ${s.is_active===false?"rgba(251,113,133,0.3)":accent+"44"}`,
+                                background:s.is_active===false?"rgba(251,113,133,0.08)":"rgba(0,208,132,0.08)",
+                                color:s.is_active===false?"#fb7185":accent,
+                                cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                              {s.is_active===false?"Off":"On"}
+                            </button>
+                            <button onClick={()=>deleteService(s.id)} style={{background:"transparent",border:"none",color:textFaint,cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0}}>×</button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Capacity explainer */}
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:10,padding:"12px 16px",fontSize:12,color:textMuted,lineHeight:1.6}}>
+                  💡 <strong style={{color:text}}>Capacity</strong> = how many customers can book the same slot simultaneously. A salon with 3 stylists doing haircuts can set capacity to 3 — AI will book up to 3 haircuts at 10am before marking it full.
+                </div>
+              </div>
+
+            ) : tab==="ai" ? (
+              <div style={{maxWidth:620,display:"flex",flexDirection:"column",gap:20}}>
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:22}}>
+                  <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:4}}>AI Brain Settings</div>
+                  <div style={{fontSize:12,color:textFaint,marginBottom:16}}>Control how your AI responds to customers on WhatsApp</div>
+
+                  <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                    <div>
+                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Primary Language</div>
+                      <select value={ai.language} onChange={e=>setAI(p=>({...p,language:e.target.value}))} style={inp}>
+                        {LANGUAGES.map(l=><option key={l}>{l}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="toggle-row">
+                      <div>
+                        <div style={{fontWeight:600,fontSize:13,color:text}}>Auto Booking</div>
+                        <div style={{fontSize:11.5,color:textMuted}}>AI books appointments automatically from WhatsApp chat</div>
+                      </div>
+                      <button className="tog" style={{background:ai.autoBooking?accent:"rgba(255,255,255,0.12)"}} onClick={()=>setAI(p=>({...p,autoBooking:!p.autoBooking}))}>
+                        <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:ai.autoBooking?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
+                      </button>
+                    </div>
+
+                    <div className="toggle-row">
+                      <div>
+                        <div style={{fontWeight:600,fontSize:13,color:text}}>Follow-up Messages</div>
+                        <div style={{fontSize:11.5,color:textMuted}}>AI follows up with inactive leads automatically</div>
+                      </div>
+                      <button className="tog" style={{background:ai.followUpEnabled?accent:"rgba(255,255,255,0.12)"}} onClick={()=>setAI(p=>({...p,followUpEnabled:!p.followUpEnabled}))}>
+                        <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:ai.followUpEnabled?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
+                      </button>
+                    </div>
+
+                    <div>
+                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>
+                        Greeting Message <span style={{color:textFaint}}>(sent to new customers on first message)</span>
+                      </div>
+                      <textarea
+                        placeholder={`Hi [Name]! Welcome to ${business.name||"our salon"} 😊\n\nHow can I help you today?`}
+                        value={ai.greetingMessage}
+                        onChange={e=>setAI(p=>({...p,greetingMessage:e.target.value}))}
+                        style={{...inp,resize:"vertical",minHeight:80}}
+                      />
+                    </div>
+
+                    <div>
+                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>
+                        Custom AI Instructions <span style={{color:textFaint}}>(tone, rules, what to say or avoid)</span>
+                      </div>
+                      <textarea
+                        placeholder={`Examples for ${business.type||"salon"}:\n• Always respond warmly and use the customer's first name\n• Upsell hair spa with every haircut booking\n• If customer asks about parking, say free parking available below the building\n• Never mention competitor prices\n• If unsure about pricing, say "let me check and get back to you"`}
+                        value={ai.customInstructions}
+                        onChange={e=>setAI(p=>({...p,customInstructions:e.target.value}))}
+                        style={{...inp,resize:"vertical",minHeight:140,lineHeight:1.6}}
+                      />
+                    </div>
+
+                    <div style={{background:"rgba(0,208,132,0.06)",border:`1px solid ${accent}22`,borderRadius:9,padding:"12px 14px",fontSize:12,color:textMuted,lineHeight:1.7}}>
+                      💡 <strong style={{color:text}}>What your AI knows:</strong> Your business name, type, location, working hours, all services with prices and durations, and your custom instructions above.<br/><br/>
+                      🧠 <strong style={{color:text}}>The more you fill in, the smarter your AI gets.</strong> Add upsell rules, FAQs, parking info, cancellation policy — anything a new staff member would need to know.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            ) : tab==="whatsapp" ? (
+              <div style={{maxWidth:560,display:"flex",flexDirection:"column",gap:16}}>
+                {whatsapp ? (
+                  <div style={{background:card,border:`1px solid ${accent}44`,borderRadius:13,padding:22}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+                      <div style={{width:44,height:44,borderRadius:11,background:"#25d366",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💬</div>
+                      <div>
+                        <div style={{fontWeight:800,fontSize:15,color:text}}>WhatsApp Connected ✓</div>
+                        <div style={{fontSize:12,color:textMuted}}>Your AI is live and responding to customers</div>
+                      </div>
+                    </div>
+                    {[
+                      ["Phone Number ID", whatsapp.phone_number_id],
+                      ["WABA ID",         whatsapp.waba_id||"—"],
+                      ["Status",          "🟢 Active"]
+                    ].map(([l,v])=>(
+                      <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${border}`}}>
+                        <span style={{fontSize:12,color:textMuted}}>{l}</span>
+                        <span style={{fontSize:12,fontWeight:600,color:text,fontFamily:"monospace"}}>{v}</span>
+                      </div>
+                    ))}
+                    <button onClick={disconnectWhatsApp} style={{marginTop:16,width:"100%",padding:"9px",background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",borderRadius:8,color:"#fb7185",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                      Disconnect WhatsApp
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:28,textAlign:"center"}}>
+                    <div style={{fontSize:36,marginBottom:12}}>💬</div>
+                    <div style={{fontWeight:800,fontSize:16,color:text,marginBottom:6}}>Connect Your WhatsApp</div>
+                    <div style={{fontSize:13,color:textMuted,marginBottom:20,lineHeight:1.6}}>Link your business WhatsApp to activate AI replies, lead capture, and auto-booking.</div>
+                    <button onClick={()=>{
+                      const appId="780799931531576",configId="1090960043190718"
+                      const redirectUri="https://fastrill.com/api/meta/callback"
+                      window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}`
+                    }} style={{background:"#1877f2",color:"#fff",border:"none",padding:"11px 24px",borderRadius:9,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                      Connect WhatsApp via Meta →
+                    </button>
+                  </div>
+                )}
+
+                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:20}}>
+                  <div style={{fontWeight:700,fontSize:13.5,color:text,marginBottom:12}}>Webhook Configuration</div>
                   {[
-                    { l:"Conversations Handled", v:stats.aiHandled,                               s:"by AI (real count)" },
-                    { l:"AI Bookings Created",    v:stats.aiBookings,                              s:"auto-booked" },
-                    { l:"Revenue from AI",        v:"₹" + stats.aiRevenue.toLocaleString(),       s:"ai_booked=true" },
-                    { l:"Avg Booking Value",      v:"₹" + avgServiceValue.toLocaleString(),        s:"per confirmed booking" },
-                  ].map(m => (
-                    <div key={m.l} style={{background:inputBg, border:"1px solid " + cardBorder, borderRadius:9, padding:12}}>
-                      <div style={{fontWeight:700, fontSize:22, color:text, lineHeight:1, marginBottom:3}}>{loading ? "—" : m.v}</div>
-                      <div style={{fontSize:11, color:textMuted, lineHeight:1.4}}>{m.l}<br/><span style={{opacity:0.7, fontSize:10}}>{m.s}</span></div>
+                    ["Webhook URL",  "https://fastrill.com/api/meta/webhook"],
+                    ["Verify Token","fastrill_webhook_2026"],
+                    ["Events",      "messages, message_status"]
+                  ].map(([l,v])=>(
+                    <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${border}`}}>
+                      <span style={{fontSize:12,color:textMuted}}>{l}</span>
+                      <span style={{fontSize:11.5,fontWeight:600,color:text,fontFamily:"monospace",wordBreak:"break-all",textAlign:"right",maxWidth:"60%"}}>{v}</span>
                     </div>
                   ))}
                 </div>
               </div>
-
-              <div style={{background:card, border:"1px solid rgba(251,113,133,0.18)", borderRadius:13, padding:18}}>
-                <div className="card-head">
-                  <div className="card-title">🔥 Missed Revenue</div>
-                  <div className="card-sub">Open leads not followed up</div>
-                </div>
-                <div style={{fontWeight:800, fontSize:38, color:"#fb7185", letterSpacing:"-1.5px", lineHeight:1, marginBottom:2}}>
-                  {loading ? "—" : stats.missedLeads > 0 ? stats.missedLeads + " leads" : "All caught up ✅"}
-                </div>
-                <div style={{fontSize:11.5, color:textMuted, marginBottom:13}}>
-                  {stats.missedLeads > 0 ? "open leads with no booking yet · " + periodLabel : "No open leads this period"}
-                </div>
-                {[
-                  { l:"Open leads",         v:stats.missedLeads },
-                  { l:"AI handled",         v:stats.aiHandled },
-                  { l:"Bookings created",   v:stats.bookings },
-                ].map(r => (
-                  <div key={r.l} style={{display:"flex", alignItems:"center", justifyContent:"space-between", padding:"7px 10px", background:inputBg, border:"1px solid " + cardBorder, borderRadius:7, marginBottom:5}}>
-                    <span style={{fontSize:12, color:textMuted}}>{r.l}</span>
-                    <span style={{fontSize:12, fontWeight:700, color:r.l === "Open leads" ? "#fb7185" : accent}}>{loading ? "—" : r.v}</span>
-                  </div>
-                ))}
-                {stats.missedLeads > 0 && (
-                  <button onClick={() => router.push("/dashboard/leads")} style={{width:"100%", marginTop:10, padding:"8px", borderRadius:8, background:"rgba(251,113,133,0.1)", border:"1px solid rgba(251,113,133,0.25)", color:"#fb7185", fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                    Recover {stats.missedLeads} leads →
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Sources + Today + Quick Actions */}
-            <div className="three-col">
-              <div className="card">
-                <div className="card-head"><div className="card-title">Lead Sources</div><div className="card-sub">By channel</div></div>
-                {loading ? <div style={{color:textFaint, fontSize:12, textAlign:"center", padding:"16px 0"}}>Loading...</div>
-                  : sources.length === 0 ? <div style={{color:textFaint, fontSize:12, textAlign:"center", padding:"16px 0"}}>No leads yet</div>
-                  : sources.map(s => (
-                    <div key={s.name} style={{display:"flex", alignItems:"center", gap:9, padding:"8px 0", borderBottom:"1px solid " + border}}>
-                      <div style={{width:7, height:7, borderRadius:"50%", background:s.color, flexShrink:0}}/>
-                      <div style={{fontSize:12.5, color:text, flex:1, fontWeight:500, textTransform:"capitalize"}}>{s.name}</div>
-                      <div style={{fontWeight:700, fontSize:12, color:accent}}>{s.count} leads</div>
-                    </div>
-                  ))
-                }
-              </div>
-
-              <div className="card">
-                <div className="card-head"><div className="card-title">Today's Bookings</div><div className="card-sub">{todayBookings.length} scheduled</div></div>
-                {loading ? <div style={{color:textFaint, fontSize:12, textAlign:"center", padding:"16px 0"}}>Loading...</div>
-                  : todayBookings.length === 0 ? (
-                    <div style={{display:"flex", flexDirection:"column", alignItems:"center", padding:"22px 0", gap:6}}>
-                      <div style={{fontSize:26, opacity:0.2}}>📅</div>
-                      <div style={{fontSize:11.5, color:textFaint, textAlign:"center", lineHeight:1.5}}>No bookings today<br/>{connected ? "Bookings appear automatically from WhatsApp" : "Connect WhatsApp to start"}</div>
-                    </div>
-                  ) : todayBookings.map(b => (
-                    <div key={b.customer_name + b.booking_time} style={{display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid " + border}}>
-                      <div>
-                        <div style={{fontWeight:600, fontSize:12.5, color:text}}>{b.customer_name}</div>
-                        <div style={{fontSize:11, color:textMuted}}>{b.service}</div>
-                      </div>
-                      <div style={{textAlign:"right"}}>
-                        <div style={{fontSize:11.5, fontWeight:600, color:accent}}>{b.booking_time || "—"}</div>
-                        {b.amount > 0 && <div style={{fontSize:10.5, color:textFaint}}>₹{b.amount}</div>}
-                      </div>
-                    </div>
-                  ))
-                }
-              </div>
-
-              <div style={{background:card, border:"1px solid " + accent + "1e", borderRadius:13, padding:18}}>
-                <div style={{fontSize:10, letterSpacing:"1.2px", textTransform:"uppercase", color:textFaint, fontWeight:600, marginBottom:4}}>Quick Actions</div>
-                <div style={{fontWeight:800, fontSize:20, color:accent, letterSpacing:"-0.5px", lineHeight:1, marginBottom:12}}>Grow Faster</div>
-                {[
-                  { label:"Send Campaign",  sub:"Reach all customers",         icon:"📢", path:"/dashboard/campaigns", color:accent },
-                  { label:"Recover Leads",  sub:stats.missedLeads + " waiting", icon:"◉", path:"/dashboard/leads",    color:"#fb7185" },
-                  { label:"Add Booking",    sub:"Manual entry",                  icon:"📅", path:"/dashboard/bookings", color:"#a78bfa" },
-                ].map(a => (
-                  <div key={a.label} onClick={() => router.push(a.path)} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:"1px solid " + border, cursor:"pointer"}}>
-                    <div style={{display:"flex", alignItems:"center", gap:9}}>
-                      <span style={{fontSize:15}}>{a.icon}</span>
-                      <div>
-                        <div style={{fontSize:12, fontWeight:600, color:text}}>{a.label}</div>
-                        <div style={{fontSize:10.5, color:textMuted}}>{a.sub}</div>
-                      </div>
-                    </div>
-                    <span style={{color:a.color, fontSize:14}}>→</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            ) : null}
           </div>
         </div>
       </div>
-
-      <nav className="bottom-nav">
-        {[
-          { id:"overview", icon:"⬡", label:"Home",     path:"/dashboard" },
-          { id:"inbox",    icon:"◎", label:"Chats",    path:"/dashboard/conversations" },
-          { id:"bookings", icon:"◷", label:"Bookings", path:"/dashboard/bookings" },
-          { id:"leads",    icon:"◉", label:"Leads",    path:"/dashboard/leads" },
-          { id:"contacts", icon:"◑", label:"Customers",path:"/dashboard/contacts" },
-        ].map(item => (
-          <button key={item.id} className={"bnav-btn" + (item.id === "overview" ? " active" : "")} onClick={() => router.push(item.path)}>
-            <span className="bnav-icon">{item.icon}</span>
-            <span className="bnav-label">{item.label}</span>
-          </button>
-        ))}
-      </nav>
     </>
   )
 }
