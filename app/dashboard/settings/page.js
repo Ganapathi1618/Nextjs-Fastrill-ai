@@ -1,7 +1,15 @@
 "use client"
+export const dynamic = "force-dynamic"
+
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@supabase/supabase-js"
+
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+}
 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
@@ -14,705 +22,557 @@ const NAV = [
   { id:"settings",  label:"Settings",       icon:"◌", path:"/dashboard/settings" },
 ]
 
-const LANGUAGES = ["English","Hindi","Telugu","Tamil","Kannada","Malayalam","Marathi","Bengali","Gujarati","Punjabi"]
-
-// Health & Wellness focused business types
-const BUSINESS_TYPES = [
-  "Salon","Beauty Parlour","Spa","Hair Studio","Nail Studio",
-  "Makeup Studio","Skin Clinic","Dermatology Clinic","Dental Clinic",
-  "Ayurvedic Clinic","Physiotherapy Clinic","Yoga Studio",
-  "Fitness Studio","Gym","Wellness Center","Medispa","Other"
-]
-
-// Health & Wellness focused categories
-const CATEGORIES = [
-  "Hair","Skin","Nails","Bridal","Massage","Body",
-  "Dental","Fitness","Ayurveda","Consultation","Membership","Other"
-]
-
-const TIMES = [
-  "09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30",
-  "13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30",
-  "17:00","17:30","18:00","18:30","19:00","19:30"
-]
-
 const TABS = [
-  { id:"business", label:"Business" },
-  { id:"services", label:"Services" },
-  { id:"ai",       label:"AI Brain" },
-  { id:"whatsapp", label:"WhatsApp" }
+  { id:"business", label:"Business",  icon:"🏢" },
+  { id:"ai",       label:"AI Brain",  icon:"🧠" },
+  { id:"services", label:"Services",  icon:"📋" },
+  { id:"whatsapp", label:"WhatsApp",  icon:"💬" },
+  { id:"account",  label:"Account",   icon:"👤" },
 ]
 
-export default function Settings() {
-  const router = useRouter()
-  const [userEmail, setUserEmail] = useState("")
+const LANGUAGES = ["English","Hindi","Telugu","Tamil","Kannada","Malayalam","Marathi","Bengali","Gujarati","Punjabi","Auto-detect"]
+const BIZ_TYPES  = ["Salon","Clinic","Spa","Gym","Restaurant","Agency","Consulting","Retail","Education","Real Estate","Other"]
+
+export default function SettingsPage() {
   const [userId, setUserId]       = useState(null)
-  const [dark, setDark]           = useState(true)
-  const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
+  const [userEmail, setUserEmail] = useState("")
   const [tab, setTab]             = useState("business")
-  const [saving, setSaving]       = useState(false)
-  const [saved, setSaved]         = useState(false)
-  const [saveError, setSaveError] = useState("")
   const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+  const [toast, setToast]         = useState(null)
+  const [mobOpen, setMobOpen]     = useState(false)
+  const [dark, setDark]           = useState(true)
+  const [waConn, setWaConn]       = useState(null)
+  const [testMsg, setTestMsg]     = useState("")
+  const [testReply, setTestReply] = useState("")
+  const [testing, setTesting]     = useState(false)
 
-  const [business, setBusiness] = useState({
-    name:"", type:"Salon", phone:"", location:"", mapsLink:"",
-    description:"", workingHours:""
+  // Business
+  const [biz, setBiz] = useState({
+    business_name:"", business_type:"", location:"", maps_link:"",
+    working_hours:"", description:"", phone:"", email:"", website:""
   })
-  const [services, setServices] = useState([])
-  const [newService, setNewService] = useState({
-    name:"", price:"", duration:"30", category:"Hair",
-    capacity:"1", service_type:"appointment", description:""
+
+  // AI Brain
+  const [ai, setAi] = useState({
+    ai_instructions:"", ai_language:"English", greeting_message:"", content:"", knowledge:""
   })
-  const [ai, setAI] = useState({
-    language:"English", customInstructions:"", autoBooking:true,
-    followUpEnabled:true, greetingMessage:"", missedLeadMessage:""
-  })
-  const [whatsapp, setWhatsapp] = useState(null)
 
-  useEffect(() => {
-    const saved = localStorage.getItem("fastrill-theme")
-    if (saved) setDark(saved === "dark")
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) router.push("/login")
-      else { setUserEmail(data.user.email || ""); setUserId(data.user.id) }
-    })
-  }, [])
+  // Services
+  const [services, setServices]     = useState([])
+  const [newService, setNewService] = useState({ name:"", price:"", duration:"", description:"", service_type:"time_based" })
+  const [editingId, setEditingId]   = useState(null)
 
-  useEffect(() => { if (userId) loadAll() }, [userId])
+  // Account
+  const [newPassword, setNewPassword]     = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [changingPass, setChangingPass]   = useState(false)
 
-  async function loadAll() {
-    setLoading(true)
-    try {
-      const [{ data: bs }, { data: svcs }, { data: wa }] = await Promise.all([
-        supabase.from("business_settings").select("*").eq("user_id", userId).maybeSingle(),
-        supabase.from("services").select("*").eq("user_id", userId).order("category"),
-        supabase.from("whatsapp_connections").select("*").eq("user_id", userId).maybeSingle()
-      ])
-      if (bs) {
-        setBusiness({
-          name:         bs.business_name  || "",
-          type:         bs.business_type  || "Salon",
-          phone:        bs.phone          || "",
-          location:     bs.location       || "",
-          mapsLink:     bs.maps_link      || "",
-          description:  bs.description    || "",
-          workingHours: bs.working_hours  || ""
-        })
-        setAI({
-          language:           bs.ai_language          || "English",
-          customInstructions: bs.ai_instructions      || "",
-          autoBooking:        bs.auto_booking         !== false,
-          followUpEnabled:    bs.follow_up_enabled    !== false,
-          greetingMessage:    bs.greeting_message     || "",
-          missedLeadMessage:  bs.missed_lead_message  || ""
-        })
-      }
-      setServices(svcs || [])
-      setWhatsapp(wa || null)
-    } catch(e) { console.error("loadAll error:", e) }
-    setLoading(false)
+  function showToast(msg, type="success") {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3500)
   }
 
-  async function saveBusiness() {
-    if (!business.name.trim()) {
-      setSaveError("Business name is required")
-      setTimeout(() => setSaveError(""), 3000)
-      return
+  useEffect(() => {
+    async function load() {
+      const supabase = getSupabase()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { window.location.href = "/login"; return }
+      setUserId(user.id)
+      setUserEmail(user.email)
+
+      const [{ data: bizData }, { data: knData }, { data: svcData }, { data: waData }] = await Promise.all([
+        supabase.from("business_settings").select("*").eq("user_id", user.id).maybeSingle(),
+        supabase.from("business_knowledge").select("*").eq("user_id", user.id).maybeSingle(),
+        supabase.from("services").select("*").eq("user_id", user.id).order("created_at"),
+        supabase.from("whatsapp_connections").select("*").eq("user_id", user.id).maybeSingle(),
+      ])
+
+      if (bizData)  setBiz(b => ({ ...b, ...bizData }))
+      if (knData)   setAi(a => ({ ...a, ...knData, ai_instructions: bizData?.ai_instructions || "", ai_language: bizData?.ai_language || "English", greeting_message: bizData?.greeting_message || "" }))
+      if (svcData)  setServices(svcData)
+      if (waData)   setWaConn(waData)
+      setLoading(false)
     }
-    setSaving(true); setSaveError("")
+    load()
+  }, [])
+
+  async function saveBusiness() {
+    setSaving(true)
     try {
-      const payload = {
-        user_id:             userId,
-        business_name:       business.name.trim(),
-        business_type:       business.type,
-        phone:               business.phone.trim(),
-        location:            business.location.trim(),
-        maps_link:           business.mapsLink.trim(),
-        description:         business.description.trim(),
-        working_hours:       business.workingHours.trim(),
-        ai_language:         ai.language,
-        ai_instructions:     ai.customInstructions.trim(),
-        auto_booking:        ai.autoBooking,
-        follow_up_enabled:   ai.followUpEnabled,
-        greeting_message:    ai.greetingMessage.trim(),
-        missed_lead_message: ai.missedLeadMessage.trim(),
-        updated_at:          new Date().toISOString()
-      }
-      const { error: bsErr } = await supabase
-        .from("business_settings").upsert(payload, { onConflict: "user_id" })
-      if (bsErr) { setSaveError("Failed to save: " + bsErr.message); setSaving(false); return }
+      const supabase = getSupabase()
+      const { error } = await supabase.from("business_settings").upsert({ ...biz, user_id: userId }, { onConflict: "user_id" })
+      if (error) throw error
+      showToast("Business settings saved ✅")
+    } catch(e) { showToast(e.message || "Save failed", "error") }
+    finally { setSaving(false) }
+  }
 
-      // Sync to business_knowledge for AI webhook
-      const knowledgeText = [
-        `Business: ${business.name}`,
-        `Type: ${business.type}`,
-        business.phone       ? `Phone: ${business.phone}`           : "",
-        business.location    ? `Location: ${business.location}`     : "",
-        business.mapsLink    ? `Maps: ${business.mapsLink}`         : "",
-        business.description ? `About: ${business.description}`     : "",
-        business.workingHours? `Hours: ${business.workingHours}`    : "",
-      ].filter(Boolean).join("\n")
-
-      await supabase.from("business_knowledge").upsert(
-        { user_id: userId, category: "business_info", content: knowledgeText },
-        { onConflict: "user_id,category" }
-      )
-      setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2500)
-    } catch(e) { setSaveError("Unexpected error: " + e.message); setSaving(false) }
+  async function saveAI() {
+    setSaving(true)
+    try {
+      const supabase = getSupabase()
+      const [r1, r2] = await Promise.all([
+        supabase.from("business_settings").upsert({ user_id: userId, ai_instructions: ai.ai_instructions, ai_language: ai.ai_language, greeting_message: ai.greeting_message }, { onConflict: "user_id" }),
+        supabase.from("business_knowledge").upsert({ user_id: userId, content: ai.content, knowledge: ai.knowledge }, { onConflict: "user_id" }),
+      ])
+      if (r1.error) throw r1.error
+      showToast("AI Brain settings saved ✅")
+    } catch(e) { showToast(e.message || "Save failed", "error") }
+    finally { setSaving(false) }
   }
 
   async function addService() {
-    if (!newService.name.trim() || !newService.price) return
+    if (!newService.name || !newService.price) { showToast("Name and price are required", "error"); return }
     setSaving(true)
     try {
-      const isPackage = newService.service_type === "package"
-      const payload = {
-        name:         newService.name.trim(),
-        price:        parseInt(newService.price) || 0,
-        duration:     isPackage ? null : (parseInt(newService.duration) || 30),
-        category:     newService.category,
-        capacity:     isPackage ? null : (parseInt(newService.capacity) || 1),
-        service_type: newService.service_type,
-        description:  newService.description.trim() || null,
-        is_active:    true,
-        user_id:      userId
-      }
-      const { data, error } = await supabase.from("services").insert(payload).select().single()
-      if (error) { console.error("Add service error:", error); setSaving(false); return }
-      if (data) {
-        const updated = [...services, data]
-        setServices(updated)
-        setNewService({ name:"", price:"", duration:"30", category:"Hair", capacity:"1", service_type:"appointment", description:"" })
-        await syncServicesToKnowledge(updated)
-      }
-    } catch(e) { console.error("Unexpected error:", e) }
-    setSaving(false)
+      const supabase = getSupabase()
+      const { data, error } = await supabase.from("services").insert({ ...newService, price: parseFloat(newService.price), duration: newService.duration ? parseInt(newService.duration) : null, user_id: userId, is_active: true }).select().single()
+      if (error) throw error
+      setServices(s => [...s, data])
+      setNewService({ name:"", price:"", duration:"", description:"", service_type:"time_based" })
+      showToast("Service added ✅")
+    } catch(e) { showToast(e.message || "Failed to add service", "error") }
+    finally { setSaving(false) }
+  }
+
+  async function toggleService(id, current) {
+    const supabase = getSupabase()
+    await supabase.from("services").update({ is_active: !current }).eq("id", id)
+    setServices(s => s.map(x => x.id === id ? { ...x, is_active: !current } : x))
   }
 
   async function deleteService(id) {
+    if (!confirm("Delete this service?")) return
+    const supabase = getSupabase()
     await supabase.from("services").delete().eq("id", id)
-    const updated = services.filter(s => s.id !== id)
-    setServices(updated)
-    await syncServicesToKnowledge(updated)
+    setServices(s => s.filter(x => x.id !== id))
+    showToast("Service deleted")
   }
 
-  async function toggleServiceActive(svc) {
-    const newActive = svc.is_active === false ? true : false
-    await supabase.from("services").update({ is_active: newActive }).eq("id", svc.id)
-    const updated = services.map(s => s.id === svc.id ? {...s, is_active: newActive} : s)
-    setServices(updated)
+  async function saveService(svc) {
+    const supabase = getSupabase()
+    await supabase.from("services").update({ name: svc.name, price: parseFloat(svc.price), duration: svc.duration ? parseInt(svc.duration) : null, description: svc.description, service_type: svc.service_type }).eq("id", svc.id)
+    setServices(s => s.map(x => x.id === svc.id ? svc : x))
+    setEditingId(null)
+    showToast("Service updated ✅")
   }
 
-  async function syncServicesToKnowledge(svcList) {
+  async function testAI() {
+    if (!testMsg.trim()) return
+    setTesting(true); setTestReply("")
     try {
-      const active = svcList.filter(s => s.is_active !== false)
-      const text = active.map(s => {
-        let line = `${s.name}: ₹${s.price}`
-        if (s.service_type !== "package" && s.duration) line += ` (${s.duration} min)`
-        if (s.service_type === "package" && s.description) line += ` — ${s.description}`
-        if (s.capacity > 1) line += ` [${s.capacity} slots]`
-        return line
-      }).join("\n")
-      await supabase.from("business_knowledge").upsert(
-        { user_id: userId, category: "services", content: text || "No services listed." },
-        { onConflict: "user_id,category" }
-      )
-    } catch(e) { console.warn("Knowledge sync failed:", e) }
+      const res = await fetch("/api/test-ai", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ message: testMsg, userId }) })
+      const data = await res.json()
+      setTestReply(data.reply || "No reply")
+    } catch(e) { setTestReply("Error: " + e.message) }
+    finally { setTesting(false) }
   }
 
-  async function disconnectWhatsApp() {
-    if (!confirm("Disconnect WhatsApp? AI will stop responding to customers.")) return
-    await supabase.from("whatsapp_connections").delete().eq("user_id", userId)
-    setWhatsapp(null)
+  async function handleChangePassword(e) {
+    e.preventDefault()
+    if (newPassword.length < 8) { showToast("Password must be at least 8 characters", "error"); return }
+    if (newPassword !== confirmPassword) { showToast("Passwords do not match", "error"); return }
+    setChangingPass(true)
+    try {
+      const { error } = await getSupabase().auth.updateUser({ password: newPassword })
+      if (error) throw error
+      showToast("Password updated ✅")
+      setNewPassword(""); setConfirmPassword("")
+    } catch(e) { showToast(e.message || "Failed to update password", "error") }
+    finally { setChangingPass(false) }
   }
 
-  const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
-  const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login") }
-
-  // ── Theme tokens ────────────────────────────────────────────────
-  const bg         = dark ? "#08080e"                   : "#f0f2f5"
-  const sidebar    = dark ? "#0c0c15"                   : "#ffffff"
-  const card       = dark ? "#0f0f1a"                   : "#ffffff"
-  const border     = dark ? "rgba(255,255,255,0.07)"    : "rgba(0,0,0,0.08)"
-  const cardBorder = dark ? "rgba(255,255,255,0.08)"    : "rgba(0,0,0,0.09)"
-  const text       = dark ? "#eeeef5"                   : "#111827"
-  const textMuted  = dark ? "rgba(255,255,255,0.45)"    : "rgba(0,0,0,0.5)"
-  const textFaint  = dark ? "rgba(255,255,255,0.2)"     : "rgba(0,0,0,0.25)"
-  const inputBg    = dark ? "rgba(255,255,255,0.04)"    : "rgba(0,0,0,0.03)"
-  const accent     = dark ? "#00d084"                   : "#00935a"
-  const navText    = dark ? "rgba(255,255,255,0.45)"    : "rgba(0,0,0,0.5)"
-  const navActive  = dark ? "rgba(0,196,125,0.1)"       : "rgba(0,180,115,0.08)"
-  const navActiveBorder = dark ? "rgba(0,196,125,0.2)" : "rgba(0,180,115,0.2)"
-  const navActiveText   = dark ? "#00c47d"             : "#00935a"
-  const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
-
-  const inp = {
-    background: inputBg, border: `1px solid ${cardBorder}`, borderRadius: 8,
-    padding: "9px 12px", fontSize: 13, color: text,
-    fontFamily: "'Plus Jakarta Sans',sans-serif", outline: "none", width: "100%"
+  async function handleLogout() {
+    await getSupabase().auth.signOut()
+    window.location.href = "/login"
   }
 
-  // Service type pill colours
-  const svcTypeStyle = (type) => type === "package"
-    ? { color:"#38bdf8", bg:"rgba(56,189,248,0.1)", border:"rgba(56,189,248,0.2)" }
-    : { color: accent,   bg:`${accent}18`,           border:`${accent}33` }
+  const colors = dark ? {
+    bg:"#0a0a0f", card:"#111118", border:"#1e1e2e", text:"#e2e8f0",
+    muted:"#64748b", accent:"#6366f1", accentLight:"#818cf8", surface:"#161622"
+  } : {
+    bg:"#f8fafc", card:"#ffffff", border:"#e2e8f0", text:"#0f172a",
+    muted:"#64748b", accent:"#6366f1", accentLight:"#4f46e5", surface:"#f1f5f9"
+  }
+
+  const inp = { width:"100%", padding:"10px 12px", borderRadius:"8px", border:"1px solid "+colors.border, background:colors.surface, color:colors.text, fontSize:"14px", outline:"none", boxSizing:"border-box" }
+  const btn = { padding:"10px 20px", borderRadius:"8px", border:"none", background:colors.accent, color:"#fff", fontSize:"14px", fontWeight:"600", cursor:"pointer" }
+  const label = { display:"block", color:colors.muted, fontSize:"12px", marginBottom:"6px", fontWeight:"500" }
+
+  if (loading) return (
+    <div style={{ minHeight:"100vh", background:colors.bg, display:"flex", alignItems:"center", justifyContent:"center", color:colors.text, fontFamily:"Inter,sans-serif" }}>
+      Loading settings...
+    </div>
+  )
 
   return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        html,body{background:${bg}!important;color:${text}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
-        .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
-        .sidebar{width:224px;flex-shrink:0;background:${sidebar};border-right:1px solid ${border};display:flex;flex-direction:column;overflow-y:auto;}
-        .logo{padding:22px 20px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:block;border-bottom:1px solid ${border};}
-        .logo span{color:${accent};}
-        .nav-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${textFaint};font-weight:600;}
-        .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
-        .nav-item:hover{background:${inputBg};color:${text};}
-        .nav-item.active{background:${navActive};color:${navActiveText};font-weight:600;border-color:${navActiveBorder};}
-        .nav-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0;}
-        .sidebar-footer{margin-top:auto;padding:14px;border-top:1px solid ${border};}
-        .user-card{display:flex;align-items:center;gap:9px;padding:9px;border-radius:9px;background:${inputBg};border:1px solid ${cardBorder};}
-        .user-avatar{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,${accent},#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex-shrink:0;}
-        .user-email{font-size:11.5px;color:${textMuted};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-        .logout-btn{margin-top:7px;width:100%;padding:7px;border-radius:7px;background:transparent;border:1px solid ${cardBorder};font-size:12px;color:${textMuted};cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
-        .logout-btn:hover{border-color:#fca5a5;color:#ef4444;}
-        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-        .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${border};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sidebar};}
-        .theme-toggle{display:flex;align-items:center;gap:6px;padding:5px 10px;background:${inputBg};border:1px solid ${cardBorder};border-radius:8px;cursor:pointer;font-size:11.5px;color:${textMuted};font-family:'Plus Jakarta Sans',sans-serif;}
-        .toggle-pill{width:30px;height:16px;border-radius:100px;background:${dark?accent:"#d1d5db"};position:relative;flex-shrink:0;}
-        .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
-        .content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};}
-        .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid ${border};}
-        .tog{width:38px;height:22px;border-radius:100px;position:relative;cursor:pointer;border:none;flex-shrink:0;transition:background 0.2s;}
-        .tog::after{content:'';position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 0.2s;}
-        select{color-scheme:dark;}
-        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
-        .svc-type-btn{padding:5px 12px;border-radius:7px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.12s;}
-        @media(max-width:767px){
-          .wrap{position:relative;}
-          .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s ease;width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
-          .sidebar.mob-open{transform:translateX(0);}
-          .mob-overlay{display:block!important;}
-          .main{width:100%;}
-          .topbar{padding:0 12px!important;}
-          .content{padding:12px!important;}
-          .hamburger{display:flex!important;}
-        }
-        .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
-        .hamburger{display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:#eeeef5;line-height:1;margin-right:2px;}
-        @media(max-width:767px){
-          [style*="grid-template-columns: 2fr 1fr 1fr 1fr"]{grid-template-columns:1fr 1fr!important;}
-          [style*="grid-template-columns: repeat(4"]{grid-template-columns:repeat(2,1fr)!important;}
-        }
-        .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);padding:6px 0;z-index:200;}
-        @media(max-width:767px){.bottom-nav{display:flex;justify-content:space-around;}.main{padding-bottom:60px;}}
-        .bnav-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
-        .bnav-icon{font-size:17px;color:rgba(255,255,255,0.3);}
-        .bnav-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
-        .bnav-btn.active .bnav-icon,.bnav-btn.active .bnav-label{color:#00d084;}
-      `}</style>
+    <div style={{ minHeight:"100vh", background:colors.bg, fontFamily:"Inter,sans-serif", color:colors.text }}>
 
-      <div className="wrap">
-        <div className="mob-overlay" style={{display: mobSidebarOpen?"block":"none"}} onClick={()=>setMobSidebarOpen(false)}/>
-        <aside className={`sidebar${mobSidebarOpen?" mob-open":""}`}>
-          <a href="/dashboard" className="logo">fast<span>rill</span></a>
-          <div className="nav-section">Platform</div>
-          {NAV.map(item => (
-            <button key={item.id} className={`nav-item${item.id==="settings"?" active":""}`} onClick={()=>router.push(item.path)}>
-              <span className="nav-icon">{item.icon}</span><span>{item.label}</span>
-            </button>
+      {/* Toast */}
+      {toast && (
+        <div style={{ position:"fixed", top:"20px", right:"20px", zIndex:9999, padding:"12px 20px", borderRadius:"10px", background: toast.type==="error"?"#dc2626":"#16a34a", color:"#fff", fontSize:"14px", fontWeight:"600", boxShadow:"0 4px 20px rgba(0,0,0,0.3)" }}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Sidebar */}
+      <div style={{ position:"fixed", left:0, top:0, bottom:0, width:"220px", background:colors.card, borderRight:"1px solid "+colors.border, padding:"20px 0", display:"flex", flexDirection:"column", zIndex:100 }} className="sidebar-desktop">
+        <div style={{ padding:"0 20px 20px", borderBottom:"1px solid "+colors.border }}>
+          <div style={{ fontSize:"20px", fontWeight:"800", color:colors.text }}>fast<span style={{ color:colors.accent }}>rill</span></div>
+        </div>
+        <nav style={{ flex:1, padding:"12px 8px", overflowY:"auto" }}>
+          {NAV.map(n => (
+            <a key={n.id} href={n.path} style={{ display:"flex", alignItems:"center", gap:"10px", padding:"10px 12px", borderRadius:"8px", marginBottom:"2px", background: n.id==="settings" ? colors.accent+"22" : "transparent", color: n.id==="settings" ? colors.accent : colors.muted, textDecoration:"none", fontSize:"14px", fontWeight: n.id==="settings" ? "600" : "400" }}>
+              <span>{n.icon}</span>{n.label}
+            </a>
           ))}
-          <div className="sidebar-footer">
-            <div className="user-card">
-              <div className="user-avatar">{userInitial}</div>
-              <div className="user-email">{userEmail||"Loading..."}</div>
-            </div>
-            <button className="logout-btn" onClick={handleLogout}>↩ Sign out</button>
-          </div>
-        </aside>
+        </nav>
+        <div style={{ padding:"12px 20px", borderTop:"1px solid "+colors.border }}>
+          <div style={{ fontSize:"12px", color:colors.muted, marginBottom:"8px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{userEmail}</div>
+          <button onClick={handleLogout} style={{ width:"100%", padding:"8px", borderRadius:"6px", border:"1px solid "+colors.border, background:"transparent", color:colors.muted, fontSize:"13px", cursor:"pointer" }}>Sign out</button>
+        </div>
+      </div>
 
-        <div className="main">
-          <div className="topbar">
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <button className="hamburger" onClick={()=>setMobSidebarOpen(s=>!s)}>☰</button>
-              <span style={{fontWeight:700,fontSize:15,color:text}}>Settings</span>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              {(tab==="business"||tab==="ai") && (
-                <button onClick={saveBusiness} disabled={saving} style={{
-                  background: saved?"#22c55e":saveError?"#ef4444":accent,
-                  color:"#000",border:"none",padding:"7px 18px",borderRadius:8,
-                  fontWeight:700,fontSize:12,cursor:saving?"not-allowed":"pointer",
-                  fontFamily:"'Plus Jakarta Sans',sans-serif",transition:"background 0.2s"
-                }}>
-                  {saving?"Saving...":saved?"✓ Saved":saveError?"✗ Error":"Save Changes"}
-                </button>
-              )}
-              <button className="theme-toggle" onClick={toggleTheme}>
-                <span>{dark?"🌙":"☀️"}</span><div className="toggle-pill"/>
-              </button>
-            </div>
-          </div>
+      {/* Main */}
+      <div style={{ marginLeft:"220px", padding:"32px" }}>
+        <div style={{ maxWidth:"800px" }}>
 
-          {/* Error banner */}
-          {saveError && (
-            <div style={{margin:"0 24px",marginTop:8,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#f87171"}}>
-              ⚠️ {saveError}
-            </div>
-          )}
+          {/* Header */}
+          <div style={{ marginBottom:"28px" }}>
+            <h1 style={{ fontSize:"24px", fontWeight:"700", color:colors.text, marginBottom:"4px" }}>Settings</h1>
+            <p style={{ color:colors.muted, fontSize:"14px" }}>Manage your business, AI, and account settings</p>
+          </div>
 
           {/* Tabs */}
-          <div style={{padding:"0 24px",borderBottom:`1px solid ${border}`,background:sidebar,display:"flex",gap:0,flexShrink:0}}>
+          <div style={{ display:"flex", gap:"4px", background:colors.card, padding:"4px", borderRadius:"10px", marginBottom:"28px", border:"1px solid "+colors.border }}>
             {TABS.map(t => (
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{
-                padding:"14px 18px",background:"transparent",border:"none",
-                borderBottom:tab===t.id?`2px solid ${accent}`:"2px solid transparent",
-                color:tab===t.id?accent:textMuted,
-                fontWeight:tab===t.id?700:500,fontSize:13,cursor:"pointer",
-                fontFamily:"'Plus Jakarta Sans',sans-serif",transition:"all 0.12s"
-              }}>{t.label}</button>
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ flex:1, padding:"9px 12px", borderRadius:"7px", border:"none", background: tab===t.id ? colors.accent : "transparent", color: tab===t.id ? "#fff" : colors.muted, fontSize:"13px", fontWeight:"600", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px", transition:"all 0.15s" }}>
+                {t.icon} {t.label}
+              </button>
             ))}
           </div>
 
-          <div className="content">
-            {loading ? (
-              <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:200,color:textFaint}}>Loading...</div>
-
-            ) : tab==="business" ? (
-              <div style={{maxWidth:620,display:"flex",flexDirection:"column",gap:20}}>
-                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:22}}>
-                  <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:16}}>Business Info</div>
-                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                    <div>
-                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Business Name *</div>
-                      <input placeholder="e.g. Priya Beauty Salon" value={business.name} onChange={e=>setBusiness(p=>({...p,name:e.target.value}))} style={inp}/>
-                    </div>
-                    <div>
-                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Business Type</div>
-                      <select value={business.type} onChange={e=>setBusiness(p=>({...p,type:e.target.value}))} style={inp}>
-                        {BUSINESS_TYPES.map(t=><option key={t}>{t}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>WhatsApp Phone Number</div>
-                      <input placeholder="+91 98765 43210" value={business.phone} onChange={e=>setBusiness(p=>({...p,phone:e.target.value}))} style={inp}/>
-                    </div>
-                    <div>
-                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Location / Address</div>
-                      <input placeholder="Shop no, Building, Street, City" value={business.location} onChange={e=>setBusiness(p=>({...p,location:e.target.value}))} style={inp}/>
-                    </div>
-                    <div>
-                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Google Maps Link</div>
-                      <input placeholder="https://maps.google.com/..." value={business.mapsLink} onChange={e=>setBusiness(p=>({...p,mapsLink:e.target.value}))} style={inp}/>
-                    </div>
-                    <div>
-                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>
-                        Working Hours <span style={{color:textFaint}}>(AI uses this to answer availability questions)</span>
-                      </div>
-                      <input placeholder="e.g. Mon–Sat 10am–8pm, Sunday 11am–6pm" value={business.workingHours} onChange={e=>setBusiness(p=>({...p,workingHours:e.target.value}))} style={inp}/>
-                    </div>
-                    <div>
-                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>
-                        About Your Business <span style={{color:textFaint}}>(AI uses this to answer customer questions)</span>
-                      </div>
-                      <textarea
-                        placeholder="Tell customers what makes your salon/spa/clinic special — your experience, specialties, certifications, awards, and what to expect when they visit..."
-                        value={business.description}
-                        onChange={e=>setBusiness(p=>({...p,description:e.target.value}))}
-                        style={{...inp,resize:"vertical",minHeight:90,lineHeight:1.5}}
-                      />
-                    </div>
-                  </div>
+          {/* ── BUSINESS TAB ── */}
+          {tab === "business" && (
+            <div style={{ background:colors.card, borderRadius:"12px", padding:"24px", border:"1px solid "+colors.border }}>
+              <h2 style={{ fontSize:"16px", fontWeight:"700", marginBottom:"20px" }}>Business Information</h2>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", marginBottom:"16px" }}>
+                <div>
+                  <label style={label}>Business Name *</label>
+                  <input value={biz.business_name} onChange={e => setBiz(b=>({...b,business_name:e.target.value}))} placeholder="Your business name" style={inp} />
                 </div>
-                <div style={{fontSize:12,color:textFaint,textAlign:"center"}}>
-                  💡 After saving, your AI will immediately use this info to answer customer questions
+                <div>
+                  <label style={label}>Business Type</label>
+                  <select value={biz.business_type} onChange={e => setBiz(b=>({...b,business_type:e.target.value}))} style={inp}>
+                    <option value="">Select type</option>
+                    {BIZ_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
               </div>
-
-            ) : tab==="services" ? (
-              <div style={{maxWidth:720,display:"flex",flexDirection:"column",gap:16}}>
-
-                {/* Add service form */}
-                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:20}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                    <div style={{fontWeight:700,fontSize:14,color:text}}>Add Service</div>
-                    {/* Service type toggle */}
-                    <div style={{display:"flex",gap:4,background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:8,padding:3}}>
-                      {[
-                        {val:"appointment", label:"Appointment"},
-                        {val:"package",     label:"Package"}
-                      ].map(opt => {
-                        const active = newService.service_type === opt.val
-                        return (
-                          <button key={opt.val}
-                            onClick={()=>setNewService(p=>({...p,service_type:opt.val}))}
-                            style={{
-                              padding:"5px 12px",borderRadius:6,fontSize:11.5,fontWeight:600,
-                              cursor:"pointer",border:"none",fontFamily:"'Plus Jakarta Sans',sans-serif",
-                              background: active ? (opt.val==="package"?"rgba(56,189,248,0.15)":accent+"22") : "transparent",
-                              color: active ? (opt.val==="package"?"#38bdf8":accent) : textMuted,
-                              transition:"all 0.12s"
-                            }}>
-                            {opt.label}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Type hint */}
-                  <div style={{fontSize:11.5,color:textFaint,marginBottom:14,padding:"8px 12px",background:inputBg,borderRadius:7,borderLeft:`2px solid ${newService.service_type==="package"?"#38bdf8":accent}`}}>
-                    {newService.service_type==="appointment"
-                      ? "⏰ Appointment — has duration and time slot booking (e.g. Haircut 45 min, Facial 60 min)"
-                      : "📦 Package — sold as a bundle, no slot booking needed (e.g. 10-session membership, Bridal Package)"}
-                  </div>
-
-                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                    {/* Row 1: name, price, category */}
-                    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10}}>
-                      <div>
-                        <div style={{fontSize:11,color:textMuted,marginBottom:4}}>Service Name *</div>
-                        <input placeholder={newService.service_type==="appointment"?"e.g. Hair Colour, Facial":"e.g. Bridal Package, 10 Sessions"} value={newService.name} onChange={e=>setNewService(p=>({...p,name:e.target.value}))} style={inp}/>
-                      </div>
-                      <div>
-                        <div style={{fontSize:11,color:textMuted,marginBottom:4}}>Price (₹) *</div>
-                        <input type="number" placeholder="500" value={newService.price} onChange={e=>setNewService(p=>({...p,price:e.target.value}))} style={inp}/>
-                      </div>
-                      <div>
-                        <div style={{fontSize:11,color:textMuted,marginBottom:4}}>Category</div>
-                        <select value={newService.category} onChange={e=>setNewService(p=>({...p,category:e.target.value}))} style={inp}>
-                          {CATEGORIES.map(c=><option key={c}>{c}</option>)}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Row 2: duration + capacity (appointment only) OR description (package only) */}
-                    {newService.service_type==="appointment" ? (
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                        <div>
-                          <div style={{fontSize:11,color:textMuted,marginBottom:4}}>Duration (minutes)</div>
-                          <select value={newService.duration} onChange={e=>setNewService(p=>({...p,duration:e.target.value}))} style={inp}>
-                            {[15,20,30,45,60,75,90,120,150,180].map(d=><option key={d} value={d}>{d} min</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <div style={{fontSize:11,color:textMuted,marginBottom:4}}>
-                            Capacity <span style={{color:textFaint,fontSize:10}}>(parallel bookings per slot)</span>
-                          </div>
-                          <input type="number" min="1" max="20" placeholder="1" value={newService.capacity} onChange={e=>setNewService(p=>({...p,capacity:e.target.value}))} style={inp}/>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <div style={{fontSize:11,color:textMuted,marginBottom:4}}>
-                          Package Description <span style={{color:textFaint}}>(AI tells customers what's included)</span>
-                        </div>
-                        <input placeholder="e.g. Includes 10 sessions, valid for 3 months" value={newService.description} onChange={e=>setNewService(p=>({...p,description:e.target.value}))} style={inp}/>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={addService}
-                      disabled={saving||!newService.name||!newService.price}
-                      style={{
-                        background:(saving||!newService.name||!newService.price)?"rgba(0,208,132,0.3)":accent,
-                        color:"#000",border:"none",padding:"10px",borderRadius:8,fontWeight:700,
-                        fontSize:13,cursor:(saving||!newService.name||!newService.price)?"not-allowed":"pointer",
-                        fontFamily:"'Plus Jakarta Sans',sans-serif"
-                      }}>
-                      {saving?"Adding...":"+ Add Service"}
-                    </button>
-                  </div>
+              <div style={{ marginBottom:"16px" }}>
+                <label style={label}>Address / Location</label>
+                <input value={biz.location} onChange={e => setBiz(b=>({...b,location:e.target.value}))} placeholder="Full address" style={inp} />
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", marginBottom:"16px" }}>
+                <div>
+                  <label style={label}>Google Maps Link</label>
+                  <input value={biz.maps_link} onChange={e => setBiz(b=>({...b,maps_link:e.target.value}))} placeholder="https://maps.google.com/..." style={inp} />
                 </div>
-
-                {/* Services list */}
-                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,overflow:"hidden"}}>
-                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{fontWeight:700,fontSize:13,color:text}}>Your Services ({services.length})</div>
-                    <div style={{fontSize:11,color:textFaint}}>
-                      {services.filter(s=>s.service_type!=="package").length} appointments · {services.filter(s=>s.service_type==="package").length} packages
-                    </div>
-                  </div>
-                  {services.length===0 ? (
-                    <div style={{textAlign:"center",padding:"32px",color:textFaint,fontSize:12}}>
-                      No services yet — add your first service above
-                    </div>
-                  ) : CATEGORIES.filter(cat=>services.some(s=>s.category===cat)).map(cat=>(
-                    <div key={cat}>
-                      <div style={{padding:"7px 16px",background:inputBg,fontSize:10,fontWeight:700,color:textFaint,letterSpacing:"1px",textTransform:"uppercase"}}>{cat}</div>
-                      {services.filter(s=>s.category===cat).map(s=>{
-                        const typeStyle = svcTypeStyle(s.service_type)
-                        return (
-                          <div key={s.id} style={{display:"flex",alignItems:"center",padding:"10px 16px",borderBottom:`1px solid ${border}`,gap:10,opacity:s.is_active===false?0.45:1}}>
-                            {/* Service type badge */}
-                            <span style={{fontSize:9.5,fontWeight:700,color:typeStyle.color,background:typeStyle.bg,border:`1px solid ${typeStyle.border}`,borderRadius:100,padding:"1px 7px",flexShrink:0}}>
-                              {s.service_type==="package"?"pkg":"appt"}
-                            </span>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontWeight:600,fontSize:13,color:text}}>{s.name}</div>
-                              {s.service_type==="package" && s.description && (
-                                <div style={{fontSize:11,color:textFaint,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.description}</div>
-                              )}
-                            </div>
-                            {s.service_type!=="package" && s.duration && (
-                              <div style={{fontSize:11.5,color:textMuted,flexShrink:0}}>{s.duration} min</div>
-                            )}
-                            {s.service_type!=="package" && (s.capacity||1)>1 && (
-                              <div style={{fontSize:10.5,fontWeight:700,color:"#38bdf8",background:"rgba(56,189,248,0.1)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:100,padding:"1px 7px",flexShrink:0}}>
-                                {s.capacity} slots
-                              </div>
-                            )}
-                            <div style={{fontWeight:700,fontSize:13,color:accent,flexShrink:0}}>₹{parseInt(s.price||0).toLocaleString()}</div>
-                            <button
-                              onClick={()=>toggleServiceActive(s)}
-                              style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100,flexShrink:0,
-                                border:`1px solid ${s.is_active===false?"rgba(251,113,133,0.3)":accent+"44"}`,
-                                background:s.is_active===false?"rgba(251,113,133,0.08)":"rgba(0,208,132,0.08)",
-                                color:s.is_active===false?"#fb7185":accent,
-                                cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                              {s.is_active===false?"Off":"On"}
-                            </button>
-                            <button onClick={()=>deleteService(s.id)} style={{background:"transparent",border:"none",color:textFaint,cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0}}>×</button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Capacity explainer */}
-                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:10,padding:"12px 16px",fontSize:12,color:textMuted,lineHeight:1.6}}>
-                  💡 <strong style={{color:text}}>Capacity</strong> = how many customers can book the same slot simultaneously. A salon with 3 stylists doing haircuts can set capacity to 3 — AI will book up to 3 haircuts at 10am before marking it full.
+                <div>
+                  <label style={label}>Website</label>
+                  <input value={biz.website} onChange={e => setBiz(b=>({...b,website:e.target.value}))} placeholder="https://yoursite.com" style={inp} />
                 </div>
               </div>
-
-            ) : tab==="ai" ? (
-              <div style={{maxWidth:620,display:"flex",flexDirection:"column",gap:20}}>
-                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:22}}>
-                  <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:4}}>AI Brain Settings</div>
-                  <div style={{fontSize:12,color:textFaint,marginBottom:16}}>Control how your AI responds to customers on WhatsApp</div>
-
-                  <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                    <div>
-                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>Primary Language</div>
-                      <select value={ai.language} onChange={e=>setAI(p=>({...p,language:e.target.value}))} style={inp}>
-                        {LANGUAGES.map(l=><option key={l}>{l}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="toggle-row">
-                      <div>
-                        <div style={{fontWeight:600,fontSize:13,color:text}}>Auto Booking</div>
-                        <div style={{fontSize:11.5,color:textMuted}}>AI books appointments automatically from WhatsApp chat</div>
-                      </div>
-                      <button className="tog" style={{background:ai.autoBooking?accent:"rgba(255,255,255,0.12)"}} onClick={()=>setAI(p=>({...p,autoBooking:!p.autoBooking}))}>
-                        <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:ai.autoBooking?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
-                      </button>
-                    </div>
-
-                    <div className="toggle-row">
-                      <div>
-                        <div style={{fontWeight:600,fontSize:13,color:text}}>Follow-up Messages</div>
-                        <div style={{fontSize:11.5,color:textMuted}}>AI follows up with inactive leads automatically</div>
-                      </div>
-                      <button className="tog" style={{background:ai.followUpEnabled?accent:"rgba(255,255,255,0.12)"}} onClick={()=>setAI(p=>({...p,followUpEnabled:!p.followUpEnabled}))}>
-                        <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:ai.followUpEnabled?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
-                      </button>
-                    </div>
-
-                    <div>
-                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>
-                        Greeting Message <span style={{color:textFaint}}>(sent to new customers on first message)</span>
-                      </div>
-                      <textarea
-                        placeholder={`Hi [Name]! Welcome to ${business.name||"our salon"} 😊\n\nHow can I help you today?`}
-                        value={ai.greetingMessage}
-                        onChange={e=>setAI(p=>({...p,greetingMessage:e.target.value}))}
-                        style={{...inp,resize:"vertical",minHeight:80}}
-                      />
-                    </div>
-
-                    <div>
-                      <div style={{fontSize:11.5,color:textMuted,marginBottom:5}}>
-                        Custom AI Instructions <span style={{color:textFaint}}>(tone, rules, what to say or avoid)</span>
-                      </div>
-                      <textarea
-                        placeholder={`Examples for ${business.type||"salon"}:\n• Always respond warmly and use the customer's first name\n• Upsell hair spa with every haircut booking\n• If customer asks about parking, say free parking available below the building\n• Never mention competitor prices\n• If unsure about pricing, say "let me check and get back to you"`}
-                        value={ai.customInstructions}
-                        onChange={e=>setAI(p=>({...p,customInstructions:e.target.value}))}
-                        style={{...inp,resize:"vertical",minHeight:140,lineHeight:1.6}}
-                      />
-                    </div>
-
-                    <div style={{background:"rgba(0,208,132,0.06)",border:`1px solid ${accent}22`,borderRadius:9,padding:"12px 14px",fontSize:12,color:textMuted,lineHeight:1.7}}>
-                      💡 <strong style={{color:text}}>What your AI knows:</strong> Your business name, type, location, working hours, all services with prices and durations, and your custom instructions above.<br/><br/>
-                      🧠 <strong style={{color:text}}>The more you fill in, the smarter your AI gets.</strong> Add upsell rules, FAQs, parking info, cancellation policy — anything a new staff member would need to know.
-                    </div>
-                  </div>
+              <div style={{ marginBottom:"16px" }}>
+                <label style={label}>Working Hours</label>
+                <input value={biz.working_hours} onChange={e => setBiz(b=>({...b,working_hours:e.target.value}))} placeholder="Mon-Sat: 9am-7pm, Sun: Closed" style={inp} />
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", marginBottom:"16px" }}>
+                <div>
+                  <label style={label}>Phone Number</label>
+                  <input value={biz.phone} onChange={e => setBiz(b=>({...b,phone:e.target.value}))} placeholder="+91 98765 43210" style={inp} />
+                </div>
+                <div>
+                  <label style={label}>Business Email</label>
+                  <input value={biz.email} onChange={e => setBiz(b=>({...b,email:e.target.value}))} placeholder="hello@yourbusiness.com" style={inp} />
                 </div>
               </div>
+              <div style={{ marginBottom:"20px" }}>
+                <label style={label}>Business Description</label>
+                <textarea value={biz.description} onChange={e => setBiz(b=>({...b,description:e.target.value}))} placeholder="Brief description of your business..." rows={3} style={{ ...inp, resize:"vertical" }} />
+              </div>
+              <button onClick={saveBusiness} disabled={saving} style={{ ...btn, opacity:saving?0.7:1 }}>
+                {saving ? "Saving..." : "Save Business Settings"}
+              </button>
+            </div>
+          )}
 
-            ) : tab==="whatsapp" ? (
-              <div style={{maxWidth:560,display:"flex",flexDirection:"column",gap:16}}>
-                {whatsapp ? (
-                  <div style={{background:card,border:`1px solid ${accent}44`,borderRadius:13,padding:22}}>
-                    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                      <div style={{width:44,height:44,borderRadius:11,background:"#25d366",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💬</div>
-                      <div>
-                        <div style={{fontWeight:800,fontSize:15,color:text}}>WhatsApp Connected ✓</div>
-                        <div style={{fontSize:12,color:textMuted}}>Your AI is live and responding to customers</div>
-                      </div>
-                    </div>
-                    {[
-                      ["Phone Number ID", whatsapp.phone_number_id],
-                      ["WABA ID",         whatsapp.waba_id||"—"],
-                      ["Status",          "🟢 Active"]
-                    ].map(([l,v])=>(
-                      <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${border}`}}>
-                        <span style={{fontSize:12,color:textMuted}}>{l}</span>
-                        <span style={{fontSize:12,fontWeight:600,color:text,fontFamily:"monospace"}}>{v}</span>
-                      </div>
-                    ))}
-                    <button onClick={disconnectWhatsApp} style={{marginTop:16,width:"100%",padding:"9px",background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",borderRadius:8,color:"#fb7185",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                      Disconnect WhatsApp
-                    </button>
+          {/* ── AI BRAIN TAB ── */}
+          {tab === "ai" && (
+            <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
+              <div style={{ background:colors.card, borderRadius:"12px", padding:"24px", border:"1px solid "+colors.border }}>
+                <h2 style={{ fontSize:"16px", fontWeight:"700", marginBottom:"20px" }}>AI Configuration</h2>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", marginBottom:"16px" }}>
+                  <div>
+                    <label style={label}>AI Language</label>
+                    <select value={ai.ai_language} onChange={e => setAi(a=>({...a,ai_language:e.target.value}))} style={inp}>
+                      {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
                   </div>
-                ) : (
-                  <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:28,textAlign:"center"}}>
-                    <div style={{fontSize:36,marginBottom:12}}>💬</div>
-                    <div style={{fontWeight:800,fontSize:16,color:text,marginBottom:6}}>Connect Your WhatsApp</div>
-                    <div style={{fontSize:13,color:textMuted,marginBottom:20,lineHeight:1.6}}>Link your business WhatsApp to activate AI replies, lead capture, and auto-booking.</div>
-                    <button onClick={()=>{
-                      const appId="780799931531576",configId="1090960043190718"
-                      const redirectUri="https://fastrill.com/api/meta/callback"
-                      window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}`
-                    }} style={{background:"#1877f2",color:"#fff",border:"none",padding:"11px 24px",borderRadius:9,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                      Connect WhatsApp via Meta →
-                    </button>
+                  <div>
+                    <label style={label}>Greeting Message</label>
+                    <input value={ai.greeting_message} onChange={e => setAi(a=>({...a,greeting_message:e.target.value}))} placeholder="Welcome to our business! How can I help?" style={inp} />
+                  </div>
+                </div>
+                <div style={{ marginBottom:"16px" }}>
+                  <label style={label}>AI Instructions (Owner Playbook)</label>
+                  <textarea value={ai.ai_instructions} onChange={e => setAi(a=>({...a,ai_instructions:e.target.value}))} placeholder={"Examples:\n- Always be warm and professional\n- Upsell hair spa to customers booking cleanup\n- Offer 10% discount for first-time customers\n- Always confirm bookings in Telugu if customer writes in Telugu"} rows={6} style={{ ...inp, resize:"vertical" }} />
+                  <p style={{ color:colors.muted, fontSize:"12px", marginTop:"6px" }}>Tell the AI how to behave, what to upsell, discount rules, tone etc.</p>
+                </div>
+                <div style={{ marginBottom:"20px" }}>
+                  <label style={label}>Knowledge Base (FAQs, Policies, Info)</label>
+                  <textarea value={ai.content || ai.knowledge} onChange={e => setAi(a=>({...a,content:e.target.value,knowledge:e.target.value}))} placeholder={"Examples:\n- Parking available in basement\n- We use only organic products\n- Cancellation policy: cancel 2hrs before\n- We accept UPI, cash, cards\n- Nearest landmark: next to City Mall"} rows={6} style={{ ...inp, resize:"vertical" }} />
+                  <p style={{ color:colors.muted, fontSize:"12px", marginTop:"6px" }}>FAQs, policies, location info — the AI uses this to answer customer questions accurately.</p>
+                </div>
+                <button onClick={saveAI} disabled={saving} style={{ ...btn, opacity:saving?0.7:1 }}>
+                  {saving ? "Saving..." : "Save AI Settings"}
+                </button>
+              </div>
+
+              {/* Test AI */}
+              <div style={{ background:colors.card, borderRadius:"12px", padding:"24px", border:"1px solid "+colors.border }}>
+                <h2 style={{ fontSize:"16px", fontWeight:"700", marginBottom:"8px" }}>Test AI Reply</h2>
+                <p style={{ color:colors.muted, fontSize:"13px", marginBottom:"16px" }}>Send a test message to see how your AI responds</p>
+                <div style={{ display:"flex", gap:"10px", marginBottom:"12px" }}>
+                  <input value={testMsg} onChange={e => setTestMsg(e.target.value)} onKeyDown={e => e.key==="Enter" && testAI()} placeholder="e.g. I want to book a hair spa tomorrow" style={{ ...inp, flex:1 }} />
+                  <button onClick={testAI} disabled={testing || !testMsg.trim()} style={{ ...btn, opacity: testing||!testMsg.trim() ? 0.6 : 1, whiteSpace:"nowrap" }}>
+                    {testing ? "Testing..." : "Test →"}
+                  </button>
+                </div>
+                {testReply && (
+                  <div style={{ background:colors.surface, borderRadius:"8px", padding:"14px", border:"1px solid "+colors.border }}>
+                    <p style={{ color:colors.muted, fontSize:"12px", marginBottom:"6px" }}>AI Reply:</p>
+                    <p style={{ color:colors.text, fontSize:"14px", lineHeight:"1.6", whiteSpace:"pre-wrap" }}>{testReply}</p>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
 
-                <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:13,padding:20}}>
-                  <div style={{fontWeight:700,fontSize:13.5,color:text,marginBottom:12}}>Webhook Configuration</div>
-                  {[
-                    ["Webhook URL",  "https://fastrill.com/api/meta/webhook"],
-                    ["Verify Token","fastrill_webhook_2026"],
-                    ["Events",      "messages, message_status"]
-                  ].map(([l,v])=>(
-                    <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${border}`}}>
-                      <span style={{fontSize:12,color:textMuted}}>{l}</span>
-                      <span style={{fontSize:11.5,fontWeight:600,color:text,fontFamily:"monospace",wordBreak:"break-all",textAlign:"right",maxWidth:"60%"}}>{v}</span>
+          {/* ── SERVICES TAB ── */}
+          {tab === "services" && (
+            <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
+              {/* Add service */}
+              <div style={{ background:colors.card, borderRadius:"12px", padding:"24px", border:"1px solid "+colors.border }}>
+                <h2 style={{ fontSize:"16px", fontWeight:"700", marginBottom:"16px" }}>Add New Service</h2>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px", marginBottom:"12px" }}>
+                  <div>
+                    <label style={label}>Service Name *</label>
+                    <input value={newService.name} onChange={e => setNewService(s=>({...s,name:e.target.value}))} placeholder="e.g. Hair Spa" style={inp} />
+                  </div>
+                  <div>
+                    <label style={label}>Price (₹) *</label>
+                    <input type="number" value={newService.price} onChange={e => setNewService(s=>({...s,price:e.target.value}))} placeholder="500" style={inp} />
+                  </div>
+                  <div>
+                    <label style={label}>Duration (minutes)</label>
+                    <input type="number" value={newService.duration} onChange={e => setNewService(s=>({...s,duration:e.target.value}))} placeholder="60" style={inp} />
+                  </div>
+                  <div>
+                    <label style={label}>Service Type</label>
+                    <select value={newService.service_type} onChange={e => setNewService(s=>({...s,service_type:e.target.value}))} style={inp}>
+                      <option value="time_based">Time-based (Salon/Clinic)</option>
+                      <option value="package">Package (Agency/Consulting)</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ marginBottom:"16px" }}>
+                  <label style={label}>Description</label>
+                  <input value={newService.description} onChange={e => setNewService(s=>({...s,description:e.target.value}))} placeholder="Brief description..." style={inp} />
+                </div>
+                <button onClick={addService} disabled={saving} style={{ ...btn, opacity:saving?0.7:1 }}>
+                  + Add Service
+                </button>
+              </div>
+
+              {/* Services list */}
+              <div style={{ background:colors.card, borderRadius:"12px", padding:"24px", border:"1px solid "+colors.border }}>
+                <h2 style={{ fontSize:"16px", fontWeight:"700", marginBottom:"16px" }}>Your Services ({services.length})</h2>
+                {services.length === 0 ? (
+                  <p style={{ color:colors.muted, fontSize:"14px", textAlign:"center", padding:"20px" }}>No services yet. Add one above.</p>
+                ) : services.map(svc => (
+                  <div key={svc.id} style={{ borderRadius:"8px", border:"1px solid "+colors.border, padding:"16px", marginBottom:"10px", background:colors.surface }}>
+                    {editingId === svc.id ? (
+                      <EditService svc={svc} onSave={saveService} onCancel={() => setEditingId(null)} inp={inp} label={label} btn={btn} colors={colors} />
+                    ) : (
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"4px" }}>
+                            <span style={{ fontWeight:"600", fontSize:"15px" }}>{svc.name}</span>
+                            <span style={{ background: svc.is_active ? "#16a34a22" : "#dc262622", color: svc.is_active ? "#4ade80" : "#f87171", padding:"2px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"600" }}>
+                              {svc.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                          <div style={{ color:colors.muted, fontSize:"13px" }}>
+                            ₹{svc.price} {svc.duration ? "· " + svc.duration + " min" : ""} · {svc.service_type === "package" ? "Package" : "Time-based"}
+                            {svc.description && " · " + svc.description}
+                          </div>
+                        </div>
+                        <div style={{ display:"flex", gap:"8px" }}>
+                          <button onClick={() => toggleService(svc.id, svc.is_active)} style={{ padding:"6px 12px", borderRadius:"6px", border:"1px solid "+colors.border, background:"transparent", color:colors.muted, fontSize:"12px", cursor:"pointer" }}>
+                            {svc.is_active ? "Disable" : "Enable"}
+                          </button>
+                          <button onClick={() => setEditingId(svc.id)} style={{ padding:"6px 12px", borderRadius:"6px", border:"1px solid "+colors.border, background:"transparent", color:colors.text, fontSize:"12px", cursor:"pointer" }}>
+                            Edit
+                          </button>
+                          <button onClick={() => deleteService(svc.id)} style={{ padding:"6px 12px", borderRadius:"6px", border:"none", background:"#dc262620", color:"#f87171", fontSize:"12px", cursor:"pointer" }}>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── WHATSAPP TAB ── */}
+          {tab === "whatsapp" && (
+            <div style={{ background:colors.card, borderRadius:"12px", padding:"24px", border:"1px solid "+colors.border }}>
+              <h2 style={{ fontSize:"16px", fontWeight:"700", marginBottom:"20px" }}>WhatsApp Connection</h2>
+
+              {waConn ? (
+                <div>
+                  <div style={{ background:"#16a34a11", border:"1px solid #16a34a44", borderRadius:"10px", padding:"16px", marginBottom:"20px", display:"flex", alignItems:"center", gap:"12px" }}>
+                    <span style={{ fontSize:"24px" }}>✅</span>
+                    <div>
+                      <p style={{ fontWeight:"600", color:"#4ade80", marginBottom:"2px" }}>WhatsApp Connected</p>
+                      <p style={{ color:colors.muted, fontSize:"13px" }}>Phone: {waConn.phone_number || waConn.phone_number_id}</p>
                     </div>
-                  ))}
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
+                    <div>
+                      <label style={label}>Phone Number ID</label>
+                      <input value={waConn.phone_number_id || ""} readOnly style={{ ...inp, opacity:0.6 }} />
+                    </div>
+                    <div>
+                      <label style={label}>Business Account ID</label>
+                      <input value={waConn.business_account_id || ""} readOnly style={{ ...inp, opacity:0.6 }} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background:"#dc262611", border:"1px solid #dc262644", borderRadius:"10px", padding:"20px", textAlign:"center" }}>
+                  <p style={{ fontSize:"24px", marginBottom:"12px" }}>📵</p>
+                  <p style={{ fontWeight:"600", color:"#f87171", marginBottom:"8px" }}>WhatsApp Not Connected</p>
+                  <p style={{ color:colors.muted, fontSize:"13px", marginBottom:"16px" }}>Connect your WhatsApp Business account to start receiving messages</p>
+                  <a href="/onboarding" style={{ ...btn, textDecoration:"none", display:"inline-block" }}>Connect WhatsApp →</a>
+                </div>
+              )}
+
+              <div style={{ marginTop:"24px", padding:"16px", background:colors.surface, borderRadius:"8px", border:"1px solid "+colors.border }}>
+                <p style={{ fontWeight:"600", fontSize:"14px", marginBottom:"8px" }}>Webhook URL</p>
+                <code style={{ color:colors.accent, fontSize:"13px", wordBreak:"break-all" }}>
+                  https://fastrill.com/api/meta/webhook
+                </code>
+                <p style={{ color:colors.muted, fontSize:"12px", marginTop:"8px" }}>Use this URL in your Meta Business Manager webhook settings</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── ACCOUNT TAB ── */}
+          {tab === "account" && (
+            <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
+              <div style={{ background:colors.card, borderRadius:"12px", padding:"24px", border:"1px solid "+colors.border }}>
+                <h2 style={{ fontSize:"16px", fontWeight:"700", marginBottom:"20px" }}>Account Details</h2>
+                <div style={{ marginBottom:"16px" }}>
+                  <label style={label}>Email Address</label>
+                  <input value={userEmail} readOnly style={{ ...inp, opacity:0.6 }} />
                 </div>
               </div>
-            ) : null}
-          </div>
+
+              <div style={{ background:colors.card, borderRadius:"12px", padding:"24px", border:"1px solid "+colors.border }}>
+                <h2 style={{ fontSize:"16px", fontWeight:"700", marginBottom:"20px" }}>Change Password</h2>
+                <form onSubmit={handleChangePassword}>
+                  <div style={{ marginBottom:"12px" }}>
+                    <label style={label}>New Password</label>
+                    <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Minimum 8 characters" minLength={8} style={inp} />
+                  </div>
+                  <div style={{ marginBottom:"20px" }}>
+                    <label style={label}>Confirm New Password</label>
+                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat new password" style={{ ...inp, border: confirmPassword && confirmPassword !== newPassword ? "1px solid #f87171" : "1px solid "+colors.border }} />
+                    {confirmPassword && confirmPassword !== newPassword && <p style={{ color:"#f87171", fontSize:"12px", marginTop:"4px" }}>Passwords do not match</p>}
+                  </div>
+                  <button type="submit" disabled={changingPass} style={{ ...btn, opacity:changingPass?0.7:1 }}>
+                    {changingPass ? "Updating..." : "Update Password"}
+                  </button>
+                </form>
+              </div>
+
+              <div style={{ background:colors.card, borderRadius:"12px", padding:"24px", border:"1px solid "+colors.border }}>
+                <h2 style={{ fontSize:"16px", fontWeight:"700", marginBottom:"8px", color:"#f87171" }}>Danger Zone</h2>
+                <p style={{ color:colors.muted, fontSize:"13px", marginBottom:"16px" }}>Sign out from all devices</p>
+                <button onClick={handleLogout} style={{ ...btn, background:"#dc2626" }}>Sign Out</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-    </>
+
+      {/* Mobile bottom nav */}
+      <div style={{ display:"none", position:"fixed", bottom:0, left:0, right:0, background:colors.card, borderTop:"1px solid "+colors.border, padding:"8px 0", zIndex:100 }} className="mobile-nav">
+        {[
+          { id:"overview", icon:"⬡", label:"Home",     path:"/dashboard" },
+          { id:"inbox",    icon:"◎", label:"Chats",    path:"/dashboard/conversations" },
+          { id:"bookings", icon:"◷", label:"Bookings", path:"/dashboard/bookings" },
+          { id:"leads",    icon:"◉", label:"Leads",    path:"/dashboard/leads" },
+          { id:"settings", icon:"◌", label:"Settings", path:"/dashboard/settings" },
+        ].map(n => (
+          <a key={n.id} href={n.path} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"2px", textDecoration:"none", color: n.id==="settings" ? colors.accent : colors.muted, fontSize:"10px", padding:"4px" }}>
+            <span style={{ fontSize:"18px" }}>{n.icon}</span>{n.label}
+          </a>
+        ))}
+      </div>
+
+    </div>
+  )
+}
+
+function EditService({ svc, onSave, onCancel, inp, label, btn, colors }) {
+  const [form, setForm] = useState({ ...svc })
+  return (
+    <div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"10px" }}>
+        <div>
+          <label style={label}>Name</label>
+          <input value={form.name} onChange={e => setForm(f=>({...f,name:e.target.value}))} style={inp} />
+        </div>
+        <div>
+          <label style={label}>Price (₹)</label>
+          <input type="number" value={form.price} onChange={e => setForm(f=>({...f,price:e.target.value}))} style={inp} />
+        </div>
+        <div>
+          <label style={label}>Duration (min)</label>
+          <input type="number" value={form.duration||""} onChange={e => setForm(f=>({...f,duration:e.target.value}))} style={inp} />
+        </div>
+        <div>
+          <label style={label}>Type</label>
+          <select value={form.service_type} onChange={e => setForm(f=>({...f,service_type:e.target.value}))} style={inp}>
+            <option value="time_based">Time-based</option>
+            <option value="package">Package</option>
+          </select>
+        </div>
+      </div>
+      <div style={{ marginBottom:"10px" }}>
+        <label style={label}>Description</label>
+        <input value={form.description||""} onChange={e => setForm(f=>({...f,description:e.target.value}))} style={inp} />
+      </div>
+      <div style={{ display:"flex", gap:"8px" }}>
+        <button onClick={() => onSave(form)} style={{ ...btn, fontSize:"13px", padding:"8px 16px" }}>Save</button>
+        <button onClick={onCancel} style={{ padding:"8px 16px", borderRadius:"8px", border:"1px solid "+colors.border, background:"transparent", color:colors.muted, fontSize:"13px", cursor:"pointer" }}>Cancel</button>
+      </div>
+    </div>
   )
 }
