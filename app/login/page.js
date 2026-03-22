@@ -3,10 +3,12 @@ import { useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { useRouter } from "next/navigation"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -22,7 +24,7 @@ export default function LoginPage() {
 
   // Check if already logged in
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getSupabase().auth.getSession().then(({ data: { session } }) => {
       if (session) router.replace("/dashboard")
     })
     // Check for error in URL
@@ -42,7 +44,7 @@ export default function LoginPage() {
     if (!email.trim()) { setError("Please enter your email"); return }
     setLoading(true); setError("")
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await getSupabase().auth.signInWithOtp({
         email: email.trim().toLowerCase(),
         options: { shouldCreateUser: true }
       })
@@ -60,7 +62,7 @@ export default function LoginPage() {
     if (!otp.trim() || otp.length < 6) { setError("Please enter the 6-digit code"); return }
     setLoading(true); setError("")
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
+      const { data, error } = await getSupabase().auth.verifyOtp({
         email: email.trim().toLowerCase(),
         token: otp.trim(),
         type:  "email"
@@ -79,7 +81,7 @@ export default function LoginPage() {
     if (!email || !password) { setError("Please enter email and password"); return }
     setLoading(true); setError("")
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await getSupabase().auth.signInWithPassword({
         email: email.trim().toLowerCase(), password
       })
       if (error) throw error
@@ -92,7 +94,7 @@ export default function LoginPage() {
   async function handleGoogleLogin() {
     setLoading(true); setError("")
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await getSupabase().auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: window.location.origin + "/auth/callback" }
       })
@@ -107,7 +109,7 @@ export default function LoginPage() {
     if (resendTimer > 0) return
     setLoading(true); setError(""); setMessage("")
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await getSupabase().auth.signInWithOtp({
         email: email.trim().toLowerCase(),
         options: { shouldCreateUser: true }
       })
