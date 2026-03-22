@@ -1,12 +1,15 @@
 "use client"
+export const dynamic = "force-dynamic"
 import { useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { useRouter } from "next/navigation"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+}
 
 export default function SignupPage() {
   const router = useRouter()
@@ -19,7 +22,7 @@ export default function SignupPage() {
   const [resendTimer, setResendTimer] = useState(0)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getSupabase().auth.getSession().then(({ data: { session } }) => {
       if (session) router.replace("/dashboard")
     })
   }, [])
@@ -37,7 +40,7 @@ export default function SignupPage() {
     if (!emailRegex.test(email.trim())) { setError("Please enter a valid email address"); return }
     setLoading(true); setError("")
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await getSupabase().auth.signInWithOtp({
         email: email.trim().toLowerCase(),
         options: { shouldCreateUser: true }
       })
@@ -55,7 +58,7 @@ export default function SignupPage() {
     if (!otp.trim() || otp.length < 6) { setError("Please enter the complete 6-digit code"); return }
     setLoading(true); setError("")
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
+      const { data, error } = await getSupabase().auth.verifyOtp({
         email: email.trim().toLowerCase(),
         token: otp.trim(),
         type:  "email"
@@ -71,7 +74,7 @@ export default function SignupPage() {
   async function handleGoogleSignup() {
     setLoading(true); setError("")
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await getSupabase().auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: window.location.origin + "/auth/callback" }
       })
@@ -86,7 +89,7 @@ export default function SignupPage() {
     if (resendTimer > 0) return
     setLoading(true); setError(""); setMessage("")
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await getSupabase().auth.signInWithOtp({
         email: email.trim().toLowerCase(),
         options: { shouldCreateUser: true }
       })
