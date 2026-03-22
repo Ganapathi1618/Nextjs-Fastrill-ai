@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-
+ 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
   { id:"inbox",     label:"Conversations",  icon:"◎", path:"/dashboard/conversations" },
@@ -13,12 +13,12 @@ const NAV = [
   { id:"analytics", label:"Analytics",      icon:"▦", path:"/dashboard/analytics" },
   { id:"settings",  label:"Settings",       icon:"◌", path:"/dashboard/settings" },
 ]
-
+ 
 // ── DB STATUS VALUES must match your campaigns table constraint ──────────────
 // Allowed: draft | scheduled | live | done | paused
 const STATUS_SENDING   = "live"   // campaign is currently sending
 const STATUS_COMPLETED = "done"   // campaign finished
-
+ 
 const META_TEMPLATES = [
   {
     id:"fastrill_salon_winback", label:"Salon Win Back", icon:"💌",
@@ -150,7 +150,7 @@ const META_TEMPLATES = [
     preview:v=>`Hi ${v.customer_name||"Priya"}! Loved your visit at ${v.business_name||"Your Business"}? 😊\n\n👥 Refer a friend and both of you get ${v.reward||"10% off"}!\n\nJust mention your name when booking 🎁`
   },
 ]
-
+ 
 const SEGMENTS = [
   {id:"all",       label:"All Customers", desc:"Everyone who messaged you",   icon:"👥"},
   {id:"new_lead",  label:"New Leads",     desc:"First-time, not booked",      icon:"✨"},
@@ -160,17 +160,17 @@ const SEGMENTS = [
   {id:"manual",    label:"Enter Numbers", desc:"Paste numbers manually",       icon:"✏️"},
   {id:"csv",       label:"Upload CSV",    desc:"Upload a .csv or .txt file",   icon:"📎"},
 ]
-
+ 
 const INDUSTRIES = ["All","Salon","Clinic","Spa","Gym","Restaurant"]
-
+ 
 function toPhone(p){const d=(p||"").replace(/[^0-9]/g,"");if(d.length===10)return"91"+d;if(d.length===12&&d.startsWith("91"))return d;if(d.length===11&&d.startsWith("0"))return"91"+d.slice(1);return d}
 function dedupe(p){const d=(p||"").replace(/[^0-9]/g,"");return d.length>=12?d.slice(-10):d}
-
+ 
 export default function Campaigns(){
   const router  = useRouter()
   const fileRef = useRef(null)
   const pollRef = useRef(null)
-
+ 
   // Auth + data
   const [userId,    setUserId]    = useState(null)
   const [userEmail, setUserEmail] = useState("")
@@ -181,11 +181,12 @@ export default function Campaigns(){
   const [whatsapp,  setWhatsapp]  = useState(null)
   const [bizName,   setBizName]   = useState("")
   const [loading,   setLoading]   = useState(true)
-
+ 
   // Views
   const [view, setView] = useState("compose") // compose | history
+  const [view, setView] = useState("dashboard") // dashboard | compose | history
   const [step, setStep] = useState("setup")   // setup | sending | done
-
+ 
   // Compose state
   const [industryFilter,  setIndustryFilter]  = useState("All")
   const [selectedTmplId,  setSelectedTmplId]  = useState("")
@@ -196,18 +197,18 @@ export default function Campaigns(){
   const [csvNums,         setCsvNums]         = useState([])
   const [testPhone,       setTestPhone]       = useState("")
   const [testState,       setTestState]       = useState("idle")
-
+  const [scheduleMode,    setScheduleMode]    = useState("now") // now | scheduled
+  const [scheduleDate,    setScheduleDate]    = useState("")
+  const [scheduleTime,    setScheduleTime]    = useState("")
+ 
   // Send state
   const [sentCount,  setSentCount]  = useState(0)
-  const [failCount,  setFailCount]  = useState(0)
-  const [sendLog,    setSendLog]    = useState([])
-  const [sending,    setSending]    = useState(false)
   const [campCost,   setCampCost]   = useState(0)
-
+ 
   // History
   const [history,     setHistory]     = useState([])
   const [histLoading, setHistLoading] = useState(false)
-
+ 
   useEffect(()=>{
     const saved = localStorage.getItem("fastrill-theme")
     if(saved) setDark(saved==="dark")
@@ -216,10 +217,10 @@ export default function Campaigns(){
       else{ setUserEmail(data.user.email||""); setUserId(data.user.id) }
     })
   },[])
-
+ 
   useEffect(()=>{ if(userId) loadAll() },[userId])
   useEffect(()=>()=>{ if(pollRef.current) clearInterval(pollRef.current) },[])
-
+ 
   async function loadAll(){
     setLoading(true)
     const [{data:custs},{data:wa},{data:biz}] = await Promise.all([
@@ -239,7 +240,7 @@ export default function Campaigns(){
     await loadHistory()
     setLoading(false)
   }
-
+ 
   const loadHistory = useCallback(async()=>{
     if(!userId) return
     setHistLoading(true)
@@ -252,52 +253,52 @@ export default function Campaigns(){
     else setHistory(data||[])
     setHistLoading(false)
   },[userId])
-
+ 
+    setHistLoading(false)
+  },[userId])
+ 
+  // ── Dashboard stats ──────────────────────────────────────────────────────
+  function getDashboardStats(){
+    const completed = history.filter(c=>c.status==="done"||c.status==="completed")
+    const totalSent = completed.reduce((a,c)=>a+(c.sent_count||0),0)
+    const totalDelivered = completed.reduce((a,c)=>a+(c.delivered_count||0),0)
+    const totalRead = completed.reduce((a,c)=>a+(c.read_count||0),0)
+    const totalReplied = completed.reduce((a,c)=>a+(c.replied_count||0),0)
+    const totalCost = completed.reduce((a,c)=>{
+      const tmpl = META_TEMPLATES.find(t=>t.template_name===c.template_name)
+      return a + (c.sent_count||0)*(tmpl?.metaCost||0.83)
+    },0)
+    const deliveryRate = totalSent>0?Math.round((totalDelivered/totalSent)*100):0
+    const readRate = totalSent>0?Math.round((totalRead/totalSent)*100):0
+    const replyRate = totalSent>0?Math.round((totalReplied/totalSent)*100):0
+    const estBookings = Math.round(totalReplied*0.6)
+    const estRevenue = estBookings*1200
+    const roi = totalCost>0?Math.round(((estRevenue-totalCost)/totalCost)*100):0
+    return{totalSent,totalDelivered,totalRead,totalReplied,totalCost:parseFloat(totalCost.toFixed(2)),deliveryRate,readRate,replyRate,estBookings,estRevenue,roi,campaignCount:completed.length}
+  }
+ 
+  // ── Save draft ──────────────────────────────────────────────────────────
+  async function saveDraft(){
+    if(!userId||!campaignName.trim()||!selectedTmplId) return
+    const now = new Date().toISOString()
+    const{data,error} = await supabase.from("campaigns").insert({
+      user_id:userId, name:campaignName.trim(), status:"draft",
+      template_name:selectedTmpl?.template_name||"", segment,
+      message:getPreview().substring(0,500),
+      sent_count:0, failed_count:0, delivered_count:0, read_count:0, replied_count:0,
+      created_at:now
+    }).select("id").single()
+    if(error) console.error("Draft save error:",error.message)
+    else{ await loadHistory(); alert("Draft saved!") }
+  }
+ 
   // ── Audience helpers ───────────────────────────────────────────────────────
   function getAudience(){
     const ago30 = new Date(Date.now()-30*86400000)
-    const optSet = new Set(optouts.map(dedupe))
-    let base = []
-    if(segment==="manual"){
-      const nums = manualNums.replace(/[,;]/g," ").split(/\s+/).map(s=>s.trim()).filter(s=>s.length>=8)
-      base = nums.map((p,i)=>({id:"m"+i,name:p,phone:p}))
-    } else if(segment==="csv"){
-      base = csvNums.map((p,i)=>({id:"c"+i,name:p,phone:p}))
-    } else {
-      base = customers.filter(c=>{
-        if(!c.phone) return false
-        if(segment==="all")       return true
-        if(segment==="new_lead")  return c.tag==="new_lead"
-        if(segment==="returning") return c.tag==="returning"||c.tag==="vip"
-        if(segment==="vip")       return c.tag==="vip"
-        if(segment==="inactive")  return new Date(c.last_visit_at||c.created_at)<ago30
-        return true
-      })
-    }
-    const seen = new Set()
-    base = base.filter(c=>{ const n=dedupe(c.phone); if(seen.has(n)) return false; seen.add(n); return true })
-    return base.filter(c=>!optSet.has(dedupe(c.phone)))
-  }
-
-  function segCount(id){
-    const ago30 = new Date(Date.now()-30*86400000)
-    if(id==="all")       return customers.length
-    if(id==="new_lead")  return customers.filter(c=>c.tag==="new_lead").length
-    if(id==="returning") return customers.filter(c=>c.tag==="returning"||c.tag==="vip").length
-    if(id==="vip")       return customers.filter(c=>c.tag==="vip").length
-    if(id==="inactive")  return customers.filter(c=>new Date(c.last_visit_at||c.created_at)<ago30).length
-    return null
-  }
-
-  // ── Template helpers ───────────────────────────────────────────────────────
-  const selectedTmpl = META_TEMPLATES.find(t=>t.id===selectedTmplId)
-
-  function getPreview(){
-    if(!selectedTmpl) return ""
     const v = {...tmplVals, customer_name:"Priya", business_name:tmplVals.business_name||bizName||"Your Business"}
     return selectedTmpl.preview(v)
   }
-
+ 
   function buildPayload(customerName, phone){
     if(!selectedTmpl) return null
     const firstName = (customerName||"there").split(" ")[0]
@@ -308,7 +309,7 @@ export default function Campaigns(){
       template:{ name:selectedTmpl.template_name, language:{code:"en"}, components:[{type:"body",parameters}] }
     }
   }
-
+ 
   // ── Send test ──────────────────────────────────────────────────────────────
   async function sendTest(){
     if(!testPhone.trim()||!whatsapp||!selectedTmpl||testState==="sending") return
@@ -324,7 +325,7 @@ export default function Campaigns(){
       else{ setTestState("done"); setTimeout(()=>setTestState("idle"),3000) }
     }catch(e){ alert("Error: "+e.message); setTestState("fail"); setTimeout(()=>setTestState("idle"),3000) }
   }
-
+ 
   // ── Poll delivery stats ────────────────────────────────────────────────────
   async function pollDelivery(campId, waIds){
     if(pollRef.current) clearInterval(pollRef.current)
@@ -343,20 +344,20 @@ export default function Campaigns(){
       }catch(e){ console.warn("Poll error:",e.message) }
     },10000)
   }
-
+ 
   // ── Main send ──────────────────────────────────────────────────────────────
   async function sendCampaign(){
     if(!canSend||sending) return
     const aud = getAudience()
     if(!aud.length) return
-
+ 
     setSending(true); setSentCount(0); setFailCount(0); setSendLog([]); setStep("sending")
     const cost = parseFloat((aud.length*(selectedTmpl.metaCost||0.83)).toFixed(2))
     setCampCost(cost)
     const now = new Date().toISOString()
     const waIds=[], log=[]
     let sc=0, fc=0
-
+ 
     // ── FIX: Create campaign with CORRECT status values ──────────────────────
     // status "live" = currently sending (matches DB constraint)
     let campId = null
@@ -376,9 +377,9 @@ export default function Campaigns(){
       sent_at:         now,
       created_at:      now,
     }
-
+ 
     const{data:newCamp, error:insertErr} = await supabase.from("campaigns").insert(insertRow).select("id").single()
-
+ 
     if(insertErr){
       // Log full error so we can debug
       console.error("❌ Campaign insert failed:", JSON.stringify({
@@ -392,7 +393,7 @@ export default function Campaigns(){
       campId = newCamp?.id
       console.log("✅ Campaign created:", campId)
     }
-
+ 
     // ── Send messages ────────────────────────────────────────────────────────
     for(const customer of aud){
       const phone   = toPhone(customer.phone)
@@ -432,9 +433,9 @@ export default function Campaigns(){
       }
       await new Promise(r=>setTimeout(r,1200))
     }
-
+ 
     setSendLog(log)
-
+ 
     // ── FIX: Update with CORRECT status "done" ───────────────────────────────
     if(campId){
       const{error:updateErr} = await supabase.from("campaigns").update({
@@ -443,7 +444,7 @@ export default function Campaigns(){
         status:        STATUS_COMPLETED,  // "done" — matches DB constraint
         wa_message_ids:waIds,
       }).eq("id",campId)
-
+ 
       if(updateErr){
         console.error("❌ Campaign update failed:", JSON.stringify({
           message: updateErr.message,
@@ -455,11 +456,11 @@ export default function Campaigns(){
         if(waIds.length>0) pollDelivery(campId, waIds)
       }
     }
-
+ 
     await loadHistory()
     setSending(false); setStep("done")
   }
-
+ 
   function handleCsv(e){
     const file = e.target.files[0]; if(!file) return
     const reader = new FileReader()
@@ -475,7 +476,7 @@ export default function Campaigns(){
     }
     reader.readAsText(file)
   }
-
+ 
   function calcRoi(c){
     const sc  = c.sent_count||0
     const rpl = c.replied_count||0
@@ -486,10 +487,10 @@ export default function Campaigns(){
     const roi = cost>0 ? Math.round(((revenue-cost)/cost)*100) : 0
     return{cost, bookings, revenue, roi}
   }
-
+ 
   const toggleTheme = ()=>{ const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
   const logout      = async()=>{ await supabase.auth.signOut(); router.push("/login") }
-
+ 
   // ── Theme ──────────────────────────────────────────────────────────────────
   const bg   = dark?"#08080e":"#f0f2f5"
   const sb   = dark?"#0c0c15":"#ffffff"
@@ -504,14 +505,14 @@ export default function Campaigns(){
   const adim = dark?"rgba(0,208,132,0.1)":"rgba(0,147,90,0.08)"
   const inp  = {background:ibg,border:`1px solid ${cbdr}`,borderRadius:9,padding:"11px 14px",fontSize:13.5,color:tx,fontFamily:"'Plus Jakarta Sans',sans-serif",outline:"none",width:"100%"}
   const ui   = userEmail?userEmail[0].toUpperCase():"G"
-
+ 
   const audience      = getAudience()
   const previewText   = getPreview()
   const filteredTmpls = META_TEMPLATES.filter(t=>industryFilter==="All"||t.industry===industryFilter||t.industry==="All")
   const nonAutoVars   = selectedTmpl?.vars.filter(v=>!v.auto&&v.key!=="customer_name")||[]
   const allVarsFilled = nonAutoVars.every(v=>!!tmplVals[v.key])
   const canSend       = !!whatsapp&&!!campaignName.trim()&&audience.length>0&&!!selectedTmplId&&allVarsFilled
-
+ 
   return(
     <>
       <style>{`
@@ -519,7 +520,7 @@ export default function Campaigns(){
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         html,body{background:${bg}!important;color:${tx}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;}
-
+ 
         /* Sidebar */
         .sidebar{width:220px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;transition:transform 0.25s;}
         .logo{padding:20px 18px 16px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:block;border-bottom:1px solid ${bdr};}
@@ -533,45 +534,45 @@ export default function Campaigns(){
         .ua{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,${acc},#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;flex-shrink:0;}
         .lb{margin-top:6px;width:100%;padding:6px;border-radius:7px;background:transparent;border:1px solid ${cbdr};font-size:11.5px;color:${txm};cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
         .lb:hover{border-color:#fca5a5;color:#ef4444;}
-
+ 
         /* Main */
         .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
         .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${bdr};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sb};}
-
+ 
         /* Desktop layout: left panel + main content */
         .desktop{flex:1;display:flex;overflow:hidden;}
         .left-panel{width:300px;flex-shrink:0;border-right:1px solid ${bdr};overflow-y:auto;background:${sb};display:flex;flex-direction:column;}
         .right-area{flex:1;overflow-y:auto;background:${bg};}
         .right-pad{padding:28px;max-width:760px;margin:0 auto;}
-
+ 
         /* Template cards in left panel */
         .tmpl-item{padding:14px 16px;cursor:pointer;border-bottom:1px solid ${bdr};transition:background 0.1s;border-left:3px solid transparent;}
         .tmpl-item:hover{background:${ibg};}
         .tmpl-item.on{background:${adim};border-left-color:${acc};}
-
+ 
         /* Segment grid */
         .seg-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
         .seg-card{padding:12px 14px;border:1px solid ${cbdr};border-radius:10px;cursor:pointer;transition:all 0.12s;background:${ibg};display:flex;align-items:center;gap:10px;}
         .seg-card:hover{border-color:${acc}44;}
         .seg-card.on{border-color:${acc};background:${adim};}
-
+ 
         /* Step cards */
         .step-card{background:${card};border:1px solid ${cbdr};border-radius:14px;margin-bottom:18px;overflow:hidden;}
         .step-head{padding:18px 22px;border-bottom:1px solid ${bdr};display:flex;align-items:center;gap:12px;}
         .step-body{padding:22px;}
         .step-num{width:26px;height:26px;border-radius:50%;background:${adim};border:1px solid ${acc}44;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;color:${acc};flex-shrink:0;}
-
+ 
         /* Industry pills */
         .ip{padding:5px 13px;border-radius:100px;font-size:11.5px;font-weight:600;cursor:pointer;border:1px solid ${cbdr};background:transparent;color:${txm};font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.12s;}
         .ip.on{background:${adim};border-color:${acc};color:${acc};}
-
+ 
         /* Tab buttons */
         .tb{padding:4px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;color:${txm};font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap;}
         .tb.on{background:${card};color:${tx};box-shadow:0 1px 4px rgba(0,0,0,0.15);}
-
+ 
         /* Var grid */
         .var-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-
+ 
         .hbtn{display:none;background:${ibg};border:1px solid ${cbdr};border-radius:7px;padding:5px 8px;cursor:pointer;font-size:16px;color:${tx};line-height:1;margin-right:4px;}
         .mob-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
         .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:${sb};border-top:1px solid ${bdr};padding:5px 0;z-index:200;}
@@ -579,10 +580,10 @@ export default function Campaigns(){
         .bnic{font-size:16px;color:${txf};}
         .bnil{font-size:9px;font-weight:600;color:${txf};}
         .bni.on .bnic,.bni.on .bnil{color:${acc};}
-
+ 
         input:focus,textarea:focus{border-color:${acc}88!important;outline:none;}
         select option{background-color:#0c0c15!important;color:#eeeef5!important;}
-
+ 
         @media(max-width:1024px){
           .left-panel{width:260px;}
         }
@@ -601,10 +602,10 @@ export default function Campaigns(){
           .seg-grid{grid-template-columns:1fr 1fr;}
         }
       `}</style>
-
+ 
       <div className="wrap">
         <div className={"mob-ov"+(mobOpen?" open":"")} onClick={()=>setMobOpen(false)}/>
-
+ 
         {/* ── Sidebar ── */}
         <aside className={"sidebar"+(mobOpen?" open":"")}>
           <a href="/dashboard" className="logo">fast<span>rill</span></a>
@@ -624,7 +625,7 @@ export default function Campaigns(){
             <button className="lb" onClick={logout}>↩ Sign out</button>
           </div>
         </aside>
-
+ 
         <div className="main">
           {/* ── Topbar ── */}
           <div className="topbar">
@@ -634,14 +635,14 @@ export default function Campaigns(){
               <div style={{display:"flex",background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:2,gap:1,marginLeft:8}}>
                 {[["compose","Compose"],["history",`History (${history.length})`]].map(([v,l])=>(
                   <button key={v} className={"tb"+(view===v?" on":"")}
-                    onClick={()=>{ setView(v); if(v==="history") loadHistory() }}>{l}</button>
-                ))}
-              </div>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              {!whatsapp&&!loading&&(
-                <div onClick={()=>router.push("/dashboard/settings")}
-                  style={{padding:"4px 12px",borderRadius:6,background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",fontSize:11.5,color:"#fb7185",fontWeight:600,cursor:"pointer"}}>
+          .right-pad{padding:16px;}
+          .var-grid{grid-template-columns:1fr!important;}
+          .seg-grid{grid-template-columns:1fr 1fr;}
+          .dash-kpi{grid-template-columns:repeat(2,1fr)!important;}
+          .dash-rev{grid-template-columns:repeat(2,1fr)!important;}
+        }
+      `}</style>
+ 
                   ⚠ Connect WhatsApp
                 </div>
               )}
@@ -654,7 +655,7 @@ export default function Campaigns(){
               </button>
             </div>
           </div>
-
+ 
           {/* ══════════════════════════════════════════════════════════
               HISTORY
           ══════════════════════════════════════════════════════════ */}
@@ -669,15 +670,17 @@ export default function Campaigns(){
                   <button onClick={loadHistory}
                     style={{padding:"8px 16px",borderRadius:9,background:ibg,border:`1px solid ${cbdr}`,color:txm,fontSize:12.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                     {histLoading?"Loading...":"↻ Refresh"}
-                  </button>
-                  <button onClick={()=>{ setView("compose"); setStep("setup") }}
-                    style={{padding:"8px 20px",borderRadius:9,background:acc,border:"none",color:"#000",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                    + New Campaign
-                  </button>
-                </div>
+              <button className="hbtn" onClick={()=>setMobOpen(s=>!s)}>☰</button>
+              <span style={{fontWeight:700,fontSize:15,color:tx}}>Campaigns</span>
+              <div style={{display:"flex",background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:2,gap:1,marginLeft:8}}>
+                {[["compose","Compose"],["history",`History (${history.length})`]].map(([v,l])=>(
+                {[["dashboard","Overview"],["compose","Compose"],["history",`History (${history.length})`]].map(([v,l])=>(
+                  <button key={v} className={"tb"+(view===v?" on":"")}
+                    onClick={()=>{ setView(v); if(v==="history") loadHistory() }}>{l}</button>
+                    onClick={()=>{ setView(v); if(v==="history"||v==="dashboard") loadHistory() }}>{l}</button>
+                ))}
               </div>
-
-              {histLoading?(
+            </div>
                 <div style={{textAlign:"center",padding:64,color:txf,fontSize:14}}>Loading campaigns...</div>
               ):history.length===0?(
                 <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:16,padding:"72px 24px",textAlign:"center"}}>
@@ -692,123 +695,123 @@ export default function Campaigns(){
               ):(
                 <div style={{display:"flex",flexDirection:"column",gap:14}}>
                   {history.map(c=>{
-                    const sc=c.sent_count||0, dlv=c.delivered_count||0, rd=c.read_count||0, rpl=c.replied_count||0
-                    const roi = calcRoi(c)
-                    const isDone = c.status===STATUS_COMPLETED||c.status==="done"||c.status==="completed"
-                    return(
-                      <div key={c.id} style={{background:card,border:`1px solid ${cbdr}`,borderRadius:14,overflow:"hidden"}}>
-                        {/* Header */}
-                        <div style={{padding:"16px 22px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",borderBottom:`1px solid ${bdr}`}}>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
-                              <span style={{fontWeight:700,fontSize:15,color:tx}}>{c.name}</span>
-                              {c.template_name&&(
-                                <span style={{fontSize:11,padding:"2px 9px",borderRadius:100,background:adim,color:acc,border:`1px solid ${acc}33`,fontWeight:600}}>{c.template_name}</span>
-                              )}
-                              <span style={{fontSize:11,padding:"2px 9px",borderRadius:100,
-                                background:isDone?adim:c.status==="live"?"rgba(56,189,248,0.1)":"rgba(245,158,11,0.1)",
-                                color:isDone?acc:c.status==="live"?"#38bdf8":"#f59e0b",
-                                border:`1px solid ${isDone?acc+"33":c.status==="live"?"rgba(56,189,248,0.3)":"rgba(245,158,11,0.3)"}`,
-                                fontWeight:600}}>
-                                {c.status==="live"?"● Sending...":isDone?"✓ Done":"Draft"}
-                              </span>
-                            </div>
-                            <div style={{fontSize:12,color:txm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"82%"}}>{(c.message||"").substring(0,90)}</div>
-                            <div style={{fontSize:11,color:txf,marginTop:5}}>
-                              {c.sent_at?new Date(c.sent_at).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):""} · {c.segment||"all customers"}
-                            </div>
-                          </div>
-                          <div style={{textAlign:"right",flexShrink:0,marginLeft:20}}>
-                            <div style={{fontSize:34,fontWeight:800,color:acc,letterSpacing:"-1.5px",lineHeight:1}}>{sc}</div>
-                            <div style={{fontSize:11,color:txf,marginTop:2}}>messages sent</div>
-                          </div>
+            </div>
+          </div>
+ 
+          {/* ══════════════════════════════════════════════════════════
+              DASHBOARD — Campaign Analytics Overview
+          ══════════════════════════════════════════════════════════ */}
+          {view==="dashboard"&&(
+            <div style={{flex:1,overflow:"auto",padding:28}}>
+              {(()=>{
+                const stats = getDashboardStats()
+                return(<>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+                    <div>
+                      <div style={{fontWeight:800,fontSize:22,color:tx}}>Campaign Performance</div>
+                      <div style={{fontSize:13,color:txf,marginTop:3}}>{stats.campaignCount} campaigns sent · Real-time delivery tracking</div>
+                    </div>
+                    <button onClick={()=>{ setView("compose"); setStep("setup") }}
+                      style={{padding:"10px 24px",borderRadius:10,background:acc,border:"none",color:"#000",fontSize:13.5,fontWeight:700,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                      + New Campaign
+                    </button>
+                  </div>
+ 
+                  {/* KPI Cards */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
+                    {[
+                      {label:"Total Sent",      val:stats.totalSent.toLocaleString(),      sub:"messages",      color:tx,      icon:"📤"},
+                      {label:"Delivery Rate",   val:stats.deliveryRate+"%",                sub:stats.totalDelivered+" delivered", color:"#38bdf8", icon:"📬"},
+                      {label:"Read Rate",        val:stats.readRate+"%",                    sub:stats.totalRead+" read",          color:"#a78bfa", icon:"👁"},
+                      {label:"Reply Rate",       val:stats.replyRate+"%",                   sub:stats.totalReplied+" replied",    color:acc,       icon:"↩"},
+                    ].map(k=>(
+                      <div key={k.label} style={{background:card,border:`1px solid ${cbdr}`,borderRadius:14,padding:"22px 20px"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                          <div style={{fontSize:12,color:txf,fontWeight:600}}>{k.icon} {k.label}</div>
                         </div>
-
-                        {/* Delivery stats */}
-                        <div style={{padding:"14px 22px",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,borderBottom:`1px solid ${bdr}`}}>
-                          {[
-                            {label:"Sent",      val:sc,  pct:100,                                           color:txm,      icon:"📤"},
-                            {label:"Delivered", val:dlv, pct:sc>0?Math.round((dlv/sc)*100):0, color:"#38bdf8",icon:"📬"},
-                            {label:"Read",      val:rd,  pct:sc>0?Math.round((rd/sc)*100):0,  color:"#a78bfa",icon:"👁"},
-                            {label:"Replied",   val:rpl, pct:sc>0?Math.round((rpl/sc)*100):0, color:acc,      icon:"↩"},
-                          ].map(s=>(
-                            <div key={s.label} style={{background:ibg,borderRadius:10,padding:"12px 14px"}}>
-                              <div style={{fontSize:10.5,color:txf,marginBottom:4}}>{s.icon} {s.label}</div>
-                              <div style={{fontWeight:800,fontSize:22,color:s.val>0?s.color:txf,lineHeight:1,letterSpacing:"-0.5px"}}>{s.val}</div>
-                              {sc>0&&<>
-                                <div style={{marginTop:5,height:3,borderRadius:100,background:dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.07)"}}>
-                                  <div style={{height:3,borderRadius:100,width:`${s.pct}%`,background:s.color,transition:"width 0.5s"}}/>
-                                </div>
-                                <div style={{fontSize:10,color:txf,marginTop:2}}>{s.pct}%</div>
-                              </>}
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* ROI — only after done */}
-                        {isDone&&sc>0&&(
-                          <div style={{padding:"14px 22px",background:dark?"rgba(0,208,132,0.04)":"rgba(0,147,90,0.03)",borderBottom:`1px solid ${bdr}`}}>
-                            <div style={{fontSize:12,fontWeight:700,color:acc,marginBottom:10}}>📊 Campaign ROI</div>
-                            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-                              {[
-                                {label:"Meta Cost",    val:`₹${roi.cost}`,                        color:txm},
-                                {label:"Est. Bookings",val:roi.bookings,                          color:"#a78bfa"},
-                                {label:"Est. Revenue", val:`₹${roi.revenue.toLocaleString()}`,    color:acc},
-                                {label:"ROI",          val:`${roi.roi}%`,                         color:roi.roi>0?acc:"#fb7185"},
-                              ].map(r=>(
-                                <div key={r.label} style={{background:ibg,borderRadius:10,padding:"11px 13px"}}>
-                                  <div style={{fontSize:10.5,color:txf,marginBottom:3}}>{r.label}</div>
-                                  <div style={{fontWeight:800,fontSize:18,color:r.color}}>{r.val}</div>
-                                </div>
-                              ))}
-                            </div>
-                            <div style={{fontSize:11,color:txf,marginTop:8}}>
-                              ₹{META_TEMPLATES.find(t=>t.template_name===c.template_name)?.metaCost||0.83}/msg · Revenue = replies × 60% booking rate × ₹1,200 avg
-                            </div>
-                          </div>
-                        )}
-
-                        <div style={{padding:"10px 22px",display:"flex",gap:10,alignItems:"center"}}>
-                          <button onClick={async()=>{
-                            const{count} = await supabase.from("messages").select("id",{count:"exact"}).eq("user_id",userId).eq("direction","inbound").gte("created_at",c.sent_at||c.created_at)
-                            if(count!==null){ await supabase.from("campaigns").update({replied_count:count}).eq("id",c.id); await loadHistory() }
-                          }} style={{padding:"5px 12px",borderRadius:7,background:"transparent",border:`1px solid ${cbdr}`,color:txf,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                            ↻ Refresh replies
-                          </button>
-                          {(c.failed_count||0)>0&&<span style={{fontSize:12,color:"#fb7185",marginLeft:"auto"}}>{c.failed_count} failed</span>}
-                        </div>
+                        <div style={{fontSize:36,fontWeight:800,color:k.color,letterSpacing:"-1.5px",lineHeight:1}}>{k.val}</div>
+                        <div style={{fontSize:11.5,color:txf,marginTop:6}}>{k.sub}</div>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
+                    ))}
+                  </div>
+ 
+                  {/* Revenue Impact */}
+                  <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:14,padding:"24px 28px",marginBottom:24}}>
+                    <div style={{fontSize:14,fontWeight:700,color:acc,marginBottom:16}}>📊 Revenue Impact</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:16}}>
+                      {[
+                        {label:"Meta Spend",       val:`₹${stats.totalCost.toLocaleString()}`, color:txm},
+                        {label:"Est. Bookings",    val:stats.estBookings,                       color:"#a78bfa"},
+                        {label:"Est. Revenue",     val:`₹${stats.estRevenue.toLocaleString()}`, color:acc},
+                        {label:"ROI",              val:`${stats.roi}%`,                         color:stats.roi>0?acc:"#fb7185"},
+                        {label:"Cost per Reply",   val:stats.totalReplied>0?`₹${(stats.totalCost/stats.totalReplied).toFixed(1)}`:"—", color:txm},
+                      ].map(r=>(
+                        <div key={r.label} style={{background:ibg,borderRadius:10,padding:"14px 16px",textAlign:"center"}}>
+                          <div style={{fontSize:11,color:txf,marginBottom:6}}>{r.label}</div>
+                          <div style={{fontSize:24,fontWeight:800,color:r.color,letterSpacing:"-0.5px"}}>{r.val}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{fontSize:12,color:txf,marginTop:12}}>
+                      Revenue = replies x 60% booking rate x ₹1,200 avg. booking value · ROI = (revenue - spend) / spend
+                    </div>
+                  </div>
+ 
+                  {/* Recent campaigns quick list */}
+                  {history.length>0&&(
+                    <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:14,overflow:"hidden"}}>
+                      <div style={{padding:"16px 22px",borderBottom:`1px solid ${bdr}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div style={{fontSize:14,fontWeight:700,color:tx}}>Recent Campaigns</div>
+                        <button onClick={()=>setView("history")} style={{fontSize:12,color:acc,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>View all →</button>
+                      </div>
+                      {history.slice(0,5).map(c=>{
+                        const sc=c.sent_count||0, dlv=c.delivered_count||0, rpl=c.replied_count||0
+                        const isDone = c.status==="done"||c.status==="completed"
+                        return(
+                          <div key={c.id} style={{padding:"14px 22px",borderBottom:`1px solid ${bdr}`,display:"flex",alignItems:"center",gap:16}}>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                                <span style={{fontWeight:600,fontSize:13.5,color:tx}}>{c.name}</span>
+                                <span style={{fontSize:10,padding:"2px 8px",borderRadius:100,
+                                  background:isDone?adim:c.status==="live"?"rgba(56,189,248,0.1)":c.status==="draft"?"rgba(245,158,11,0.1)":adim,
+                                  color:isDone?acc:c.status==="live"?"#38bdf8":c.status==="draft"?"#f59e0b":acc,
+                                  fontWeight:700}}>
+                                  {c.status==="live"?"Sending":isDone?"Done":c.status==="draft"?"Draft":c.status}
+                                </span>
+                              </div>
+                              <div style={{fontSize:11.5,color:txf}}>
+                                {c.sent_at?new Date(c.sent_at).toLocaleDateString("en-IN",{day:"numeric",month:"short"}):""} · {sc} sent · {dlv} delivered · {rpl} replied
+                              </div>
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontSize:22,fontWeight:800,color:sc>0?acc:txf}}>{sc>0&&rpl>0?Math.round((rpl/sc)*100)+"%":"—"}</div>
+                              <div style={{fontSize:10,color:txf}}>reply rate</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+ 
+                  {history.length===0&&(
+                    <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:16,padding:"72px 24px",textAlign:"center"}}>
+                      <div style={{fontSize:52,marginBottom:16,opacity:0.2}}>📢</div>
+                      <div style={{fontWeight:800,fontSize:18,color:tx,marginBottom:8}}>No campaigns yet</div>
+                      <div style={{fontSize:13.5,color:txf,marginBottom:28}}>Create your first WhatsApp campaign to start tracking performance</div>
+                      <button onClick={()=>setView("compose")}
+                        style={{padding:"12px 32px",borderRadius:11,background:acc,border:"none",color:"#000",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                        Create first campaign →
+                      </button>
+                    </div>
+                  )}
+                </>)
+              })()}
             </div>
           )}
-
+ 
           {/* ══════════════════════════════════════════════════════════
-              SENDING
+              HISTORY
           ══════════════════════════════════════════════════════════ */}
-          {view==="compose"&&step==="sending"&&(
-            <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,padding:24}}>
-              <div style={{fontSize:56}}>📤</div>
-              <div style={{fontWeight:800,fontSize:24,color:tx}}>Sending Campaign...</div>
-              <div style={{fontSize:13.5,color:txm}}>Keep this tab open · Using approved Meta template · Reaches everyone</div>
-              <div style={{display:"flex",gap:48,marginTop:8}}>
-                <div style={{textAlign:"center"}}>
-                  <div style={{fontSize:56,fontWeight:800,color:acc,letterSpacing:"-2px",lineHeight:1}}>{sentCount}</div>
-                  <div style={{fontSize:13,color:txm,marginTop:6}}>Sent</div>
-                </div>
-                <div style={{textAlign:"center"}}>
-                  <div style={{fontSize:56,fontWeight:800,color:txm,letterSpacing:"-2px",lineHeight:1}}>{Math.max(0,audience.length-sentCount-failCount)}</div>
-                  <div style={{fontSize:13,color:txm,marginTop:6}}>Remaining</div>
-                </div>
-                {failCount>0&&<div style={{textAlign:"center"}}>
-                  <div style={{fontSize:56,fontWeight:800,color:"#fb7185",letterSpacing:"-2px",lineHeight:1}}>{failCount}</div>
-                  <div style={{fontSize:13,color:txm,marginTop:6}}>Failed</div>
-                </div>}
-              </div>
-              <div style={{width:400,height:8,borderRadius:100,background:ibg,overflow:"hidden"}}>
-                <div style={{height:"100%",borderRadius:100,background:acc,
                   width:audience.length>0?`${Math.round(((sentCount+failCount)/audience.length)*100)}%`:"0%",
                   transition:"width 0.4s"}}/>
               </div>
@@ -817,7 +820,7 @@ export default function Campaigns(){
               </div>
             </div>
           )}
-
+ 
           {/* ══════════════════════════════════════════════════════════
               DONE
           ══════════════════════════════════════════════════════════ */}
@@ -874,13 +877,13 @@ export default function Campaigns(){
               </div>
             </div>
           )}
-
+ 
           {/* ══════════════════════════════════════════════════════════
               COMPOSE — DESKTOP: Left panel + Right form
           ══════════════════════════════════════════════════════════ */}
           {view==="compose"&&step==="setup"&&(
             <div className="desktop">
-
+ 
               {/* ── LEFT: Template library ── */}
               <div className="left-panel">
                 <div style={{padding:"16px 16px 10px",borderBottom:`1px solid ${bdr}`,position:"sticky",top:0,background:sb,zIndex:5}}>
@@ -912,11 +915,11 @@ export default function Campaigns(){
                   </div>
                 ))}
               </div>
-
+ 
               {/* ── RIGHT: Step-by-step form ── */}
               <div className="right-area">
                 <div className="right-pad">
-
+ 
                   {!selectedTmplId&&(
                     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:400,gap:12,color:txf}}>
                       <div style={{fontSize:48,opacity:0.2}}>←</div>
@@ -924,7 +927,7 @@ export default function Campaigns(){
                       <div style={{fontSize:12.5}}>Filter by industry on the left</div>
                     </div>
                   )}
-
+ 
                   {/* STEP 1 — Campaign name + vars */}
                   {selectedTmplId&&(
                     <div className="step-card">
@@ -951,7 +954,7 @@ export default function Campaigns(){
                             onChange={e=>setCampaignName(e.target.value)}
                             style={{...inp,border:`1px solid ${!campaignName.trim()?"rgba(251,113,133,0.4)":cbdr}`,fontSize:14}}/>
                         </div>
-
+ 
                         {/* Template vars — 2-column grid on desktop */}
                         <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:12}}>Template Variables</div>
                         <div className="var-grid">
@@ -973,14 +976,14 @@ export default function Campaigns(){
                             </div>
                           ))}
                         </div>
-
+ 
                         <div style={{marginTop:16,padding:"11px 14px",background:`${acc}0d`,border:`1px solid ${acc}22`,borderRadius:9,fontSize:12,color:txm}}>
                           ✅ Approved Meta template — reaches any number, no 24hr restriction
                         </div>
                       </div>
                     </div>
                   )}
-
+ 
                   {/* STEP 2 — Audience */}
                   {selectedTmplId&&campaignName.trim()&&(
                     <div className="step-card">
@@ -1016,7 +1019,7 @@ export default function Campaigns(){
                             )
                           })}
                         </div>
-
+ 
                         {/* Manual numbers */}
                         {segment==="manual"&&(
                           <div style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:10,padding:16,marginTop:4}}>
@@ -1033,7 +1036,7 @@ export default function Campaigns(){
                             </div>
                           </div>
                         )}
-
+ 
                         {/* CSV upload */}
                         {segment==="csv"&&(
                           <div style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:10,padding:16,marginTop:4}}>
@@ -1054,7 +1057,7 @@ export default function Campaigns(){
                       </div>
                     </div>
                   )}
-
+ 
                   {/* STEP 3 — Preview + Test + Send */}
                   {selectedTmplId&&campaignName.trim()&&audience.length>0&&(
                     <div className="step-card">
@@ -1067,7 +1070,7 @@ export default function Campaigns(){
                       </div>
                       <div className="step-body">
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,marginBottom:24}}>
-
+ 
                           {/* WhatsApp preview */}
                           <div>
                             <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:10}}>Message preview</div>
@@ -1080,7 +1083,7 @@ export default function Campaigns(){
                               </div>
                             </div>
                           </div>
-
+ 
                           {/* Right: Test + Summary */}
                           <div style={{display:"flex",flexDirection:"column",gap:16}}>
                             {/* Test send */}
@@ -1102,7 +1105,7 @@ export default function Campaigns(){
                                 </button>
                               </div>
                             </div>
-
+ 
                             {/* Campaign summary */}
                             <div style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:11,padding:"14px 16px",flex:1}}>
                               <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:12}}>Campaign Summary</div>
@@ -1121,7 +1124,7 @@ export default function Campaigns(){
                             </div>
                           </div>
                         </div>
-
+ 
                         {/* Send button */}
                         <button onClick={sendCampaign} disabled={!canSend||sending}
                           style={{width:"100%",padding:"16px",
@@ -1150,7 +1153,7 @@ export default function Campaigns(){
           )}
         </div>
       </div>
-
+ 
       {/* Mobile bottom nav */}
       <nav className="bnav">
         {[
@@ -1169,3 +1172,71 @@ export default function Campaigns(){
     </>
   )
 }
+ 
+                          </div>
+                        </div>
+ 
+                        {/* Send button */}
+                        <button onClick={sendCampaign} disabled={!canSend||sending}
+                        {/* Schedule toggle */}
+                        <div style={{display:"flex",gap:8,marginBottom:14}}>
+                          {[["now","Send Now"],["scheduled","Schedule"]].map(([mode,label])=>(
+                            <button key={mode} onClick={()=>setScheduleMode(mode)}
+                              style={{flex:1,padding:"10px",borderRadius:9,
+                                background:scheduleMode===mode?adim:ibg,
+                                border:`1px solid ${scheduleMode===mode?acc+"44":cbdr}`,
+                                color:scheduleMode===mode?acc:txm,
+                                fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                              {mode==="now"?"⚡":"🕐"} {label}
+                            </button>
+                          ))}
+                        </div>
+ 
+                        {scheduleMode==="scheduled"&&(
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                            <div>
+                              <div style={{fontSize:12,color:txm,fontWeight:600,marginBottom:5}}>Date</div>
+                              <input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)}
+                                min={new Date().toISOString().split("T")[0]}
+                                style={{...inp,fontSize:13}}/>
+                            </div>
+                            <div>
+                              <div style={{fontSize:12,color:txm,fontWeight:600,marginBottom:5}}>Time</div>
+                              <input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)}
+                                style={{...inp,fontSize:13}}/>
+                            </div>
+                          </div>
+                        )}
+ 
+                        {/* Send / Schedule button */}
+                        <button onClick={scheduleMode==="now"?sendCampaign:()=>{
+                          if(!scheduleDate||!scheduleTime){alert("Please select date and time");return}
+                          alert("Campaign scheduled for "+scheduleDate+" at "+scheduleTime+".\n\nNote: Scheduled sending requires a background worker (cron job). For now, the campaign is saved as draft — send manually at the scheduled time.")
+                          saveDraft()
+                        }} disabled={!canSend||sending}
+                          style={{width:"100%",padding:"16px",
+                            background:canSend?"#00c47d":ibg,
+                            border:`1px solid ${canSend?"#00c47d":cbdr}`,
+                            marginBottom:8}}>
+                          {!allVarsFilled
+                            ?"↑ Fill in all template details"
+                            :scheduleMode==="scheduled"
+                            ?`🕐 Schedule for ${audience.length} ${audience.length===1?"person":"people"}`
+                            :`🚀 Send to ${audience.length} ${audience.length===1?"person":"people"} · ₹${(audience.length*selectedTmpl.metaCost).toFixed(2)} Meta cost`}
+                        </button>
+                        <div style={{fontSize:12,color:txf,textAlign:"center"}}>
+                          1 msg/sec · Meta rate safe · No 24hr window restriction
+ 
+                        {/* Save as draft */}
+                        <div style={{display:"flex",gap:10,alignItems:"center",justifyContent:"center",marginTop:4}}>
+                          <button onClick={saveDraft} disabled={!campaignName.trim()||!selectedTmplId}
+                            style={{padding:"6px 16px",borderRadius:7,background:"transparent",border:`1px solid ${cbdr}`,
+                              color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                            💾 Save as Draft
+                          </button>
+                          <span style={{fontSize:12,color:txf}}>
+                            {scheduleMode==="now"?"1 msg/sec · Meta rate safe":"Saved campaigns appear in History"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
