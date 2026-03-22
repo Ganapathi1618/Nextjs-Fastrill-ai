@@ -2,7 +2,6 @@
 export const dynamic = "force-dynamic"
 import { useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
-import { useRouter } from "next/navigation"
 
 function getSupabase() {
   return createClient(
@@ -12,7 +11,6 @@ function getSupabase() {
 }
 
 export default function LoginPage() {
-  const router = useRouter()
   const [step, setStep]       = useState("email") // email | otp | password
   const [mode, setMode]       = useState("otp")   // otp | password
   const [email, setEmail]     = useState("")
@@ -26,7 +24,7 @@ export default function LoginPage() {
   // Check if already logged in
   useEffect(() => {
     getSupabase().auth.getSession().then(({ data: { session } }) => {
-      if (session) router.replace("/dashboard")
+      if (session) window.location.href = "/dashboard"
     })
     // Check for error in URL
     const params = new URLSearchParams(window.location.search)
@@ -71,7 +69,7 @@ export default function LoginPage() {
       if (error) throw error
       // New user → onboarding, returning → dashboard
       const isNew = data.user?.created_at && (Date.now() - new Date(data.user.created_at).getTime()) < 10000
-      router.replace(isNew ? "/onboarding" : "/dashboard")
+      window.location.href = isNew ? "/onboarding" : "/dashboard"
     } catch(e) {
       setError(e.message?.includes("expired") ? "Code expired. Please request a new one." : e.message?.includes("invalid") ? "Invalid code. Please check and try again." : "Verification failed. Please try again.")
     } finally { setLoading(false) }
@@ -86,7 +84,7 @@ export default function LoginPage() {
         email: email.trim().toLowerCase(), password
       })
       if (error) throw error
-      router.replace("/dashboard")
+      window.location.href = "/dashboard"
     } catch(e) {
       setError(e.message?.includes("Invalid") ? "Incorrect email or password." : e.message || "Login failed.")
     } finally { setLoading(false) }
