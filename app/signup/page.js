@@ -2,7 +2,6 @@
 export const dynamic = "force-dynamic"
 import { useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
-import { useRouter } from "next/navigation"
 
 function getSupabase() {
   return createClient(
@@ -12,7 +11,6 @@ function getSupabase() {
 }
 
 export default function SignupPage() {
-  const router = useRouter()
   const [step, setStep]     = useState("email") // email | otp
   const [email, setEmail]   = useState("")
   const [otp, setOtp]       = useState("")
@@ -23,7 +21,7 @@ export default function SignupPage() {
 
   useEffect(() => {
     getSupabase().auth.getSession().then(({ data: { session } }) => {
-      if (session) router.replace("/dashboard")
+      if (session) window.location.href = "/dashboard"
     })
   }, [])
 
@@ -65,7 +63,7 @@ export default function SignupPage() {
       })
       if (error) throw error
       // Always send to onboarding on signup
-      router.replace("/onboarding")
+      window.location.href = "/onboarding"
     } catch(e) {
       setError(e.message?.includes("expired") ? "Code expired. Please request a new one." : e.message?.includes("invalid") ? "Invalid code. Please check and try again." : "Verification failed. Please try again.")
     } finally { setLoading(false) }
