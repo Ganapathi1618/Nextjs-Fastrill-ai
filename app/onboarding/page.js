@@ -340,10 +340,11 @@ export default function OnboardingPage() {
                     You'll be redirected to Facebook to authorize Fastrill to use your WhatsApp Business number. This takes about 2 minutes.
                   </div>
                   <button onClick={() => {
-                    const appId     = process.env.NEXT_PUBLIC_META_APP_ID || ""
-                    const configId  = process.env.NEXT_PUBLIC_META_CONFIG_ID || ""
-                    const appUrl    = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-                    const redirect  = encodeURIComponent(appUrl + "/api/meta/callback")
+                    // These are public Meta app IDs — safe to be in client code
+                    const appId    = process.env.NEXT_PUBLIC_META_APP_ID || "780799931531576"
+                    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1090960043190718"
+                    const appUrl   = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+                    const redirect = encodeURIComponent(appUrl + "/api/meta/callback")
                     window.location.href = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirect}&response_type=code&config_id=${configId}`
                   }} style={{ width:"100%", padding:"12px", borderRadius:"9px", border:"none", background:"#1877f2", color:"#fff", fontWeight:"700", fontSize:"14px", cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
                     Connect WhatsApp via Meta →
