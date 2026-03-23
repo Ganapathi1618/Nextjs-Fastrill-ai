@@ -13,6 +13,9 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
+// In-memory lock to prevent duplicate processing when Meta sends webhook twice
+const processingLock = new Set()
+
 // ── GET: Webhook verification ──────────────────────────────────
 async function GET(req) {
   const { searchParams } = new URL(req.url)
@@ -31,7 +34,7 @@ async function POST(req) {
   try {
     const body = await req.json()
 
-    // Delivery/read status updates
+    // Delivery/read status updates — return 200 immediately
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
     const hasMsg   = body?.entry?.[0]?.changes?.[0]?.value?.messages
     if (statuses && !hasMsg) {
@@ -79,21 +82,30 @@ async function POST(req) {
     return NextResponse.json({ status: "ok" })
 
   } catch(err) {
-    console.error("❌ Webhook fatal:", err.message)
+    console.error("❌ Webhook fatal:", err.message, err.stack)
+    // Always return 200 to Meta — returning 500 causes infinite retries
     return NextResponse.json({ status: "error" }, { status: 200 })
   }
 }
 
+// ── Process single message ─────────────────────────────────────
 async function processMessage({ message, contacts, userId, accessToken, phoneNumberId }) {
   // 1. Normalize
   const msg = normalizeMessage(message, contacts)
   console.log("📩 " + msg.phone + " (" + msg.contactName + "): \"" + (msg.effectiveText || "["+msg.type+"]") + "\"")
 
-  // 2. Deduplicate
-  if (await isDuplicate(msg.messageId)) {
-    console.log("⚠️ Duplicate:", msg.messageId)
+  // 2. Deduplicate — in-memory lock first (fast), then DB check
+  if (processingLock.has(msg.messageId)) {
+    console.log("⚠️ Already processing:", msg.messageId)
     return
   }
+  if (await isDuplicate(msg.messageId)) {
+    console.log("⚠️ Duplicate in DB:", msg.messageId)
+    return
+  }
+  // Acquire lock — release after 30s
+  processingLock.add(msg.messageId)
+  setTimeout(() => processingLock.delete(msg.messageId), 30000)
 
   // 3. Upsert customer + conversation
   const { customer, isNew } = await upsertCustomer({
@@ -144,7 +156,7 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     return
   }
 
-  // 8. Orchestrate
+  // 8. Orchestrate — get AI reply
   const reply = await orchestrate({
     userId,
     conversationId: conversation?.id,
