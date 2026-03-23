@@ -333,13 +333,15 @@ export default function Conversations() {
         .c-item.sel{background:${adim};border-left:2px solid ${acc};}
         .chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden;}
         .chat-head{padding:12px 16px;border-bottom:1px solid ${bdr};display:flex;align-items:center;justify-content:space-between;background:${card};flex-shrink:0;}
-        .chat-msgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px;background:${bg};}
-        .msg-row{display:flex;}
-        .msg-bubble{max-width:68%;padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap;}
-        .msg-bubble.inbound{background:${card};border:1px solid ${cbdr};color:${tx};border-radius:4px 12px 12px 12px;}
-        .msg-bubble.outbound-ai{background:${acc}22;border:1px solid ${acc}44;color:${tx};border-radius:12px 4px 12px 12px;}
-        .msg-bubble.outbound-human{background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.3);color:${tx};border-radius:12px 4px 12px 12px;}
-        .msg-time{font-size:10px;color:${txf};margin-top:3px;}
+        .chat-msgs{flex:1;overflow-y:auto;padding:16px 12px;display:flex;flex-direction:column;gap:4px;background:${dark?'#0d1117':'#efeae2'};}
+        .msg-row{display:flex;width:100%;}
+        .msg-row.inbound{justify-content:flex-start;}
+        .msg-row.outbound{justify-content:flex-end;}
+        .msg-bubble{max-width:68%;min-width:60px;padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap;}
+        .msg-bubble.inbound{background:${card};border:1px solid ${cbdr};color:${tx};border-radius:0px 12px 12px 12px;}
+        .msg-bubble.outbound-ai{background:${dark?'#005c4b':'#dcf8c6'};border:none;color:${dark?'#e9edef':'#111'};border-radius:12px 0px 12px 12px;}
+        .msg-bubble.outbound-human{background:${dark?'#2a2f32':'#dcf8c6'};border:none;color:${dark?'#e9edef':'#111'};border-radius:12px 0px 12px 12px;}
+        .msg-time{font-size:10px;color:${txf};margin-top:2px;}
         .msg-from{font-size:10px;font-weight:700;margin-bottom:2px;letter-spacing:0.3px;}
         .chat-input{padding:10px 14px;border-top:1px solid ${bdr};background:${card};display:flex;gap:8px;align-items:center;flex-shrink:0;}
         .msg-field{flex:1;background:${ibg};border:1px solid ${cbdr};border-radius:9px;padding:9px 13px;font-size:13px;color:${tx};font-family:'Plus Jakarta Sans',sans-serif;outline:none;resize:none;}
@@ -507,10 +509,16 @@ export default function Conversations() {
                     if (!msgText && !m.message_type) return null
                     return (
                       <div key={m.id || i} className={"msg-row " + dir}>
-                        <div style={{maxWidth:"68%"}}>
-                          <div className="msg-from" style={{color:fromCol, textAlign:dir==="inbound"?"left":"right"}}>{from}</div>
-                          <div className={"msg-bubble " + bClass}>{msgText || "📎 " + (m.message_type || "Media")}</div>
-                          <div className="msg-time" style={{textAlign:dir==="inbound"?"left":"right"}}>{formatMsgTime(m.created_at)}</div>
+                        <div style={{maxWidth:"68%", display:"flex", flexDirection:"column", alignItems: dir==="inbound"?"flex-start":"flex-end"}}>
+                          {dir === "inbound" && <div className="msg-from" style={{color:fromCol}}>{from}</div>}
+                          <div className={"msg-bubble " + bClass}>
+                            {dir === "outbound" && isAI && <span style={{fontSize:"9px", fontWeight:700, color: dark?"rgba(255,255,255,0.5)":"rgba(0,0,0,0.4)", display:"block", marginBottom:"3px", letterSpacing:"0.5px"}}>◈ AI</span>}
+                            <span>{msgText || "📎 " + (m.message_type || "Media")}</span>
+                            <div style={{display:"flex", alignItems:"center", justifyContent:"flex-end", gap:"3px", marginTop:"3px"}}>
+                              <span style={{fontSize:"10px", color: dir==="outbound"?(dark?"rgba(255,255,255,0.55)":"rgba(0,0,0,0.45)"):"rgba(255,255,255,0.4)", lineHeight:1}}>{formatMsgTime(m.created_at)}</span>
+                              {dir === "outbound" && <span style={{fontSize:"11px", color:dark?"#53bdeb":"#4fc3f7"}}>✓✓</span>}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )
