@@ -154,7 +154,7 @@ export default function Dashboard() {
         html,body{background:${bg}!important;color:${tx}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
         .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;}
-        .logo{padding:20px 18px 16px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:block;border-bottom:1px solid ${bdr};}
+        .logo{padding:20px 18px 16px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:flex;align-items:center;gap:8px;border-bottom:1px solid ${bdr};}
         .logo span{color:${acc};}
         .nav-sec{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${txf};font-weight:600;}
         .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
@@ -212,7 +212,7 @@ export default function Dashboard() {
       <div className="wrap">
         <div className={"mob-ov"+(mobSidebarOpen?" open":"")} onClick={()=>setMobSidebarOpen(false)}/>
         <aside className={"sidebar"+(mobSidebarOpen?" open":"")}>
-          <a href="/dashboard" className="logo">fast<span>rill</span></a>
+          <a href="/dashboard" className="logo" style={{display:"flex",alignItems:"center",gap:"8px"}}><svg width="26" height="26" viewBox="0 0 100 100" fill="none" style={{flexShrink:0}}><path d="M50 50 C40 42 28 34 18 32 C8 30 4 40 9 48 C14 56 28 54 50 50Z" stroke="#9B7FE8" strokeWidth="8" strokeLinecap="round" fill="none"/><path d="M50 50 C40 58 28 66 18 68 C8 70 4 60 9 52 C14 44 28 46 50 50Z" stroke="#9B7FE8" strokeWidth="8" strokeLinecap="round" fill="none"/><circle cx="18" cy="32" r="4.5" fill="#9B7FE8"/><circle cx="18" cy="68" r="4.5" fill="#9B7FE8"/><circle cx="34" cy="50" r="3.5" fill="#9B7FE8"/><path d="M50 50 C60 42 72 34 82 32 C92 30 96 40 91 48 C86 56 72 54 50 50Z" stroke="#00C9B1" strokeWidth="8" strokeLinecap="round" fill="none"/><path d="M50 50 C60 58 72 66 82 68 C92 70 96 60 91 52 C86 44 72 46 50 50Z" stroke="#00C9B1" strokeWidth="8" strokeLinecap="round" fill="none"/><circle cx="82" cy="32" r="4.5" fill="#00C9B1"/><circle cx="82" cy="68" r="4.5" fill="#00C9B1"/><circle cx="66" cy="50" r="3.5" fill="#00C9B1"/></svg><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px"}}>fast<span style={{color:acc}}>rill</span></span></a>
           <div className="nav-sec">Platform</div>
           {NAV.map(item=>(
             <button key={item.id} className={"nav-item"+(item.id==="overview"?" active":"")} onClick={()=>router.push(item.path)}>
