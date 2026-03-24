@@ -154,7 +154,7 @@ export default function Dashboard() {
         html,body{background:${bg}!important;color:${tx}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
         .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;}
-        .logo{padding:18px 16px 14px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:flex;align-items:center;gap:10px;border-bottom:1px solid ${bdr};}
+        .logo{padding:18px 16px 14px;font-weight:800;font-size:26px;color:${tx};text-decoration:none;display:flex;align-items:center;gap:10px;border-bottom:1px solid ${bdr};}
         .logo span{color:${acc};}
         .nav-sec{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${txf};font-weight:600;}
         .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
