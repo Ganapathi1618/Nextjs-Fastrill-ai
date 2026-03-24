@@ -2,6 +2,9 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import { useAuth }  from "@/lib/hooks/useAuth"
+import { useTheme } from "@/lib/hooks/useTheme"
+import { useToast } from "@/components/Toast"
 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
@@ -15,10 +18,11 @@ const NAV = [
 ]
 
 export default function Analytics() {
+  const { userId, userEmail, loading: authLoading, logout } = useAuth()
+  const { dark, toggleTheme, colors, inputStyle: inp } = useTheme()
+  const toast = useToast()
+
   const router = useRouter()
-  const [userEmail, setUserEmail] = useState("")
-  const [userId, setUserId]       = useState(null)
-  const [dark, setDark]           = useState(true)
   const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
   const [loading, setLoading]     = useState(true)
   const [period, setPeriod]       = useState("30") // days
@@ -120,18 +124,18 @@ export default function Analytics() {
     setLoading(false)
   }
 
-  const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
-  const handleLogout = async () => { await supabase.auth.signOut(); router.push("/login") }
+  // toggleTheme now from useTheme() hook
+  // logout now from useAuth() hook
 
   const bg=dark?"#08080e":"#f0f2f5", sidebar=dark?"#0c0c15":"#ffffff", card=dark?"#0f0f1a":"#ffffff"
   const border=dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.08)", cardBorder=dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.09)"
   const text=dark?"#eeeef5":"#111827", textMuted=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
   const textFaint=dark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.25)", inputBg=dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
-  const accent=dark?"#00d084":"#00935a"
+  const accent=dark?"#00C9B1":"#00897A"
   const navText=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
   const navActive=dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)"
-  const navActiveBorder=dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
-  const navActiveText=dark?"#00c47d":"#00935a"
+  const navActiveBorder = colors.navActiveBdr // dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
+  const navActiveText = colors.navActiveText // dark?"#00B5A0":"#00897A"
   const userInitial = userEmail?userEmail[0].toUpperCase():"G"
 
   // Mini bar chart component
@@ -187,7 +191,7 @@ export default function Analytics() {
         html,body{background:${bg}!important;color:${text}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;}
         .sidebar{width:224px;flex-shrink:0;background:${sidebar};border-right:1px solid ${border};display:flex;flex-direction:column;overflow-y:auto;}
-        .logo{padding:22px 20px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:block;border-bottom:1px solid ${border};}
+        .logo{padding:16px 18px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:flex;flex-direction:row;align-items:center;gap:10px;border-bottom:1px solid ${bdr};line-height:1;};text-decoration:none;display:block;border-bottom:1px solid ${border};}
         .logo span{color:${accent};}
         .nav-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${textFaint};font-weight:600;}
         .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
@@ -255,12 +259,12 @@ export default function Analytics() {
         .bnav-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
         .bnav-icon{font-size:17px;color:rgba(255,255,255,0.3);}
         .bnav-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
-        .bnav-btn.active .bnav-icon,.bnav-btn.active .bnav-label{color:#00d084;}
+        .bnav-btn.active .bnav-icon,.bnav-btn.active .bnav-label{color:#00C9B1;}
       `}</style>
 
       <div className="wrap">
         <aside className={`sidebar${mobSidebarOpen?" mob-open":""}`}>
-          <a href="/dashboard" className="logo">fast<span>rill</span></a>
+          <a href="/dashboard" className="logo" style={{display:"flex",alignItems:"center",gap:"8px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:acc}}>rill</span></span></a>
           <div className="nav-section">Platform</div>
           {NAV.map(item => (
             <button key={item.id} className={`nav-item${item.id==="analytics"?" active":""}`} onClick={() => router.push(item.path)}>
