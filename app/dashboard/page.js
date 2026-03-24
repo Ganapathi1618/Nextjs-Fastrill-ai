@@ -67,19 +67,33 @@ export default function Dashboard() {
       setConnected(!!wa)
       const bks = allBks || []
 
-      const periodBks  = period==="today" ? bks.filter(b=>b.booking_date===todayStr) : bks.filter(b=>b.booking_date>=fromDateStr)
-      const confirmedAll = bks.filter(b=>b.status==="confirmed"||b.status==="completed")
-      const revenue    = confirmedAll.reduce((s,b)=>s+(b.amount||0),0)
-      const aiRevenue  = bks.filter(b=>b.ai_booked&&(b.status==="confirmed"||b.status==="completed")).reduce((s,b)=>s+(b.amount||0),0)
-      const avgVal     = confirmedAll.length>0 ? Math.round(revenue/confirmedAll.length) : 0
-      const aiHandled  = (msgs||[]).filter(m=>m.is_ai&&m.direction==="outbound").length
-      const aiBookings = bks.filter(b=>b.ai_booked).length
-      const missedLeads= (leads||[]).filter(l=>l.status==="open").length
+      // Period-filtered bookings — revenue, bookings, AI stats all scoped to selected period
+      const periodBks     = period==="today"
+        ? bks.filter(b=>b.booking_date===todayStr)
+        : bks.filter(b=>b.booking_date>=fromDateStr)
+
+      // Revenue = period bookings that are confirmed/completed ONLY
+      const periodConfirmed = periodBks.filter(b=>b.status==="confirmed"||b.status==="completed")
+      const revenue         = periodConfirmed.reduce((s,b)=>s+(b.amount||0),0)
+
+      // AI revenue = period bookings booked by AI
+      const aiRevenue = periodBks.filter(b=>b.ai_booked&&(b.status==="confirmed"||b.status==="completed")).reduce((s,b)=>s+(b.amount||0),0)
+
+      // Avg service value = revenue / number of confirmed bookings this period
+      const avgVal = periodConfirmed.length>0 ? Math.round(revenue/periodConfirmed.length) : 0
+
+      // AI performance = messages in period
+      const aiHandled   = (msgs||[]).filter(m=>m.is_ai&&m.direction==="outbound").length
+      const aiBookings  = periodBks.filter(b=>b.ai_booked).length
+      const missedLeads = (leads||[]).filter(l=>l.status==="open").length
       const uniqueConvos= new Set((msgs||[]).map(m=>m.conversation_id).filter(Boolean)).size
 
       setAvgServiceValue(avgVal)
       setStats({ revenue, leads:(leads||[]).length, bookings:periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue })
-      setFunnel({ customers:(customers||[]).length, convos:uniqueConvos, booked:bks.length, completed:confirmedAll.length, revenue })
+
+      // Funnel — all time totals (not period filtered — shows full business picture)
+      const allConfirmed = bks.filter(b=>b.status==="confirmed"||b.status==="completed")
+      setFunnel({ customers:(customers||[]).length, convos:uniqueConvos, booked:periodBks.length, completed:periodConfirmed.length, revenue })
       setTodayBookings(bks.filter(b=>b.booking_date===todayStr).slice(0,4))
 
       const srcMap={}
@@ -110,11 +124,11 @@ export default function Dashboard() {
   const bdr=dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.08)", cbdr=dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.09)"
   const tx=dark?"#eeeef5":"#111827", txm=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
   const txf=dark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.25)", ibg=dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
-  const acc=dark?"#00d084":"#00935a"
+  const acc=dark?"#00C9B1":"#00897A"
   const navText=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
   const navActive=dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)"
   const navActiveBorder=dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
-  const navActiveText=dark?"#00c47d":"#00935a"
+  const navActiveText=dark?"#00B5A0":"#00897A"
   const adim=dark?"rgba(0,208,132,0.12)":"rgba(0,147,90,0.1)"
   const ui=userEmail?userEmail[0].toUpperCase():"G"
   const hColor=healthScore>=75?acc:healthScore>=40?"#f59e0b":"#ef4444"
@@ -140,7 +154,7 @@ export default function Dashboard() {
         html,body{background:${bg}!important;color:${tx}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
         .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;}
-        .logo{padding:22px 20px 18px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:block;border-bottom:1px solid ${bdr};}
+        .logo{padding:20px 18px 16px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:block;border-bottom:1px solid ${bdr};}
         .logo span{color:${acc};}
         .nav-sec{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${txf};font-weight:600;}
         .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
