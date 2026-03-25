@@ -2,8 +2,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { useAuth }  from "@/lib/hooks/useAuth"
-import { useTheme } from "@/lib/hooks/useTheme"
 import { useToast } from "@/components/Toast"
 
 const NAV = [
@@ -29,8 +27,21 @@ const getTodayStr = () => {
 }
 
 export default function Bookings() {
-  const { userId, userEmail, loading: authLoading, logout } = useAuth()
-  const { dark, toggleTheme, colors, inputStyle: inp } = useTheme()
+  const router = useRouter()
+  const toast  = useToast()
+  const [userId,      setUserId]      = useState(null)
+  const [userEmail,   setUserEmail]   = useState("")
+  const [authLoading, setAuthLoading] = useState(true)
+  const [dark,        setDark]        = useState(true)
+  useEffect(() => {
+    const saved = localStorage.getItem("fastrill-theme")
+    if (saved) setDark(saved === "dark")
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) { setUserId(session.user.id); setUserEmail(session.user.email||"") }
+      setAuthLoading(false)
+    })
+  }, [])
+  const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
   const toast = useToast()
 
   const router = useRouter()
@@ -122,8 +133,6 @@ export default function Bookings() {
     setSaving(false)
   }
 
-  // toggleTheme now from useTheme() hook
-  // logout now from useAuth() hook
 
   // ─── Theme tokens ──────────────────────────────────────
   const bg=dark?"#08080e":"#f0f2f5", sidebar=dark?"#0c0c15":"#ffffff", card=dark?"#0f0f1a":"#ffffff"
@@ -137,8 +146,8 @@ export default function Bookings() {
   const accentDim=dark?"rgba(0,208,132,0.12)":"rgba(0,147,90,0.1)"
   const navText=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
   const navActive=dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)"
-  const navActiveBorder = colors.navActiveBdr // dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
-  const navActiveText = colors.navActiveText // dark?"#00B5A0":"#00897A"
+  const navActiveBorder = "rgba(0,201,177,0.2)" // dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
+  const navActiveText = "#00C9B1" // dark?"#00B5A0":"#00897A"
   const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
   const statusColor = { confirmed:accent, pending:"#f59e0b", "in-progress":"#38bdf8", completed:"#a78bfa", cancelled:"#fb7185" }
 
@@ -178,7 +187,6 @@ export default function Bookings() {
   }
   const filtered = filterMap[filter] || bookings
 
-  // inp now from useTheme() inputStyle`, borderRadius:8, padding:"9px 12px", fontSize:13, color:text, fontFamily:"'Plus Jakarta Sans',sans-serif", outline:"none", width:"100%" }
 
   // ─── Booking Card ──────────────────────────────────────
   const BookingCard = ({ b }) => {
@@ -294,7 +302,7 @@ export default function Bookings() {
 
       <div className="wrap">
         <aside className={`sidebar${mobSidebarOpen?" mob-open":""}`}>
-          <a href="/dashboard" className="logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px"}}>fast<span style={{color:acc}}>rill</span></span></a>
+          <a href="/dashboard" className="logo" style={{display:"flex",alignItems:"center",gap:"8px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px"}}>fast<span style={{color:acc}}>rill</span></span></a>
           <div className="nav-section">Platform</div>
           {NAV.map(item => (
             <button key={item.id} className={`nav-item${item.id==="bookings"?" active":""}`} onClick={() => router.push(item.path)}>
@@ -535,25 +543,25 @@ export default function Bookings() {
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget)setShowAdd(false)}}>
           <div style={{background:card,border:`1px solid ${cardBorder}`,borderRadius:16,padding:28,width:420,display:"flex",flexDirection:"column",gap:12}}>
             <div style={{fontWeight:800,fontSize:16,color:text,marginBottom:2}}>New Booking</div>
-            <input placeholder="Customer name *" value={newBk.customer_name} onChange={e=>setNewBk(p=>({...p,customer_name:e.target.value}))} style={inp}/>
-            <input placeholder="Phone (with country code)" value={newBk.customer_phone} onChange={e=>setNewBk(p=>({...p,customer_phone:e.target.value}))} style={inp}/>
+            <input placeholder="Customer name *" value={newBk.customer_name} onChange={e=>setNewBk(p=>({...p,customer_name:e.target.value}))} style={background:dark?"rgba(255,255,255,0.05)":"#f1f5f9",border:`1px solid ${dark?"rgba(255,255,255,0.1)":"#e2e8f0"}`,borderRadius:8,padding:"9px 12px",color:dark?"#eeeef5":"#1e293b",fontSize:13,outline:"none",width:"100%",fontFamily:"'Plus Jakarta Sans',sans-serif"}/>
+            <input placeholder="Phone (with country code)" value={newBk.customer_phone} onChange={e=>setNewBk(p=>({...p,customer_phone:e.target.value}))} style={background:dark?"rgba(255,255,255,0.05)":"#f1f5f9",border:`1px solid ${dark?"rgba(255,255,255,0.1)":"#e2e8f0"}`,borderRadius:8,padding:"9px 12px",color:dark?"#eeeef5":"#1e293b",fontSize:13,outline:"none",width:"100%",fontFamily:"'Plus Jakarta Sans',sans-serif"}/>
             <select value={newBk.service} onChange={e=>{
               const svc = services.find(s=>s.name===e.target.value)
               setNewBk(p=>({...p,service:e.target.value,amount:svc?.price?.toString()||p.amount}))
-            }} style={inp}>
+            }} style={background:dark?"rgba(255,255,255,0.05)":"#f1f5f9",border:`1px solid ${dark?"rgba(255,255,255,0.1)":"#e2e8f0"}`,borderRadius:8,padding:"9px 12px",color:dark?"#eeeef5":"#1e293b",fontSize:13,outline:"none",width:"100%",fontFamily:"'Plus Jakarta Sans',sans-serif"}>
               <option value="">Select service *</option>
               {services.map(s=><option key={s.name} value={s.name}>{s.name} — ₹{s.price}</option>)}
               <option value="Other">Other</option>
             </select>
-            <input placeholder="Staff member" value={newBk.staff} onChange={e=>setNewBk(p=>({...p,staff:e.target.value}))} style={inp}/>
+            <input placeholder="Staff member" value={newBk.staff} onChange={e=>setNewBk(p=>({...p,staff:e.target.value}))} style={background:dark?"rgba(255,255,255,0.05)":"#f1f5f9",border:`1px solid ${dark?"rgba(255,255,255,0.1)":"#e2e8f0"}`,borderRadius:8,padding:"9px 12px",color:dark?"#eeeef5":"#1e293b",fontSize:13,outline:"none",width:"100%",fontFamily:"'Plus Jakarta Sans',sans-serif"}/>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <input type="date" value={newBk.booking_date} onChange={e=>setNewBk(p=>({...p,booking_date:e.target.value}))} style={inp}/>
-              <select value={newBk.booking_time} onChange={e=>setNewBk(p=>({...p,booking_time:e.target.value}))} style={inp}>
+              <input type="date" value={newBk.booking_date} onChange={e=>setNewBk(p=>({...p,booking_date:e.target.value}))} style={background:dark?"rgba(255,255,255,0.05)":"#f1f5f9",border:`1px solid ${dark?"rgba(255,255,255,0.1)":"#e2e8f0"}`,borderRadius:8,padding:"9px 12px",color:dark?"#eeeef5":"#1e293b",fontSize:13,outline:"none",width:"100%",fontFamily:"'Plus Jakarta Sans',sans-serif"}/>
+              <select value={newBk.booking_time} onChange={e=>setNewBk(p=>({...p,booking_time:e.target.value}))} style={background:dark?"rgba(255,255,255,0.05)":"#f1f5f9",border:`1px solid ${dark?"rgba(255,255,255,0.1)":"#e2e8f0"}`,borderRadius:8,padding:"9px 12px",color:dark?"#eeeef5":"#1e293b",fontSize:13,outline:"none",width:"100%",fontFamily:"'Plus Jakarta Sans',sans-serif"}>
                 <option value="">Select time</option>
                 {TIMES.map(t=><option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <input placeholder="Amount (₹) — auto-filled from service" type="number" value={newBk.amount} onChange={e=>setNewBk(p=>({...p,amount:e.target.value}))} style={inp}/>
+            <input placeholder="Amount (₹) — auto-filled from service" type="number" value={newBk.amount} onChange={e=>setNewBk(p=>({...p,amount:e.target.value}))} style={background:dark?"rgba(255,255,255,0.05)":"#f1f5f9",border:`1px solid ${dark?"rgba(255,255,255,0.1)":"#e2e8f0"}`,borderRadius:8,padding:"9px 12px",color:dark?"#eeeef5":"#1e293b",fontSize:13,outline:"none",width:"100%",fontFamily:"'Plus Jakarta Sans',sans-serif"}/>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:"9px",background:inputBg,border:`1px solid ${cardBorder}`,borderRadius:8,color:textMuted,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Cancel</button>
               <button onClick={addBooking} disabled={saving||!newBk.customer_name||!newBk.service||!newBk.booking_date}
