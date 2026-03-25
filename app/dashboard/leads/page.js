@@ -2,8 +2,6 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { useAuth }  from "@/lib/hooks/useAuth"
-import { useTheme } from "@/lib/hooks/useTheme"
 import { useToast } from "@/components/Toast"
 
 const NAV = [
@@ -21,8 +19,21 @@ const NAV = [
 const COOLDOWN_DAYS = 3
 
 export default function Leads() {
-  const { userId, userEmail, loading: authLoading, logout } = useAuth()
-  const { dark, toggleTheme, colors, inputStyle: inp } = useTheme()
+  const router = useRouter()
+  const toast  = useToast()
+  const [userId,      setUserId]      = useState(null)
+  const [userEmail,   setUserEmail]   = useState("")
+  const [authLoading, setAuthLoading] = useState(true)
+  const [dark,        setDark]        = useState(true)
+  useEffect(() => {
+    const saved = localStorage.getItem("fastrill-theme")
+    if (saved) setDark(saved === "dark")
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) { setUserId(session.user.id); setUserEmail(session.user.email||"") }
+      setAuthLoading(false)
+    })
+  }, [])
+  const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
   const toast = useToast()
 
   const router = useRouter()
@@ -131,8 +142,6 @@ export default function Leads() {
     setSelected(remaining[0] || null)
   }
 
-  // toggleTheme now from useTheme() hook
-  // logout now from useAuth() hook
 
   const bg=dark?"#08080e":"#f0f2f5", sidebar=dark?"#0c0c15":"#ffffff", card=dark?"#0f0f1a":"#ffffff"
   const border=dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.08)", cardBorder=dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.09)"
@@ -140,7 +149,7 @@ export default function Leads() {
   const textFaint=dark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.25)", inputBg=dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
   const accent=dark?"#00C9B1":"#00897A", navText=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
   const navActive=dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)", navActiveBorder=dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
-  const navActiveText = colors.navActiveText // dark?"#00B5A0":"#00897A", accentDim=dark?"rgba(0,208,132,0.12)":"rgba(0,147,90,0.1)"
+  const navActiveText = "#00C9B1" // dark?"#00B5A0":"#00897A", accentDim=dark?"rgba(0,208,132,0.12)":"rgba(0,147,90,0.1)"
   const userInitial=userEmail?userEmail[0].toUpperCase():"G"
 
   const getScoreColor = (s) => s>=85?"#fb7185":s>=65?"#f59e0b":"#38bdf8"
@@ -238,7 +247,7 @@ export default function Leads() {
 
       <div className="wrap">
         <aside className={`sidebar${mobSidebarOpen?" mob-open":""}`}>
-          <a href="/dashboard" className="logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px"}}>fast<span style={{color:acc}}>rill</span></span></a>
+          <a href="/dashboard" className="logo" style={{display:"flex",alignItems:"center",gap:"8px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px"}}>fast<span style={{color:acc}}>rill</span></span></a>
           <div className="nav-section">Platform</div>
           {NAV.map(item=>(
             <button key={item.id} className={`nav-item${item.id==="leads"?" active":""}`} onClick={()=>router.push(item.path)}>
