@@ -42,9 +42,7 @@ export default function Bookings() {
     })
   }, [])
   const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
-  const toast = useToast()
 
-  const router = useRouter()
   const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
   const [view, setView]             = useState("list")
   const [bookings, setBookings]     = useState([])
@@ -574,3 +572,4 @@ export default function Bookings() {
       )}
     </>
   )
+}
