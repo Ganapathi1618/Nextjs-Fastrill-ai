@@ -69,8 +69,8 @@ export default function Dashboard() {
 
       // Period-filtered bookings — revenue, bookings, AI stats all scoped to selected period
       const periodBks     = period==="today"
-        ? bks.filter(b=>b.booking_date===todayStr)
-        : bks.filter(b=>b.booking_date>=fromDateStr)
+        ? bks.filter(b=>b.booking_date===todayStr&&b.status!=="cancelled")
+        : bks.filter(b=>b.booking_date>=fromDateStr&&b.status!=="cancelled")
 
       // Revenue = period bookings that are confirmed/completed ONLY
       const periodConfirmed = periodBks.filter(b=>b.status==="confirmed"||b.status==="completed")
@@ -84,7 +84,7 @@ export default function Dashboard() {
 
       // AI performance = messages in period
       const aiHandled   = (msgs||[]).filter(m=>m.is_ai&&m.direction==="outbound").length
-      const aiBookings  = periodBks.filter(b=>b.ai_booked).length
+      const aiBookings  = periodBks.filter(b=>b.ai_booked&&b.status!=="cancelled").length
       const missedLeads = (leads||[]).filter(l=>l.status==="open").length
       const uniqueConvos= new Set((msgs||[]).map(m=>m.conversation_id).filter(Boolean)).size
 
@@ -94,7 +94,7 @@ export default function Dashboard() {
       // Funnel — all time totals (not period filtered — shows full business picture)
       const allConfirmed = bks.filter(b=>b.status==="confirmed"||b.status==="completed")
       setFunnel({ customers:(customers||[]).length, convos:uniqueConvos, booked:periodBks.length, completed:periodConfirmed.length, revenue })
-      setTodayBookings(bks.filter(b=>b.booking_date===todayStr).slice(0,4))
+      setTodayBookings(bks.filter(b=>b.booking_date===todayStr&&b.status!=="cancelled").slice(0,4))
 
       const srcMap={}
       for(const l of (leads||[])) { const s=l.source||"Organic"; srcMap[s]=(srcMap[s]||0)+1 }
