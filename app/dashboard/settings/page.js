@@ -74,10 +74,10 @@ export default function SettingsPage() {
   const textMuted  = dark ? "rgba(255,255,255,0.45)"  : "rgba(0,0,0,0.5)"
   const textFaint  = dark ? "rgba(255,255,255,0.2)"   : "rgba(0,0,0,0.25)"
   const inputBg    = dark ? "rgba(255,255,255,0.04)"  : "rgba(0,0,0,0.03)"
-  const accent     = dark ? "#00d084"                 : "#00935a"
+  const accent     = dark ? "#00C9B1"                 : "#00897A"
   const navActive  = dark ? "rgba(0,196,125,0.1)"     : "rgba(0,180,115,0.08)"
   const navActiveBorder = dark ? "rgba(0,196,125,0.2)": "rgba(0,180,115,0.2)"
-  const navActiveText   = dark ? "#00c47d"            : "#00935a"
+  const navActiveText   = dark ? "#00B5A0"            : "#00897A"
 
   const inp = {
     background: inputBg, border: `1px solid ${cardBorder}`, borderRadius: 8,
@@ -264,7 +264,7 @@ export default function SettingsPage() {
         html,body{background:${bg}!important;color:${text}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .s-wrap{display:flex;height:100vh;overflow:hidden;}
         .s-sidebar{width:224px;flex-shrink:0;background:${sidebar};border-right:1px solid ${border};display:flex;flex-direction:column;overflow-y:auto;}
-        .s-logo{padding:22px 20px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:block;border-bottom:1px solid ${border};}
+        .s-logo{padding:16px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:flex;flex-direction:row;align-items:center;gap:10px;border-bottom:1px solid ${border};line-height:1;}
         .s-logo span{color:${accent};}
         .s-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${textFaint};font-weight:600;}
         .s-nav{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${textMuted};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:none;}
@@ -304,7 +304,7 @@ export default function SettingsPage() {
         .bnav{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;text-decoration:none;}
         .bnav-icon{font-size:17px;color:rgba(255,255,255,0.3);}
         .bnav-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
-        .bnav.active .bnav-icon,.bnav.active .bnav-label{color:#00d084;}
+        .bnav.active .bnav-icon,.bnav.active .bnav-label{color:#00C9B1;}
       `}</style>
 
       <div className="s-wrap">
@@ -313,7 +313,7 @@ export default function SettingsPage() {
 
         {/* Sidebar */}
         <aside className={`s-sidebar${mobOpen ? " open" : ""}`}>
-          <a href="/dashboard" className="s-logo">fast<span>rill</span></a>
+          <a href="/dashboard" className="s-logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:acc}}>rill</span></span></a>
           <div className="s-section">Platform</div>
           {NAV.map(n => (
             <a key={n.id} href={n.path} className={`s-nav${n.id === "settings" ? " active" : ""}`}>
@@ -631,8 +631,9 @@ export default function SettingsPage() {
                       <div style={{ fontWeight:800, fontSize:16, color:text, marginBottom:6 }}>Connect Your WhatsApp</div>
                       <div style={{ fontSize:13, color:textMuted, marginBottom:20, lineHeight:1.6 }}>Link your business WhatsApp to activate AI replies, lead capture, and auto-booking.</div>
                       <button onClick={() => {
-                        const appId="780799931531576", configId="1090960043190718"
-                        const redirectUri="https://fastrill.com/api/meta/callback"
+                        const appId=process.env.NEXT_PUBLIC_META_APP_ID||""
+                        const configId=process.env.NEXT_PUBLIC_META_CONFIG_ID||""
+                        const redirectUri=(process.env.NEXT_PUBLIC_APP_URL||window.location.origin)+"/api/meta/callback"
                         window.location.href = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}`
                       }} style={{ background:"#1877f2", color:"#fff", border:"none", padding:"11px 24px", borderRadius:9, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
                         Connect WhatsApp via Meta →
@@ -642,7 +643,7 @@ export default function SettingsPage() {
 
                   <div className="s-card">
                     <div style={{ fontWeight:700, fontSize:13.5, color:text, marginBottom:12 }}>Webhook Configuration</div>
-                    {[["Webhook URL","https://fastrill.com/api/meta/webhook"],["Verify Token","fastrill_webhook_2026"],["Events","messages, message_status"]].map(([l,v]) => (
+                    {[["Webhook URL",(process.env.NEXT_PUBLIC_APP_URL||"https://fastrill.com")+"/api/meta/webhook"],["Verify Token",process.env.WEBHOOK_VERIFY_TOKEN||"configure in .env"],["Events","messages, message_status"]].map(([l,v]) => (
                       <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${border}` }}>
                         <span style={{ fontSize:12, color:textMuted }}>{l}</span>
                         <span style={{ fontSize:11.5, fontWeight:600, color:text, fontFamily:"monospace", wordBreak:"break-all", textAlign:"right", maxWidth:"60%" }}>{v}</span>
