@@ -313,7 +313,7 @@ export default function SettingsPage() {
 
         {/* Sidebar */}
         <aside className={`s-sidebar${mobOpen ? " open" : ""}`}>
-          <a href="/dashboard" className="s-logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:acc}}>rill</span></span></a>
+          <a href="/dashboard" className="s-logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:text,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:accent}}>rill</span></span></a>
           <div className="s-section">Platform</div>
           {NAV.map(n => (
             <a key={n.id} href={n.path} className={`s-nav${n.id === "settings" ? " active" : ""}`}>
