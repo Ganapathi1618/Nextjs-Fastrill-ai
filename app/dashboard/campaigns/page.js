@@ -177,9 +177,9 @@ export default function Campaigns(){
     const totalRead      = completed.reduce((a,c)=>a+(c.read_count||0),0)
     const totalReplied   = completed.reduce((a,c)=>a+(c.replied_count||0),0)
     const totalCost      = completed.reduce((a,c)=>{ const tmpl=META_TEMPLATES.find(t=>t.template_name===c.template_name); return a+(c.sent_count||0)*(tmpl?.metaCost||0.83) },0)
-    const deliveryRate   = totalSent>0?Math.round((totalDelivered/totalSent)*100):0
-    const readRate       = totalSent>0?Math.round((totalRead/totalSent)*100):0
-    const replyRate      = totalSent>0?Math.round((totalReplied/totalSent)*100):0
+    const deliveryRate   = totalSent>0?Math.min(100,Math.round((totalDelivered/totalSent)*100)):0
+    const readRate       = totalSent>0?Math.min(100,Math.round((totalRead/totalSent)*100)):0
+    const replyRate      = totalSent>0?Math.min(100,Math.round((totalReplied/totalSent)*100)):0
     const estBookings    = Math.round(totalReplied*0.6)
     const estRevenue     = estBookings*1200
     const roi            = totalCost>0?Math.round(((estRevenue-totalCost)/totalCost)*100):0
@@ -338,7 +338,7 @@ export default function Campaigns(){
   const txm  = dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
   const txf  = dark?"rgba(255,255,255,0.18)":"rgba(0,0,0,0.22)"
   const ibg  = dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
-  const acc  = dark?"#00d084":"#00935a"
+  const acc  = dark?"#00C9B1":"#00897A"
   const adim = dark?"rgba(0,208,132,0.1)":"rgba(0,147,90,0.08)"
   const inp  = {background:ibg,border:`1px solid ${cbdr}`,borderRadius:9,padding:"11px 14px",fontSize:13.5,color:tx,fontFamily:"'Plus Jakarta Sans',sans-serif",outline:"none",width:"100%"}
   const ui   = userEmail?userEmail[0].toUpperCase():"G"
@@ -358,13 +358,13 @@ export default function Campaigns(){
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         html,body{background:${bg}!important;color:${tx}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;}
-        .sidebar{width:220px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;transition:transform 0.25s;}
-        .logo{padding:20px 18px 16px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:block;border-bottom:1px solid ${bdr};}
+        .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;transition:transform 0.25s;}
+        .logo{padding:16px 18px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:flex;flex-direction:row;align-items:center;gap:10px;border-bottom:1px solid ${bdr};line-height:1;};text-decoration:none;display:flex;align-items:center;gap:8px;border-bottom:1px solid ${bdr};}
         .logo span{color:${acc};}
         .navs{padding:16px 14px 6px;font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:${txf};font-weight:700;}
         .navi{display:flex;align-items:center;gap:9px;padding:8px 11px;margin:1px 7px;border-radius:8px;cursor:pointer;font-size:13px;color:${dark?"rgba(255,255,255,0.4)":"rgba(0,0,0,0.45)"};font-weight:500;transition:all 0.12s;border:1px solid transparent;background:none;width:calc(100% - 14px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
         .navi:hover{background:${ibg};color:${tx};}
-        .navi.on{background:${dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)"};color:${dark?"#00c47d":"#00935a"};font-weight:600;border-color:${dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"};}
+        .navi.on{background:${dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)"};color:${dark?"#00B5A0":"#00897A"};font-weight:600;border-color:${dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"};}
         .sbf{margin-top:auto;padding:13px;border-top:1px solid ${bdr};}
         .uc{display:flex;align-items:center;gap:8px;padding:8px;border-radius:9px;background:${ibg};border:1px solid ${cbdr};}
         .ua{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,${acc},#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;flex-shrink:0;}
@@ -423,7 +423,7 @@ export default function Campaigns(){
         <div className={"mob-ov"+(mobOpen?" open":"")} onClick={()=>setMobOpen(false)}/>
 
         <aside className={"sidebar"+(mobOpen?" open":"")}>
-          <a href="/dashboard" className="logo">fast<span>rill</span></a>
+          <a href="/dashboard" className="logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:acc}}>rill</span></span></a>
           <div className="navs">Platform</div>
           {NAV.map(item=>(
             <button key={item.id} className={"navi"+(item.id==="campaigns"?" on":"")}
@@ -517,7 +517,7 @@ export default function Campaigns(){
                         </div>
                       ))}
                     </div>
-                    <div style={{fontSize:12,color:txf,marginTop:12}}>Revenue = replies x 60% booking rate x ₹1,200 avg. booking value</div>
+                    <div style={{fontSize:12,color:txf,marginTop:12}}>Est. Revenue = replies × 60% booking rate × avg. booking value (₹1,200). Actual results may vary.</div>
                   </div>
                   {history.length>0?(
                     <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:14,overflow:"hidden"}}>
@@ -871,7 +871,7 @@ export default function Campaigns(){
 
                         <button onClick={scheduleMode==="now"?sendCampaign:()=>{ if(!scheduleDate||!scheduleTime){alert("Please select date and time");return}; saveDraft(); alert("Saved as draft — send manually at the scheduled time.") }}
                           disabled={!canSend||sending}
-                          style={{width:"100%",padding:"16px",background:canSend?"#00c47d":ibg,border:`1px solid ${canSend?"#00c47d":cbdr}`,borderRadius:12,color:canSend?"#000":txm,fontWeight:800,fontSize:16,cursor:canSend?"pointer":"not-allowed",fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:8}}>
+                          style={{width:"100%",padding:"16px",background:canSend?"#00B5A0":ibg,border:`1px solid ${canSend?"#00B5A0":cbdr}`,borderRadius:12,color:canSend?"#000":txm,fontWeight:800,fontSize:16,cursor:canSend?"pointer":"not-allowed",fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:8}}>
                           {!allVarsFilled?"↑ Fill in all template details":scheduleMode==="scheduled"?`🕐 Schedule for ${audience.length} people`:`🚀 Send to ${audience.length} people · ₹${(audience.length*selectedTmpl.metaCost).toFixed(2)}`}
                         </button>
 
