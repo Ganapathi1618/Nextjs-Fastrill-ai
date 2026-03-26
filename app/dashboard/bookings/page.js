@@ -2,8 +2,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { useAuth }  from "@/lib/hooks/useAuth"
-import { useTheme } from "@/lib/hooks/useTheme"
 import { useToast } from "@/components/Toast"
 
 const NAV = [
@@ -29,11 +27,21 @@ const getTodayStr = () => {
 }
 
 export default function Bookings() {
-  const { userId, userEmail, loading: authLoading, logout } = useAuth()
-  const { dark, toggleTheme, colors, inputStyle: inp } = useTheme()
-  const toast = useToast()
-
   const router = useRouter()
+  const toast  = useToast()
+  const [userId,    setUserId]    = useState(null)
+  const [userEmail, setUserEmail] = useState("")
+  const [dark,      setDark]      = useState(true)
+  const handleLogout = async () => { await supabase.auth.signOut(); window.location.href = "/login" }
+  const toggleTheme  = () => { const n=!dark; setDark(n); try{localStorage.setItem("fastrill-theme",n?"dark":"light")}catch(e){} }
+  const inp = { background:dark?"rgba(255,255,255,0.05)":"#f1f5f9", border:`1px solid ${dark?"rgba(255,255,255,0.1)":"#e2e8f0"}`, borderRadius:8, padding:"9px 12px", color:dark?"#eeeef5":"#1e293b", fontSize:13, outline:"none", width:"100%", fontFamily:"'Plus Jakarta Sans',sans-serif" }
+  const colors = { navActiveBdr:dark?"rgba(0,201,177,0.2)":"rgba(0,137,122,0.15)", navActiveText:dark?"#00C9B1":"#00897A" }
+  useEffect(() => {
+    try{const s=localStorage.getItem("fastrill-theme");if(s)setDark(s==="dark")}catch(e){}
+    supabase.auth.getSession().then(({data:{session}})=>{
+      if(session?.user){setUserId(session.user.id);setUserEmail(session.user.email||"")}
+    })
+  }, [])
   const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
   const [view, setView]             = useState("list")
   const [bookings, setBookings]     = useState([])
@@ -48,14 +56,6 @@ export default function Bookings() {
 
   const todayStr = getTodayStr()
 
-  useEffect(() => {
-    const saved = localStorage.getItem("fastrill-theme")
-    if (saved) setDark(saved === "dark")
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data?.user) router.push("/login")
-      else { setUserEmail(data.user.email || ""); setUserId(data.user.id) }
-    })
-  }, [])
 
   useEffect(() => { if (userId) { load(); loadServices() } }, [userId])
 
@@ -122,8 +122,6 @@ export default function Bookings() {
     setSaving(false)
   }
 
-  // toggleTheme now from useTheme() hook
-  // logout now from useAuth() hook
 
   // ─── Theme tokens ──────────────────────────────────────
   const bg=dark?"#08080e":"#f0f2f5", sidebar=dark?"#0c0c15":"#ffffff", card=dark?"#0f0f1a":"#ffffff"
@@ -178,7 +176,6 @@ export default function Bookings() {
   }
   const filtered = filterMap[filter] || bookings
 
-  // inp now from useTheme() inputStyle`, borderRadius:8, padding:"9px 12px", fontSize:13, color:text, fontFamily:"'Plus Jakarta Sans',sans-serif", outline:"none", width:"100%" }
 
   // ─── Booking Card ──────────────────────────────────────
   const BookingCard = ({ b }) => {
@@ -294,7 +291,7 @@ export default function Bookings() {
 
       <div className="wrap">
         <aside className={`sidebar${mobSidebarOpen?" mob-open":""}`}>
-          <a href="/dashboard" className="logo" style={{display:"flex",alignItems:"center",gap:"8px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px"}}>fast<span style={{color:acc}}>rill</span></span></a>
+          <a href="/dashboard" className="logo" style={{display:"flex",alignItems:"center",gap:"8px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:dark?"#eeeef5":"#1e293b",letterSpacing:"-0.3px"}}>fast<span style={{color:"#00C9B1"}}>rill</span></span></a>
           <div className="nav-section">Platform</div>
           {NAV.map(item => (
             <button key={item.id} className={`nav-item${item.id==="bookings"?" active":""}`} onClick={() => router.push(item.path)}>
