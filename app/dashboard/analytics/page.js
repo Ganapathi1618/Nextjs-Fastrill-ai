@@ -189,7 +189,7 @@ export default function Analytics() {
         html,body{background:${bg}!important;color:${text}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;}
         .sidebar{width:224px;flex-shrink:0;background:${sidebar};border-right:1px solid ${border};display:flex;flex-direction:column;overflow-y:auto;}
-        .logo{padding:20px 18px 16px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:block;border-bottom:1px solid ${border};}
+        .logo{padding:16px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:flex;flex-direction:row;align-items:center;gap:10px;border-bottom:1px solid ${border};line-height:1;}
         .logo span{color:${accent};}
         .nav-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${textFaint};font-weight:600;}
         .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
@@ -262,7 +262,7 @@ export default function Analytics() {
 
       <div className="wrap">
         <aside className={`sidebar${mobSidebarOpen?" mob-open":""}`}>
-          <a href="/dashboard" className="logo" style={{display:"flex",alignItems:"center",gap:"8px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:dark?"#eeeef5":"#1e293b",letterSpacing:"-0.3px"}}>fast<span style={{color:"#00C9B1"}}>rill</span></span></a>
+          <a href="/dashboard" className="logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:dark?"#eeeef5":"#1e293b",letterSpacing:"-0.3px"}}>fast<span style={{color:"#00C9B1"}}>rill</span></span></a>
           <div className="nav-section">Platform</div>
           {NAV.map(item => (
             <button key={item.id} className={`nav-item${item.id==="analytics"?" active":""}`} onClick={() => router.push(item.path)}>
