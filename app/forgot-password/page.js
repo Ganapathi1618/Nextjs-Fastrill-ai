@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
     <div style={wrap}>
       <div style={{ width: "100%", maxWidth: "420px" }}>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <div style={{ fontSize: "28px", fontWeight: "800", color: "#fff" }}>fast<span style={{ color: "#00d4ff" }}>rill</span></div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"10px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:"#00C9B1"}}>rill</span></span></div>
         </div>
         <div style={card}>
           {!sent ? (
