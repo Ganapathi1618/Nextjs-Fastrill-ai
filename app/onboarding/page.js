@@ -169,7 +169,7 @@ export default function OnboardingPage() {
   const border  = "rgba(255,255,255,0.08)"
   const text    = "#eeeef5"
   const muted   = "rgba(255,255,255,0.45)"
-  const accent  = "#00d084"
+  const accent  = "#00C9B1"
   const inp     = { width:"100%", padding:"10px 12px", borderRadius:8, border:"1px solid "+border, background:"rgba(255,255,255,0.04)", color:text, fontSize:14, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" }
 
   return (
@@ -199,7 +199,7 @@ export default function OnboardingPage() {
 
           {/* Logo */}
           <div style={{ textAlign:"center", marginBottom:"32px" }}>
-            <div style={{ fontSize:"26px", fontWeight:"800", color:text }}>fast<span style={{ color:accent }}>rill</span></div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"10px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:"#00C9B1"}}>rill</span></span></div>
             <p style={{ color:muted, fontSize:"14px", marginTop:"6px" }}>Let's set up your AI receptionist</p>
           </div>
 
