@@ -215,9 +215,9 @@ body::before{
   border-bottom:1px solid var(--line);
 }
 .logo{
-  display:flex;align-items:center;gap:8px;
+  display:flex;align-items:center;gap:10px;
   text-decoration:none;font-family:var(--display);
-  font-weight:800;font-size:19px;letter-spacing:-.5px;color:var(--ink);
+  font-weight:800;font-size:22px;letter-spacing:-0.5px;color:var(--ink);
 }
 .logo img{width:28px;height:28px;object-fit:contain;flex-shrink:0;}
 .logo em{color:var(--teal);font-style:normal;}
@@ -267,7 +267,7 @@ body::before{
 /* ── HERO ── */
 .hero{
   min-height:100vh;
-  padding:DM Sans(100px,12vw,150px) DM Sans(16px,5vw,56px) DM Sans(60px,8vw,90px);
+  padding:Clamp(100px,12vw,150px) DM Sans(16px,5vw,56px) DM Sans(60px,8vw,90px);
   background:var(--base);position:relative;overflow:hidden;
 }
 .hero-grid-bg{
@@ -281,7 +281,7 @@ body::before{
 .hero-in{
   max-width:1200px;margin:0 auto;
   display:grid;grid-template-columns:1fr 420px;
-  gap:DM Sans(40px,5vw,80px);align-items:center;
+  gap:Clamp(40px,5vw,80px);align-items:center;
   position:relative;z-index:1;
 }
 .hero-eyebrow{
@@ -312,7 +312,7 @@ body::before{
 }
 .h1 em{font-style:normal;color:var(--teal);}
 .hero-sub{
-  font-size:DM Sans(15px,1.6vw,17px);color:var(--ink2);
+  font-size:Clamp(18px,1.6vw,17px);color:var(--ink2);
   max-width:500px;margin-bottom:32px;line-height:1.9;font-weight:400;
   margin-top:16px;
 }
