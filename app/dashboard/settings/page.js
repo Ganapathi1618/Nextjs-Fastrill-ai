@@ -250,12 +250,6 @@ export default function SettingsPage() {
     ? { color:"#38bdf8", bg:"rgba(56,189,248,0.1)", border:"rgba(56,189,248,0.2)" }
     : { color: accent,   bg: accent+"18",           border: accent+"33" }
 
-  if (loading) return (
-    <div style={{ minHeight:"100vh", background:bg, display:"flex", alignItems:"center", justifyContent:"center", color:text, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-      Loading settings...
-    </div>
-  )
-
   return (
     <>
       <style>{`
@@ -289,6 +283,7 @@ export default function SettingsPage() {
         .hamburger{display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:#eeeef5;margin-right:4px;}
         .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
         select option{background-color:#0c0c15!important;color:#eeeef5!important;}
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         @media(max-width:767px){
           .s-sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s ease;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
           .s-sidebar.open{transform:translateX(0);}
@@ -375,6 +370,13 @@ export default function SettingsPage() {
 
           <div className="s-content">
             <div style={{ maxWidth: 680 }}>
+
+              {loading ? (
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"80px 0",gap:12,color:textMuted}}>
+                  <div style={{width:20,height:20,border:`2px solid ${accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+                  <span style={{fontSize:14}}>Loading settings...</span>
+                </div>
+              ) : (<>
 
               {/* ── BUSINESS ── */}
               {tab === "business" && (
@@ -690,7 +692,8 @@ export default function SettingsPage() {
                 </>
               )}
 
-            </div>
+            </>)}
+          </div>
           </div>
         </div>
       </div>
