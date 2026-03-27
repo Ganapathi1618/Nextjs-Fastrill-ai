@@ -215,11 +215,11 @@ body::before{
   border-bottom:1px solid var(--line);
 }
 .logo{
-  display:flex;align-items:center;gap:8px;
+  display:flex;align-items:center;gap:10px;
   text-decoration:none;font-family:var(--display);
-  font-weight:800;font-size:19px;letter-spacing:-.5px;color:var(--ink);
+  font-weight:800;font-size:19px;letter-spacing:-0.5px;color:var(--ink);
 }
-.logo img{width:28px;height:28px;object-fit:contain;flex-shrink:0;}
+.logo img{width:32px;height:32px;object-fit:contain;flex-shrink:0;}
 .logo em{color:var(--teal);font-style:normal;}
 .nmid{display:flex;align-items:center;gap:2px;list-style:none;}
 .nmid a{
