@@ -916,9 +916,29 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
 
     {/* NAV */}
     <nav className={`nav${scrolled?" sc":""}`}>
-      <a href="/" className="logo">
-        <img src="/logo.png" alt="Fastrill" />
-        fast<em>rill</em>
+      <a 
+  href="/" 
+  className="logo"
+  style={{ display:"flex", alignItems:"center", gap:"10px" }}
+>
+  <img 
+    src="/logo.png" 
+    width={34} 
+    height={34} 
+    alt="Fastrill"
+    style={{ display:"block", objectFit:"contain", flexShrink:0 }}
+  />
+  <span 
+    style={{ 
+      fontWeight:800, 
+      fontSize:20, 
+      color:"#fff", 
+      letterSpacing:"-0.3px", 
+      lineHeight:1 
+    }}
+  >
+    fast<span style={{ color:"#00C9B1" }}>rill</span>
+  </span>
       </a>
       <ul className="nmid">
         {[["#pain","The Problem"],["#how","How It Works"],["#demo","Demo"],["#pricing","Pricing"],["#founder","Our Story"],["#faq","FAQ"]].map(([h,l])=>(
