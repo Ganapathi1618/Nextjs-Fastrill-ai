@@ -919,8 +919,8 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
      <a href="/" className="logo" style={{display:"flex",alignItems:"center",gap:"10px"}}>
   <img 
     src="/logo.png" 
-    width="34" 
-    height="34" 
+    width="60" 
+    height="60" 
     alt="Fastrill" 
     style={{display:"block",objectFit:"contain",flexShrink:0}} 
   />
