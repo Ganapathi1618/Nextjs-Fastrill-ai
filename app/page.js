@@ -157,7 +157,7 @@ export default function MarketingPage() {
 
   return (<>
     <style>{`
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM Sans:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{
@@ -190,7 +190,7 @@ body{
   --red:#f43f5e;
   --amber:#f59e0b;
   --sans:'DM Sans',sans-serif;
-  --display:'Syne',sans-serif;
+  --display:'DM Sans',sans-serif;
 }
 
 /* ── Ambient background ── */
@@ -267,7 +267,7 @@ body::before{
 /* ── HERO ── */
 .hero{
   min-height:100vh;
-  padding:clamp(100px,12vw,150px) clamp(16px,5vw,56px) clamp(60px,8vw,90px);
+  padding:DM Sans(100px,12vw,150px) DM Sans(16px,5vw,56px) DM Sans(60px,8vw,90px);
   background:var(--base);position:relative;overflow:hidden;
 }
 .hero-grid-bg{
@@ -281,7 +281,7 @@ body::before{
 .hero-in{
   max-width:1200px;margin:0 auto;
   display:grid;grid-template-columns:1fr 420px;
-  gap:clamp(40px,5vw,80px);align-items:center;
+  gap:DM Sans(40px,5vw,80px);align-items:center;
   position:relative;z-index:1;
 }
 .hero-eyebrow{
@@ -304,15 +304,15 @@ body::before{
 
 .h1{
   font-family:var(--display);
-  font-size:clamp(40px,5.5vw,72px);
+  font-size:DM Sans(40px,5.5vw,72px);
   font-weight:800;line-height:1.05;
   letter-spacing:-.04em;color:var(--ink);
   margin-bottom:6px;white-space:pre-line;
-  min-height:clamp(100px,14vw,160px);
+  min-height:DM Sans(100px,14vw,160px);
 }
 .h1 em{font-style:normal;color:var(--teal);}
 .hero-sub{
-  font-size:clamp(15px,1.6vw,17px);color:var(--ink2);
+  font-size:DM Sans(15px,1.6vw,17px);color:var(--ink2);
   max-width:500px;margin-bottom:32px;line-height:1.9;font-weight:400;
   margin-top:16px;
 }
@@ -415,7 +415,7 @@ body::before{
 .stat-cell:last-child{border-right:none;}
 .stat-n{
   font-family:var(--display);
-  font-size:clamp(44px,5vw,62px);font-weight:800;
+  font-size:DM Sans(44px,5vw,62px);font-weight:800;
   color:var(--ink);line-height:1;letter-spacing:-.05em;margin-bottom:6px;
 }
 .stat-n em{color:var(--teal);font-style:normal;}
