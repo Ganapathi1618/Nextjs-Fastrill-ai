@@ -53,7 +53,7 @@ export default function ResetPasswordPage() {
     <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", fontFamily:"Inter,sans-serif" }}>
       <div style={{ width:"100%", maxWidth:"420px" }}>
         <div style={{ textAlign:"center", marginBottom:"32px" }}>
-          <div style={{ fontSize:"28px", fontWeight:"800", color:"#fff" }}>fast<span style={{ color:"#00d4ff" }}>rill</span></div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"10px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:"#00C9B1"}}>rill</span></span></div>
         </div>
         <div style={{ background:"#111", border:"1px solid #222", borderRadius:"16px", padding:"32px" }}>
           {success ? (
