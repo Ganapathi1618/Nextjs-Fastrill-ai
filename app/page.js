@@ -215,9 +215,9 @@ body::before{
   border-bottom:1px solid var(--line);
 }
 .logo{
-  display:flex;align-items:center;gap:10px;
+  display:flex;align-items:center;gap:8px;
   text-decoration:none;font-family:var(--display);
-  font-weight:800;font-size:22px;letter-spacing:-0.5px;color:var(--ink);
+  font-weight:800;font-size:19px;letter-spacing:-.5px;color:var(--ink);
 }
 .logo img{width:28px;height:28px;object-fit:contain;flex-shrink:0;}
 .logo em{color:var(--teal);font-style:normal;}
@@ -267,7 +267,7 @@ body::before{
 /* ── HERO ── */
 .hero{
   min-height:100vh;
-  padding:Clamp(100px,12vw,150px) DM Sans(16px,5vw,56px) DM Sans(60px,8vw,90px);
+  padding:clamp(100px,12vw,150px) clamp(16px,5vw,56px) clamp(60px,8vw,90px);
   background:var(--base);position:relative;overflow:hidden;
 }
 .hero-grid-bg{
@@ -281,7 +281,7 @@ body::before{
 .hero-in{
   max-width:1200px;margin:0 auto;
   display:grid;grid-template-columns:1fr 420px;
-  gap:Clamp(40px,5vw,80px);align-items:center;
+  gap:clamp(40px,5vw,80px);align-items:center;
   position:relative;z-index:1;
 }
 .hero-eyebrow{
@@ -304,15 +304,15 @@ body::before{
 
 .h1{
   font-family:var(--display);
-  font-size:DM Sans(40px,5.5vw,72px);
+  font-size:clamp(40px,5.5vw,72px);
   font-weight:800;line-height:1.05;
   letter-spacing:-.04em;color:var(--ink);
   margin-bottom:6px;white-space:pre-line;
-  min-height:DM Sans(100px,14vw,160px);
+  min-height:clamp(100px,14vw,160px);
 }
 .h1 em{font-style:normal;color:var(--teal);}
 .hero-sub{
-  font-size:Clamp(18px,1.6vw,17px);color:var(--ink2);
+  font-size:clamp(15px,1.6vw,17px);color:var(--ink2);
   max-width:500px;margin-bottom:32px;line-height:1.9;font-weight:400;
   margin-top:16px;
 }
@@ -415,7 +415,7 @@ body::before{
 .stat-cell:last-child{border-right:none;}
 .stat-n{
   font-family:var(--display);
-  font-size:DM Sans(44px,5vw,62px);font-weight:800;
+  font-size:clamp(44px,5vw,62px);font-weight:800;
   color:var(--ink);line-height:1;letter-spacing:-.05em;margin-bottom:6px;
 }
 .stat-n em{color:var(--teal);font-style:normal;}
@@ -916,30 +916,18 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
 
     {/* NAV */}
     <nav className={`nav${scrolled?" sc":""}`}>
-      <a 
-  href="/" 
-  className="logo"
-  style={{ display:"flex", alignItems:"center", gap:"10px" }}
->
+     <a href="/" className="logo" style={{display:"flex",alignItems:"center",gap:"10px"}}>
   <img 
     src="/logo.png" 
-    width={34} 
-    height={34} 
-    alt="Fastrill"
-    style={{ display:"block", objectFit:"contain", flexShrink:0 }}
+    width="34" 
+    height="34" 
+    alt="Fastrill" 
+    style={{display:"block",objectFit:"contain",flexShrink:0}} 
   />
-  <span 
-    style={{ 
-      fontWeight:800, 
-      fontSize:20, 
-      color:"#fff", 
-      letterSpacing:"-0.3px", 
-      lineHeight:1 
-    }}
-  >
-    fast<span style={{ color:"#00C9B1" }}>rill</span>
+  <span style={{fontWeight:800,fontSize:20,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>
+    fast<span style={{color:"#00C9B1"}}>rill</span>
   </span>
-      </a>
+</a>
       <ul className="nmid">
         {[["#pain","The Problem"],["#how","How It Works"],["#demo","Demo"],["#pricing","Pricing"],["#founder","Our Story"],["#faq","FAQ"]].map(([h,l])=>(
           <li key={h}><a href={h}>{l}</a></li>
@@ -1396,10 +1384,18 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       <div className="ft">
         <div className="ft-top">
           <div>
-            <a href="/" className="logo" style={{display:"inline-flex"}}>
-              <img src="/logo.png" alt="Fastrill"/>
-              fast<em>rill</em>
-            </a>
+           <a href="/" className="logo" style={{display:"flex",alignItems:"center",gap:"10px"}}>
+  <img 
+    src="/logo.png" 
+    width="34" 
+    height="34" 
+    alt="Fastrill" 
+    style={{display:"block",objectFit:"contain",flexShrink:0}} 
+  />
+  <span style={{fontWeight:800,fontSize:20,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>
+    fast<span style={{color:"#00C9B1"}}>rill</span>
+  </span>
+</a>
             <p className="ft-tagline">AI-powered WhatsApp automation for Indian businesses. Turns every lead into a booked customer — 24/7, in any language.</p>
             <div className="ft-badges">
               {["🔒 SSL Encrypted","🇮🇳 Indian Servers","🛡️ Zero Data Sharing"].map(b=>(
