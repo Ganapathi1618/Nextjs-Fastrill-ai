@@ -217,9 +217,9 @@ body::before{
 .logo{
   display:flex;align-items:center;gap:10px;
   text-decoration:none;font-family:var(--display);
-  font-weight:800;font-size:19px;letter-spacing:-0.5px;color:var(--ink);
+  font-weight:1000;font-size:19px;letter-spacing:-0.5px;color:var(--ink);
 }
-.logo img{width:32px;height:32px;object-fit:contain;flex-shrink:0;}
+.logo img{width:60px;height:60px;object-fit:contain;flex-shrink:0;}
 .logo em{color:var(--teal);font-style:normal;}
 .nmid{display:flex;align-items:center;gap:2px;list-style:none;}
 .nmid a{
