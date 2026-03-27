@@ -924,7 +924,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
     alt="Fastrill" 
     style={{display:"block",objectFit:"contain",flexShrink:0}} 
   />
-  <span style={{fontWeight:800,fontSize:60,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>
+  <span style={{fontWeight:800,fontSize:28,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>
     fast<span style={{color:"#00C9B1"}}>rill</span>
   </span>
 </a>
