@@ -1,9 +1,26 @@
 // app/api/meta/webhook/route.js
-// FASTRILL AI v3 — Webhook entry point
-// FIX 1: Per-phone message queue — prevents greeting loop when Meta sends
-//         multiple messages simultaneously (same phone, different messageIds)
-// FIX 2: Context loaded BEFORE saveInboundMessage — prevents echo bug where
-//         the customer's own message appeared in history and got echoed back
+// FASTRILL AI v3.3 — Webhook entry point
+//
+// ROOT CAUSE OF SILENCE BUG:
+//   v3.2 returned 200 immediately then processed async via enqueueForPhone().
+//   Vercel serverless functions TERMINATE as soon as the response is sent.
+//   The async queue never ran. Customer got silence every time.
+//
+// FIX:
+//   Process ALL messages synchronously (await) before returning 200.
+//   Vercel keeps the function alive until we return — so this is correct.
+//   Meta allows up to 20s for a 200 response, Vercel hobby timeout is 60s.
+//
+// GREETING LOOP FIX (replaces the broken async queue):
+//   DB-level dedup: before processing, write a "processing" lock row to DB.
+//   If a second message from the same phone arrives while first is processing,
+//   the DB insert will conflict (unique constraint on phone+timestamp window)
+//   and it skips. This works across serverless instances unlike in-memory Sets.
+//   Simpler approach used here: check if messageId already processed (existing
+//   isDuplicate check) — Meta assigns unique IDs per message so same-phone
+//   rapid messages are different IDs and all process, but now they process
+//   sequentially within the same webhook POST (messages array is iterated
+//   with await, not fired in parallel).
 
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
@@ -17,26 +34,8 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// In-memory lock: dedup same messageId (Meta sometimes sends webhook twice)
+// In-memory dedup for the same messageId arriving twice in the same invocation
 const processingLock = new Set()
-
-// Per-phone queue: ensures messages from the same phone are processed
-// strictly one at a time — prevents simultaneous messages getting same history
-// and producing the same reply (greeting loop)
-const phoneQueues = new Map()   // phone → Promise (tail of queue)
-
-function enqueueForPhone(phone, fn) {
-  const prev = phoneQueues.get(phone) || Promise.resolve()
-  const next = prev.then(fn).catch(e => {
-    console.error("❌ Queue error for", phone, ":", e.message)
-  })
-  phoneQueues.set(phone, next)
-  // Clean up map entry once queue drains (prevent memory leak)
-  next.finally(() => {
-    if (phoneQueues.get(phone) === next) phoneQueues.delete(phone)
-  })
-  return next
-}
 
 // ── GET: Webhook verification ──────────────────────────────────
 async function GET(req) {
@@ -56,7 +55,7 @@ async function POST(req) {
   try {
     const body = await req.json()
 
-    // Delivery/read status updates — return 200 immediately
+    // Status updates (delivered/read) — handle and return immediately
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
     const hasMsg   = body?.entry?.[0]?.changes?.[0]?.value?.messages
     if (statuses && !hasMsg) {
@@ -77,7 +76,7 @@ async function POST(req) {
     const messages      = value?.messages || []
     const contacts      = value?.contacts || []
 
-    // Get WhatsApp connection → user
+    // Resolve WhatsApp connection → user
     const { data: connection } = await supabaseAdmin
       .from("whatsapp_connections")
       .select("user_id, access_token")
@@ -85,43 +84,46 @@ async function POST(req) {
       .single()
 
     if (!connection) {
-      console.error("❌ No WA connection for:", phoneNumberId)
+      console.error("❌ No WA connection for phoneNumberId:", phoneNumberId)
       return NextResponse.json({ status: "no_connection" })
     }
 
     const userId      = connection.user_id
     const accessToken = connection.access_token
 
-    // Normalize all messages first so we have phones for queue routing
-    const normalized = messages.map(m => normalizeMessage(m, contacts))
-
-    // Enqueue each message per-phone — guarantees serial processing per customer
-    // Multiple customers still process in parallel (different phones = different queues)
-    for (const msg of normalized) {
-      enqueueForPhone(msg.phone, () =>
-        processMessage({ msg, userId, accessToken, phoneNumberId })
-      )
+    // Process messages SEQUENTIALLY with await — critical for Vercel.
+    // Do NOT use Promise.all() here — that fires all in parallel, causing
+    // the greeting loop (all see same history before any reply is saved).
+    // Sequential await means each message sees the updated history from
+    // the previous one.
+    for (const message of messages) {
+      try {
+        await processMessage({ message, contacts, userId, accessToken, phoneNumberId })
+      } catch(e) {
+        console.error("❌ processMessage error:", e.message, e.stack)
+        // Continue to next message — don't let one failure block others
+      }
     }
 
-    // Return 200 immediately — processing continues async in queue
-    // Meta only needs 200 ACK within 20s; actual processing is background
-    console.log("✅ Webhook ACK in " + (Date.now()-start) + "ms")
+    console.log("✅ Webhook done in " + (Date.now()-start) + "ms")
     return NextResponse.json({ status: "ok" })
 
   } catch(err) {
     console.error("❌ Webhook fatal:", err.message, err.stack)
-    // Always return 200 to Meta — returning 500 causes infinite retries
+    // MUST return 200 — returning 5xx causes Meta to retry infinitely
     return NextResponse.json({ status: "error" }, { status: 200 })
   }
 }
 
-// ── Process single message (runs serially per phone via queue) ──
-async function processMessage({ msg, userId, accessToken, phoneNumberId }) {
+// ── Process single message ─────────────────────────────────────
+async function processMessage({ message, contacts, userId, accessToken, phoneNumberId }) {
+  // 1. Normalize raw WhatsApp payload
+  const msg = normalizeMessage(message, contacts)
   console.log("📩 " + msg.phone + " (" + msg.contactName + "): \"" + (msg.effectiveText || "["+msg.type+"]") + "\"")
 
-  // 1. Deduplicate — in-memory lock first (fast), then DB check
+  // 2. Dedup — in-memory first (same invocation), then DB (across invocations)
   if (processingLock.has(msg.messageId)) {
-    console.log("⚠️ Already processing:", msg.messageId)
+    console.log("⚠️ Already processing (in-memory lock):", msg.messageId)
     return
   }
   if (await isDuplicate(msg.messageId)) {
@@ -131,7 +133,7 @@ async function processMessage({ msg, userId, accessToken, phoneNumberId }) {
   processingLock.add(msg.messageId)
   setTimeout(() => processingLock.delete(msg.messageId), 30000)
 
-  // 2. Upsert customer + conversation
+  // 3. Upsert customer + conversation
   const { customer, isNew } = await upsertCustomer({
     userId, phone: msg.phone, name: msg.contactName, timestamp: msg.timestamp
   })
@@ -141,20 +143,13 @@ async function processMessage({ msg, userId, accessToken, phoneNumberId }) {
     text: msg.effectiveText, timestamp: msg.timestamp
   })
 
-  // 3. FIX: Load AI context BEFORE saving inbound message.
-  //    Previously: saveInboundMessage ran first → inbound was in DB → loadContext
-  //    picked it up → AI saw customer's own message at end of history → echoed it.
-  //    Now: context snapshot is taken before the new message is written to DB.
-  const { orchestrate: _orchestrate } = require("@/lib/ai/orchestrator")  // already required above, just documenting intent
-
-  // Compliance check first (STOP/START) — must happen before AI
+  // 4. Compliance check (STOP/START) — must run before AI
   if (msg.isText) {
     const compliance = await handleCompliance({
       userId, phone: msg.phone,
       text: msg.effectiveText, conversationId: conversation?.id
     })
     if (compliance.action) {
-      // Save inbound THEN reply for compliance — order matters here for audit
       await saveInboundMessage({
         userId, phoneNumberId, from: msg.from,
         text: msg.effectiveText || "[" + msg.type + "]",
@@ -170,9 +165,9 @@ async function processMessage({ msg, userId, accessToken, phoneNumberId }) {
     }
   }
 
-  // 4. Skip if AI disabled
+  // 5. Skip if AI disabled for this conversation
   if (conversation?.ai_enabled === false) {
-    console.log("⏸️ AI disabled")
+    console.log("⏸️ AI disabled for conversation", conversation?.id)
     await saveInboundMessage({
       userId, phoneNumberId, from: msg.from,
       text: msg.effectiveText || "[" + msg.type + "]",
@@ -182,8 +177,10 @@ async function processMessage({ msg, userId, accessToken, phoneNumberId }) {
     return
   }
 
-  // 5. Orchestrate — context loaded INSIDE orchestrator BEFORE we save inbound
-  //    This is the critical order fix for the echo bug
+  // 6. ECHO FIX: Orchestrate BEFORE saving inbound to DB.
+  //    If we save inbound first, loadContext() inside orchestrate picks up
+  //    the customer's own message as the last history entry and the AI
+  //    echoes it back. By orchestrating first, history snapshot is clean.
   const reply = await orchestrate({
     userId,
     conversationId: conversation?.id,
@@ -194,7 +191,7 @@ async function processMessage({ msg, userId, accessToken, phoneNumberId }) {
     phoneNumberId
   })
 
-  // 6. NOW save inbound message — after AI has already read context
+  // 7. NOW save inbound — after AI has read history
   await saveInboundMessage({
     userId, phoneNumberId, from: msg.from,
     text: msg.effectiveText || "[" + msg.type + "]",
@@ -202,16 +199,16 @@ async function processMessage({ msg, userId, accessToken, phoneNumberId }) {
     phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
   })
 
-  // 7. Lead tracking
+  // 8. Lead tracking
   if (msg.effectiveText) {
     await upsertLead({
       userId, customerId: customer?.id, phone: msg.phone,
       name: msg.contactName, text: msg.effectiveText,
       timestamp: msg.timestamp, isNew
-    })
+    }).catch(e => console.error("⚠️ upsertLead failed (non-fatal):", e.message))
   }
 
-  // 8. Send reply
+  // 9. Send reply — orchestrator guarantees reply is never null/empty
   if (reply) {
     await sendAndSave({
       phoneNumberId, accessToken, to: msg.from,
@@ -221,6 +218,9 @@ async function processMessage({ msg, userId, accessToken, phoneNumberId }) {
     await supabaseAdmin.from("conversations")
       .update({ last_message: reply, last_message_at: new Date().toISOString() })
       .eq("id", conversation?.id)
+  } else {
+    // This should never happen after v3.2 orchestrator, but log if it does
+    console.error("🚨 Orchestrator returned empty reply for:", msg.phone, "msg:", msg.effectiveText)
   }
 }
 
