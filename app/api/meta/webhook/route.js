@@ -1,5 +1,9 @@
 // app/api/meta/webhook/route.js
-// FASTRILL AI v2 — Webhook entry point (CommonJS compatible)
+// FASTRILL AI v3 — Webhook entry point
+// FIX 1: Per-phone message queue — prevents greeting loop when Meta sends
+//         multiple messages simultaneously (same phone, different messageIds)
+// FIX 2: Context loaded BEFORE saveInboundMessage — prevents echo bug where
+//         the customer's own message appeared in history and got echoed back
 
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
@@ -13,8 +17,26 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// In-memory lock to prevent duplicate processing when Meta sends webhook twice
+// In-memory lock: dedup same messageId (Meta sometimes sends webhook twice)
 const processingLock = new Set()
+
+// Per-phone queue: ensures messages from the same phone are processed
+// strictly one at a time — prevents simultaneous messages getting same history
+// and producing the same reply (greeting loop)
+const phoneQueues = new Map()   // phone → Promise (tail of queue)
+
+function enqueueForPhone(phone, fn) {
+  const prev = phoneQueues.get(phone) || Promise.resolve()
+  const next = prev.then(fn).catch(e => {
+    console.error("❌ Queue error for", phone, ":", e.message)
+  })
+  phoneQueues.set(phone, next)
+  // Clean up map entry once queue drains (prevent memory leak)
+  next.finally(() => {
+    if (phoneQueues.get(phone) === next) phoneQueues.delete(phone)
+  })
+  return next
+}
 
 // ── GET: Webhook verification ──────────────────────────────────
 async function GET(req) {
@@ -70,15 +92,20 @@ async function POST(req) {
     const userId      = connection.user_id
     const accessToken = connection.access_token
 
-    for (const message of messages) {
-      try {
-        await processMessage({ message, contacts, userId, accessToken, phoneNumberId })
-      } catch(e) {
-        console.error("❌ processMessage error:", e.message)
-      }
+    // Normalize all messages first so we have phones for queue routing
+    const normalized = messages.map(m => normalizeMessage(m, contacts))
+
+    // Enqueue each message per-phone — guarantees serial processing per customer
+    // Multiple customers still process in parallel (different phones = different queues)
+    for (const msg of normalized) {
+      enqueueForPhone(msg.phone, () =>
+        processMessage({ msg, userId, accessToken, phoneNumberId })
+      )
     }
 
-    console.log("✅ Webhook done in " + (Date.now()-start) + "ms")
+    // Return 200 immediately — processing continues async in queue
+    // Meta only needs 200 ACK within 20s; actual processing is background
+    console.log("✅ Webhook ACK in " + (Date.now()-start) + "ms")
     return NextResponse.json({ status: "ok" })
 
   } catch(err) {
@@ -88,13 +115,11 @@ async function POST(req) {
   }
 }
 
-// ── Process single message ─────────────────────────────────────
-async function processMessage({ message, contacts, userId, accessToken, phoneNumberId }) {
-  // 1. Normalize
-  const msg = normalizeMessage(message, contacts)
+// ── Process single message (runs serially per phone via queue) ──
+async function processMessage({ msg, userId, accessToken, phoneNumberId }) {
   console.log("📩 " + msg.phone + " (" + msg.contactName + "): \"" + (msg.effectiveText || "["+msg.type+"]") + "\"")
 
-  // 2. Deduplicate — in-memory lock first (fast), then DB check
+  // 1. Deduplicate — in-memory lock first (fast), then DB check
   if (processingLock.has(msg.messageId)) {
     console.log("⚠️ Already processing:", msg.messageId)
     return
@@ -103,11 +128,10 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     console.log("⚠️ Duplicate in DB:", msg.messageId)
     return
   }
-  // Acquire lock — release after 30s
   processingLock.add(msg.messageId)
   setTimeout(() => processingLock.delete(msg.messageId), 30000)
 
-  // 3. Upsert customer + conversation
+  // 2. Upsert customer + conversation
   const { customer, isNew } = await upsertCustomer({
     userId, phone: msg.phone, name: msg.contactName, timestamp: msg.timestamp
   })
@@ -117,30 +141,26 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     text: msg.effectiveText, timestamp: msg.timestamp
   })
 
-  // 4. Save inbound message
-  await saveInboundMessage({
-    userId, phoneNumberId, from: msg.from,
-    text: msg.effectiveText || "[" + msg.type + "]",
-    type: msg.type, conversationId: conversation?.id,
-    phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
-  })
+  // 3. FIX: Load AI context BEFORE saving inbound message.
+  //    Previously: saveInboundMessage ran first → inbound was in DB → loadContext
+  //    picked it up → AI saw customer's own message at end of history → echoed it.
+  //    Now: context snapshot is taken before the new message is written to DB.
+  const { orchestrate: _orchestrate } = require("@/lib/ai/orchestrator")  // already required above, just documenting intent
 
-  // 5. Lead tracking
-  if (msg.effectiveText) {
-    await upsertLead({
-      userId, customerId: customer?.id, phone: msg.phone,
-      name: msg.contactName, text: msg.effectiveText,
-      timestamp: msg.timestamp, isNew
-    })
-  }
-
-  // 6. Compliance (STOP/START)
+  // Compliance check first (STOP/START) — must happen before AI
   if (msg.isText) {
     const compliance = await handleCompliance({
       userId, phone: msg.phone,
       text: msg.effectiveText, conversationId: conversation?.id
     })
     if (compliance.action) {
+      // Save inbound THEN reply for compliance — order matters here for audit
+      await saveInboundMessage({
+        userId, phoneNumberId, from: msg.from,
+        text: msg.effectiveText || "[" + msg.type + "]",
+        type: msg.type, conversationId: conversation?.id,
+        phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
+      })
       await sendAndSave({
         phoneNumberId, accessToken, to: msg.from,
         message: compliance.reply, userId,
@@ -150,13 +170,20 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     }
   }
 
-  // 7. Skip if AI disabled
+  // 4. Skip if AI disabled
   if (conversation?.ai_enabled === false) {
     console.log("⏸️ AI disabled")
+    await saveInboundMessage({
+      userId, phoneNumberId, from: msg.from,
+      text: msg.effectiveText || "[" + msg.type + "]",
+      type: msg.type, conversationId: conversation?.id,
+      phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
+    })
     return
   }
 
-  // 8. Orchestrate — get AI reply
+  // 5. Orchestrate — context loaded INSIDE orchestrator BEFORE we save inbound
+  //    This is the critical order fix for the echo bug
   const reply = await orchestrate({
     userId,
     conversationId: conversation?.id,
@@ -167,7 +194,24 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     phoneNumberId
   })
 
-  // 9. Send reply
+  // 6. NOW save inbound message — after AI has already read context
+  await saveInboundMessage({
+    userId, phoneNumberId, from: msg.from,
+    text: msg.effectiveText || "[" + msg.type + "]",
+    type: msg.type, conversationId: conversation?.id,
+    phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
+  })
+
+  // 7. Lead tracking
+  if (msg.effectiveText) {
+    await upsertLead({
+      userId, customerId: customer?.id, phone: msg.phone,
+      name: msg.contactName, text: msg.effectiveText,
+      timestamp: msg.timestamp, isNew
+    })
+  }
+
+  // 8. Send reply
   if (reply) {
     await sendAndSave({
       phoneNumberId, accessToken, to: msg.from,
