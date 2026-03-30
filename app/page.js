@@ -169,46 +169,49 @@ body::before{
     radial-gradient(ellipse 50% 40% at 85% 75%,rgba(0,80,200,.04) 0%,transparent 50%);
 }
 
-/* ── NAV ── */
+/* ── NAV — PREMIUM ── */
 .nav{
   position:fixed;top:0;left:0;right:0;z-index:200;
-  height:60px;padding:0 clamp(16px,4vw,56px);
+  height:72px;padding:0 clamp(16px,4vw,56px);
   display:flex;align-items:center;justify-content:space-between;transition:all .3s;
+  border-bottom:1px solid rgba(255,255,255,.03);
 }
 .nav.sc{
-  background:rgba(5,8,17,.92);backdrop-filter:blur(20px);
-  -webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--line);
+  background:rgba(5,8,17,.95);backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.06);
+  box-shadow:0 2px 12px rgba(0,0,0,.3);
 }
 
-/* ── NAV LOGO — fixed: 34px, DM Sans 800, no giant font-size ── */
-.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;}
-.nav-logo img{width:34px;height:34px;object-fit:contain;flex-shrink:0;display:block;}
-.nav-logo-text{font-family:'DM Sans',sans-serif;font-weight:800;font-size:20px;
-  color:var(--ink);letter-spacing:-.3px;line-height:1;}
+/* ── NAV LOGO ── */
+.nav-logo{display:flex;align-items:center;gap:12px;text-decoration:none;}
+.nav-logo img{width:38px;height:38px;object-fit:contain;flex-shrink:0;display:block;}
+.nav-logo-text{font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;
+  color:var(--ink);letter-spacing:-.4px;line-height:1;}
 .nav-logo-text em{color:var(--teal);font-style:normal;}
 
-.nmid{display:flex;align-items:center;gap:2px;list-style:none;}
+.nmid{display:flex;align-items:center;gap:6px;list-style:none;}
 .nmid a{
-  font-size:13px;font-weight:500;color:var(--ink2);
-  text-decoration:none;padding:6px 12px;border-radius:7px;transition:all .15s;
+  font-size:14px;font-weight:500;color:var(--ink2);
+  text-decoration:none;padding:8px 14px;border-radius:8px;transition:all .18s;
 }
-.nmid a:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+.nmid a:hover{color:var(--ink);background:rgba(255,255,255,.06)}
 .nr{display:flex;align-items:center;gap:8px;}
 .nav-login{font-size:13px;font-weight:500;color:var(--ink2);text-decoration:none;padding:7px 14px;border-radius:7px;transition:color .15s;}
 .nav-login:hover{color:var(--ink);}
 .nav-cta{
   display:inline-flex;align-items:center;gap:6px;
-  background:var(--teal);color:#000;padding:9px 18px;
-  border-radius:8px;font-weight:700;font-size:13px;
-  text-decoration:none;transition:all .2s;letter-spacing:-.1px;
+  background:var(--teal);color:#000;padding:10px 22px;
+  border-radius:9px;font-weight:700;font-size:13.5px;
+  text-decoration:none;transition:all .22s;letter-spacing:-.1px;
+  box-shadow:0 4px 12px rgba(0,201,177,.2);
 }
-.nav-cta:hover{background:#00e5cc;transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,201,177,.25);}
+.nav-cta:hover{background:#00e5cc;transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,201,177,.3);}
 .hbg{
   display:none;background:none;border:1px solid var(--line2);
   border-radius:7px;padding:6px 10px;cursor:pointer;color:var(--ink2);font-size:15px;line-height:1;
 }
 .mdraw{
-  position:fixed;top:60px;left:0;right:0;z-index:190;
+  position:fixed;top:72px;left:0;right:0;z-index:190;
   background:rgba(5,8,17,.97);backdrop-filter:blur(24px);
   border-bottom:1px solid var(--line);padding:10px 14px 18px;
   display:flex;flex-direction:column;gap:2px;
@@ -222,7 +225,7 @@ body::before{
 /* ── HERO ── */
 .hero{
   min-height:100vh;
-  padding:clamp(110px,13vw,160px) clamp(16px,5vw,56px) clamp(72px,9vw,100px);
+  padding:clamp(120px,14vw,160px) clamp(16px,5vw,56px) clamp(80px,10vw,120px);
   background:var(--base);position:relative;overflow:hidden;
 }
 .hero-grid-bg{
@@ -255,41 +258,47 @@ body::before{
 }
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.6)}}
 
-/* ── HERO HEADLINE — single, no rotation, strong hierarchy ── */
+/* ── HERO HEADLINE — LARGER, BETTER SPACING ── */
 .h1{
-  font-size:clamp(36px,4.8vw,64px);font-weight:800;
-  line-height:1.08;letter-spacing:-.04em;color:var(--ink);
-  margin-bottom:0;
+  font-size:clamp(42px,5.2vw,72px);font-weight:800;
+  line-height:1.04;letter-spacing:-.05em;color:var(--ink);
+  margin-bottom:12px;
 }
-/* Second line — slightly muted to create visual hierarchy */
 .h1-line2{
   display:block;
-  font-size:clamp(24px,3vw,42px);font-weight:700;
-  line-height:1.15;letter-spacing:-.035em;
-  color:rgba(241,245,249,.48);margin-top:6px;margin-bottom:28px;
+  font-size:clamp(26px,3.2vw,46px);font-weight:700;
+  line-height:1.12;letter-spacing:-.035em;
+  color:rgba(241,245,249,.5);margin-top:8px;margin-bottom:36px;
 }
 .h1-line2 em{color:var(--teal);font-style:normal;opacity:1;}
 
-/* ── HERO SUBTEXT — short lines, not paragraph ── */
-.hero-sub{display:flex;flex-direction:column;gap:5px;margin-bottom:36px;}
-.hero-sub-line{font-size:clamp(14px,1.5vw,16px);color:var(--ink2);line-height:1.65;font-weight:400;}
-.hero-sub-line strong{color:var(--ink);font-weight:600;}
+/* ── HERO SUBTEXT — SHORT LINES ── */
+.hero-sub{display:flex;flex-direction:column;gap:7px;margin-bottom:40px;max-width:560px;}
+.hero-sub-line{
+  font-size:clamp(15px,1.6vw,17px);
+  color:var(--ink2);line-height:1.7;font-weight:400;letter-spacing:-.01em;
+}
+.hero-sub-line strong{
+  color:var(--ink);font-weight:700;background:rgba(0,201,177,.08);
+  padding:1px 6px;border-radius:5px;
+}
 
-.hero-btns{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:32px;}
+.hero-btns{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:40px;}
 .btn-primary{
   display:inline-flex;align-items:center;gap:8px;
-  background:var(--teal);color:#000;padding:15px 30px;
-  border-radius:9px;font-weight:700;font-size:15px;
-  text-decoration:none;transition:all .2s;letter-spacing:-.15px;
+  background:var(--teal);color:#000;padding:16px 32px;
+  border-radius:10px;font-weight:700;font-size:15px;
+  text-decoration:none;transition:all .24s;letter-spacing:-.15px;
+  box-shadow:0 8px 20px rgba(0,201,177,.25);
 }
-.btn-primary:hover{background:#00e5cc;transform:translateY(-1px);box-shadow:0 14px 32px rgba(0,201,177,.28);}
+.btn-primary:hover{background:#00e5cc;transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,201,177,.35);}
 .btn-ghost{
-  display:inline-flex;align-items:center;gap:7px;
-  background:rgba(255,255,255,.04);color:var(--ink);
-  padding:15px 22px;border-radius:9px;font-weight:500;font-size:14px;
-  text-decoration:none;border:1px solid var(--line2);transition:all .2s;
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,.05);color:var(--ink);
+  padding:16px 24px;border-radius:10px;font-weight:600;font-size:15px;
+  text-decoration:none;border:1px solid var(--line2);transition:all .22s;
 }
-.btn-ghost:hover{background:rgba(255,255,255,.07);border-color:var(--line3);}
+.btn-ghost:hover{background:rgba(255,255,255,.09);border-color:var(--teal);color:var(--teal);}
 .hero-proof{
   display:flex;align-items:center;gap:14px;
   padding:12px 16px;background:var(--teal4);
@@ -368,21 +377,67 @@ body::before{
 .stat-l{font-size:14px;font-weight:600;color:var(--ink2);}
 .stat-s{font-size:12px;color:var(--ink3);margin-top:4px;}
 
+/* ── REAL LOSS SECTION (NEW) ── */
+.real-loss-sec{background:var(--base);}
+.loss-timeline{
+  display:flex;flex-direction:column;gap:0;border-left:2px solid var(--line);
+  position:relative;max-width:800px;margin:56px auto 0;
+}
+.loss-item{
+  display:grid;grid-template-columns:100px 1fr;gap:20px;
+  padding:24px 0 24px 32px;border-bottom:1px solid var(--line);
+  position:relative;
+}
+.loss-item:last-child{border-bottom:none;}
+.loss-item::before{
+  content:'';position:absolute;left:-8px;top:32px;
+  width:14px;height:14px;border-radius:50%;
+  background:var(--line);border:2px solid var(--base);
+}
+.loss-item-highlight{
+  background:rgba(244,63,94,.04);padding:24px 28px 24px 32px;
+  margin:0 -12px;border-radius:12px;
+}
+.loss-item-highlight::before{background:var(--red);border-color:var(--base);}
+.loss-time{
+  font-size:13px;font-weight:700;color:var(--ink2);
+  text-align:right;padding-top:2px;
+}
+.loss-content{
+  display:flex;align-items:flex-start;gap:12px;
+}
+.loss-icon{font-size:24px;}
+.loss-event{
+  font-size:14.5px;font-weight:700;color:var(--ink);
+  margin-bottom:3px;letter-spacing:-.01em;
+}
+.loss-desc{
+  font-size:13px;color:var(--ink2);line-height:1.6;
+}
+.loss-item-highlight .loss-event{color:var(--red);}
+.loss-item-highlight .loss-desc{color:rgba(244,63,94,.8);font-weight:600;}
+.loss-cta{max-width:680px;margin:56px auto 0;text-align:center;}
+
 /* ── SECTION BASE ── */
-.sec{padding:clamp(80px,10vw,128px) 0;}
+.sec{padding:clamp(100px,12vw,140px) 0;position:relative;}
+.sec:nth-child(even){background:var(--s1);}
+.sec:nth-child(odd){background:var(--base);}
 .w{max-width:1200px;margin:0 auto;padding:0 clamp(16px,4vw,56px);}
 .label{
   display:inline-flex;align-items:center;gap:8px;
-  font-size:10.5px;font-weight:700;letter-spacing:3px;
-  text-transform:uppercase;color:var(--teal);margin-bottom:16px;
+  font-size:11px;font-weight:700;letter-spacing:3.2px;
+  text-transform:uppercase;color:var(--teal);margin-bottom:18px;
 }
-.label::before{content:'';width:16px;height:1.5px;background:var(--teal);}
+.label::before{content:'';width:18px;height:1.5px;background:var(--teal);}
 .sh{
-  font-weight:800;font-size:clamp(30px,4.2vw,52px);
-  color:var(--ink);margin-bottom:16px;line-height:1.07;letter-spacing:-.035em;
+  font-weight:800;font-size:clamp(32px,4.5vw,56px);
+  color:var(--ink);margin-bottom:18px;line-height:1.08;letter-spacing:-.04em;
 }
 .sh em{font-style:italic;color:var(--teal);}
-.sp{font-size:clamp(14px,1.5vw,16px);color:var(--ink2);line-height:1.85;font-weight:400;}
+.sp{
+  font-size:clamp(14.5px,1.6vw,16px);color:var(--ink2);
+  line-height:1.88;font-weight:400;letter-spacing:-.01em;
+}
 
 /* ── PAIN — emotional cards ── */
 .pain-grid{
@@ -399,9 +454,7 @@ body::before{
 .pain-card:hover::before{opacity:1;}
 .pain-num{font-size:clamp(56px,8vw,88px);font-weight:900;line-height:1;color:rgba(0,201,177,.06);margin-bottom:16px;letter-spacing:-.05em;}
 .pain-ico{font-size:28px;display:block;margin-bottom:14px;}
-/* Punchy title — prominent */
 .pain-title{font-size:18px;font-weight:800;color:var(--ink);margin-bottom:5px;letter-spacing:-.03em;line-height:1.2;}
-/* Short red punch line — the real emotional hook */
 .pain-punch{font-size:12.5px;font-weight:700;color:var(--red);margin-bottom:10px;letter-spacing:.15px;}
 .pain-desc{font-size:13.5px;color:var(--ink2);line-height:1.8;font-weight:400;}
 .pain-tag{
@@ -454,17 +507,30 @@ body::before{
 
 /* ── FEATURES ── */
 .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:56px;}
-.fc{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:26px 22px;transition:all .2s;position:relative;overflow:hidden;}
-.fc::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--teal3),transparent);opacity:0;transition:.25s;}
-.fc:hover{border-color:var(--teal3);background:var(--s2);transform:translateY(-2px);}
+.fc{
+  background:var(--s1);border:1px solid var(--line);border-radius:16px;
+  padding:28px 24px;transition:all .24s;position:relative;overflow:hidden;
+}
+.fc::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--teal2),transparent);opacity:0;transition:.3s;
+}
+.fc:hover{
+  border-color:var(--teal2);background:var(--s2);
+  transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.2);
+}
 .fc:hover::after{opacity:1;}
-.fc-ico{width:40px;height:40px;border-radius:9px;background:var(--teal2);border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:14px;}
+.fc-ico{
+  width:44px;height:44px;border-radius:10px;background:var(--teal2);
+  border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;
+  font-size:20px;margin-bottom:16px;
+}
 .fc-badge{float:right;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--teal);background:var(--teal2);border:1px solid var(--teal3);padding:2px 7px;border-radius:4px;margin-top:2px;}
 .fc-title{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:7px;clear:both;letter-spacing:-.02em;}
 .fc-desc{font-size:13px;color:var(--ink2);line-height:1.75;}
 
-/* ── REVENUE VISUALIZATION (NEW) ── */
-.rev-sec{padding:clamp(80px,10vw,128px) 0;background:var(--base);}
+/* ── REVENUE VISUALIZATION ── */
+.rev-sec{padding:clamp(100px,12vw,140px) 0;background:var(--base);}
 .rev-viz{display:grid;grid-template-columns:1fr 48px 1fr;gap:20px;align-items:center;margin-top:56px;}
 .rev-col{background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:28px 24px;position:relative;}
 .rev-col.after{border-color:var(--teal3);background:var(--s2);}
@@ -490,7 +556,6 @@ body::before{
 .rev-item-s{font-size:11.5px;color:var(--ink2);line-height:1.4;}
 .rev-item-s.bad-s{color:rgba(244,63,94,.7);}
 .rev-item-s.good-s{color:var(--teal);}
-/* Arrow between columns */
 .rev-arrow{display:flex;flex-direction:column;align-items:center;gap:6px;}
 .rev-arrow-line{width:1px;height:32px;background:linear-gradient(to bottom,transparent,var(--teal),transparent);}
 .rev-arrow-icon{
@@ -528,19 +593,20 @@ body::before{
 .t-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:56px;}
 .tc{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:26px;transition:all .2s;}
 .tc:hover{border-color:var(--teal3);transform:translateY(-2px);box-shadow:0 16px 40px rgba(0,0,0,.3);}
-/* Result FIRST — larger, prominent, not tiny badge */
 .tc-result{
   display:inline-block;background:var(--teal2);border:1px solid var(--teal3);
-  color:var(--teal);font-size:13px;font-weight:800;
-  padding:6px 12px;border-radius:8px;margin-bottom:14px;letter-spacing:-.01em;
+  color:var(--teal);font-size:14px;font-weight:800;
+  padding:8px 14px;border-radius:9px;margin-bottom:16px;letter-spacing:-.01em;line-height:1.2;
 }
-.tc-stars{color:var(--amber);font-size:11.5px;letter-spacing:2px;margin-bottom:12px;}
-.tc-quote{font-size:13.5px;color:var(--ink2);line-height:1.85;margin-bottom:18px;font-style:italic;}
-.tc-auth{display:flex;align-items:center;gap:10px;}
-.tc-av{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;}
-.tc-name{font-size:13px;font-weight:700;color:var(--ink);}
-.tc-biz{font-size:11.5px;color:var(--ink2);}
-.tc-ver{font-size:10px;color:var(--teal);font-weight:600;margin-top:2px;}
+.tc-stars{color:var(--amber);font-size:12px;letter-spacing:2px;margin-bottom:14px;}
+.tc-quote{font-size:14px;color:var(--ink2);line-height:1.9;margin-bottom:20px;font-style:italic;font-weight:400;}
+.tc-auth{
+  display:flex;align-items:center;gap:12px;padding-top:16px;border-top:1px solid var(--line);
+}
+.tc-av{width:40px;height:40px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;}
+.tc-name{font-size:14px;font-weight:700;color:var(--ink);}
+.tc-biz{font-size:12px;color:var(--ink2);}
+.tc-ver{font-size:11px;color:var(--teal);font-weight:600;margin-top:3px;}
 
 /* ── FOUNDER ── */
 .founder-sec{
@@ -561,16 +627,15 @@ body::before{
 .founder-co{font-size:11.5px;color:var(--teal);font-weight:600;margin-top:2px;}
 
 /* ── PRICING ── */
-/* Value context banner — sits above pricing grid */
 .pricing-context{
-  max-width:640px;margin:0 auto 44px;
-  background:var(--s2);border:1px solid var(--teal3);
-  border-radius:14px;padding:18px 24px;
-  display:flex;align-items:center;gap:14px;
+  max-width:680px;margin:0 auto 48px;
+  background:linear-gradient(135deg,rgba(0,201,177,.08),rgba(0,201,177,.03));
+  border:1px solid var(--teal2);border-radius:16px;padding:20px 28px;
+  display:flex;align-items:center;gap:16px;backdrop-filter:blur(8px);
 }
-.pricing-context-ico{font-size:26px;flex-shrink:0;}
-.pricing-context-body{font-size:14.5px;color:var(--ink2);line-height:1.6;}
-.pricing-context-body strong{color:var(--ink);font-weight:700;}
+.pricing-context-ico{font-size:28px;flex-shrink:0;}
+.pricing-context-body{font-size:15px;color:var(--ink2);line-height:1.7;font-weight:400;}
+.pricing-context-body strong{color:var(--teal);font-weight:700;}
 
 .p-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start;}
 .plan{background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:clamp(22px,3vw,36px) clamp(18px,3vw,28px);position:relative;transition:all .2s;}
@@ -634,7 +699,6 @@ body::before{
   border-radius:24px;padding:clamp(48px,6vw,84px) clamp(28px,5vw,64px);overflow:hidden;
 }
 .cta-card::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),transparent);}
-/* Two-line CTA headline — emotionally split */
 .cta-h-stop{
   display:block;font-size:clamp(28px,4vw,50px);font-weight:800;
   color:var(--red);line-height:1.1;letter-spacing:-.04em;margin-bottom:4px;
@@ -669,7 +733,6 @@ body::before{
 footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,6vw,68px) clamp(16px,4vw,56px) clamp(28px,4vw,38px);}
 .ft{max-width:1200px;margin:0 auto;}
 .ft-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:clamp(24px,4vw,52px);margin-bottom:clamp(32px,4vw,44px);}
-/* Footer logo — same 34px standard */
 .ft-logo{display:flex;align-items:center;gap:10px;text-decoration:none;}
 .ft-logo img{width:34px;height:34px;object-fit:contain;flex-shrink:0;display:block;}
 .ft-logo-text{font-weight:800;font-size:20px;color:var(--ink);letter-spacing:-.3px;line-height:1;}
@@ -689,15 +752,17 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
 
 /* ── RESPONSIVE ── */
 @media(max-width:768px){
-  .nav{padding:0 14px;}
+  .nav{height:68px;padding:0 14px;}
   .nmid,.nav-login{display:none;}
   .hbg{display:flex;}
-  .hero{padding:80px 14px 48px;min-height:auto;}
+  .hero{padding:90px 14px 56px;min-height:auto;}
   .hero-in{grid-template-columns:1fr;gap:28px;}
-  .h1{font-size:clamp(30px,9vw,42px);}
-  .h1-line2{font-size:clamp(20px,6vw,28px);}
-  .hero-btns{flex-direction:column;align-items:stretch;}
-  .btn-primary,.btn-ghost{justify-content:center;}
+  .h1{font-size:clamp(32px,10vw,48px);}
+  .h1-line2{font-size:clamp(20px,7vw,32px);}
+  .hero-btns{flex-direction:column;align-items:stretch;gap:10px;}
+  .btn-primary,.btn-ghost{justify-content:center;width:100%;}
+  .hero-sub{gap:6px;margin-bottom:32px;}
+  .hero-sub-line{font-size:clamp(14px,4vw,15px);}
   .stats-row{grid-template-columns:1fr;}
   .stat-cell{border-right:none;border-bottom:1px solid var(--line);}
   .stat-cell:last-child{border-bottom:none;}
@@ -705,6 +770,9 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
   .pain-card{border-bottom:1px solid var(--line);}
   .steps{grid-template-columns:1fr;gap:12px;}
   .step:not(:last-child)::after{display:none;}
+  .loss-timeline{border-left-width:1.5px;}
+  .loss-item{grid-template-columns:1fr;gap:12px;padding:20px 0 20px 24px;}
+  .loss-time{text-align:left;font-size:12px;}
   .demo-layout{grid-template-columns:1fr;gap:12px;}
   .demo-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
   .feat-grid{grid-template-columns:1fr;gap:10px;}
@@ -722,7 +790,6 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
   .ft-top{grid-template-columns:1fr;gap:28px;}
   .ft-tagline{max-width:100%;}
   .ft-bot{flex-direction:column;text-align:center;}
-  .sec{padding:clamp(56px,8vw,80px) 0;}
   .mq{display:none;}
   .exit-bar{flex-direction:column;align-items:flex-start;}
   .hero-proof{flex-direction:column;align-items:flex-start;}
@@ -751,10 +818,10 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     )}
 
-    {/* ── NAV — logo fixed to 34px, clean DM Sans 800 ── */}
+    {/* ── NAV ── */}
     <nav className={`nav${scrolled?" sc":""}`}>
       <a href="/" className="nav-logo">
-        <img src="/logo.png" width="34" height="34" alt="Fastrill" />
+        <img src="/logo.png" width="38" height="38" alt="Fastrill" />
         <span className="nav-logo-text">fast<em>rill</em></span>
       </a>
       <ul className="nmid">
@@ -777,7 +844,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       <a href="/signup" onClick={()=>setMobOpen(false)} style={{color:"var(--teal)",fontWeight:700}}>Start Free Trial →</a>
     </div>
 
-    {/* ── HERO — single headline, short sub lines, new CTA ── */}
+    {/* ── HERO ── */}
     <section className="hero">
       <div className="hero-grid-bg"/>
       <div className="hero-in">
@@ -787,23 +854,20 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
             🇮🇳 Built for Indian businesses
           </div>
 
-          {/* Single strong headline — no rotation */}
           <h1 className="h1">You're not losing leads.</h1>
           <span className="h1-line2">
             You're losing them <em>after they message you.</em>
           </span>
 
-          {/* Short lines — not a paragraph block */}
           <div className="hero-sub">
-            <span className="hero-sub-line">Every lead who messages you on WhatsApp is worth money.</span>
-            <span className="hero-sub-line">Most businesses reply in hours — or not at all.</span>
-            <span className="hero-sub-line"><strong>Fastrill replies in 2 seconds.</strong> Books the appointment. Sends the confirmation.</span>
-            <span className="hero-sub-line">Automatically. In their language. 24/7.</span>
+            <span className="hero-sub-line">Every lead on WhatsApp = real money.</span>
+            <span className="hero-sub-line">Most businesses reply in <strong>hours</strong> — or never.</span>
+            <span className="hero-sub-line">That's where your revenue walks out.</span>
+            <span className="hero-sub-line">Fastrill replies in <strong>2 seconds.</strong> Books the appointment. Confirmed.</span>
           </div>
 
           <div className="hero-btns">
-            {/* Updated CTA copy */}
-            <a href="/signup" className="btn-primary">Start converting leads in 2 minutes →</a>
+            <a href="/signup" className="btn-primary">Start converting leads instantly →</a>
             <a href="#demo" className="btn-ghost">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><path d="M6.5 5.5l4 2.5-4 2.5V5.5z" fill="currentColor"/></svg>
               See it live
@@ -821,7 +885,6 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
           </div>
         </div>
 
-        {/* Phone mockup */}
         <div className="fade">
           <div className="phone">
             <div className="phone-top">
@@ -882,7 +945,47 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </div>
 
-    {/* ── PAIN — emotional, punchy ── */}
+    {/* ── REAL LOSS SECTION (NEW) ── */}
+    <section className="sec real-loss-sec" style={{background:"var(--base)"}}>
+      <div className="w">
+        <div className="fade" style={{maxWidth:720,margin:"0 auto"}}>
+          <div className="label" style={{justifyContent:"center"}}>The silent cost</div>
+          <h2 className="sh" style={{textAlign:"center"}}>What happens when you don't reply instantly?</h2>
+          <p className="sp" style={{textAlign:"center",maxWidth:480,margin:"0 auto"}}>
+            A real scenario. A real loss.
+          </p>
+        </div>
+
+        <div className="loss-timeline fade">
+          {[
+            {time:"9:02 PM",event:"Customer messages you",desc:"Ready to book. Service: Keratin treatment. Budget: ₹2,800",icon:"💬"},
+            {time:"9:45 PM",event:"You finally reply",desc:"Too late. They already asked your competitor.",icon:"😬"},
+            {time:"10:12 PM",event:"Customer booked elsewhere",desc:"Your competitor replied in 2 minutes.",icon:"📕"},
+            {time:"—",event:"Your loss",desc:"₹2,800 + lifetime value + reviews = ₹12,000+",icon:"💸",highlight:true},
+          ].map((item,i)=>(
+            <div key={i} className={`loss-item${item.highlight?" loss-item-highlight":""}`}>
+              <div className="loss-time">{item.time}</div>
+              <div className="loss-content">
+                <div className="loss-icon">{item.icon}</div>
+                <div>
+                  <div className="loss-event">{item.event}</div>
+                  <div className="loss-desc">{item.desc}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="loss-cta fade">
+          <p style={{fontSize:"15px",color:"var(--ink2)",marginBottom:20}}>
+            This happens <strong style={{color:"var(--red)"}}>thousands of times every month</strong> across Indian businesses.
+          </p>
+          <a href="/signup" className="btn-primary">Stop the bleeding →</a>
+        </div>
+      </div>
+    </section>
+
+    {/* ── PAIN ── */}
     <section className="sec" id="pain" style={{background:"var(--base)"}}>
       <div className="w">
         <div className="fade" style={{maxWidth:600}}>
@@ -962,13 +1065,13 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── DEMO — updated heading ── */}
+    {/* ── DEMO ── */}
     <section className="sec" id="demo" style={{background:"var(--base)"}}>
       <div className="w">
         <div className="fade">
           <div className="label">Live demo</div>
           <h2 className="sh">See how a real customer gets<br /><em>converted in seconds.</em></h2>
-          <p className="sp" style={{maxWidth:440}}>Click any scenario — instant replies, any language, any context.</p>
+          <p className="sp" style={{maxWidth:500}}>No scripts. Real conversations. Click any scenario — instant replies, any language, any context.</p>
         </div>
         <div className="demo-layout">
           <div className="demo-tabs fade">
@@ -1031,13 +1134,13 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── REVENUE VISUALIZATION — NEW SECTION ── */}
+    {/* ── REVENUE VISUALIZATION ── */}
     <section className="rev-sec">
       <div className="w">
         <div className="fade" style={{textAlign:"center"}}>
           <div className="label" style={{justifyContent:"center"}}>The difference</div>
           <h2 className="sh" style={{textAlign:"center"}}>Before Fastrill.<br /><em>After Fastrill.</em></h2>
-          <p className="sp" style={{maxWidth:420,margin:"0 auto"}}>
+          <p className="sp" style={{textAlign:"center",maxWidth:420,margin:"0 auto"}}>
             Two businesses. Same ads. Same leads.<br/>Different results.
           </p>
         </div>
@@ -1098,7 +1201,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
         <div className="fade" style={{textAlign:"center"}}>
           <div className="label" style={{justifyContent:"center"}}>Who it's for</div>
           <h2 className="sh" style={{textAlign:"center"}}>Any business that runs<br /><em>on customers</em></h2>
-          <p className="sp" style={{maxWidth:440,margin:"0 auto"}}>If customers message you on WhatsApp and you want to convert more — Fastrill works for you.</p>
+          <p className="sp" style={{textAlign:"center",maxWidth:440,margin:"0 auto"}}>If customers message you on WhatsApp and you want to convert more — Fastrill works for you.</p>
         </div>
         <div className="who-grid">
           {[
@@ -1172,18 +1275,17 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── TESTIMONIALS — result badge larger & first ── */}
+    {/* ── TESTIMONIALS ── */}
     <section className="sec" style={{background:"var(--s1)"}}>
       <div className="w">
         <div className="fade" style={{textAlign:"center"}}>
           <div className="label" style={{justifyContent:"center"}}>Results</div>
           <h2 className="sh" style={{textAlign:"center"}}>Real revenue from<br /><em>real Indian businesses</em></h2>
-          <p className="sp" style={{maxWidth:420,margin:"0 auto"}}>From salons in Hyderabad to clinics in Vijayawada — businesses that reply faster book more.</p>
+          <p className="sp" style={{textAlign:"center",maxWidth:420,margin:"0 auto"}}>From salons in Hyderabad to clinics in Vijayawada — businesses that reply faster book more.</p>
         </div>
         <div className="t-grid">
           {TESTIMONIALS.map(t=>(
             <div key={t.name} className="tc fade">
-              {/* Result FIRST — 13px bold badge, not tiny 10.5px ← fixed */}
               <div className="tc-result">📈 {t.result}</div>
               <div className="tc-stars">★★★★★</div>
               <p className="tc-quote">"{t.quote}"</p>
@@ -1231,16 +1333,15 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── PRICING — with value context banner ── */}
+    {/* ── PRICING ── */}
     <section className="sec" id="pricing" style={{background:"var(--base)"}}>
       <div className="w">
         <div className="fade" style={{textAlign:"center"}}>
           <div className="label" style={{justifyContent:"center"}}>Pricing</div>
           <h2 className="sh" style={{textAlign:"center"}}>Simple pricing.<br /><em>Pays for itself.</em></h2>
-          <p className="sp" style={{maxWidth:420,margin:"0 auto 40px"}}>No per-message fees. Flat monthly.</p>
+          <p className="sp" style={{textAlign:"center",maxWidth:420,margin:"0 auto 40px"}}>No per-message fees. Flat monthly.</p>
         </div>
 
-        {/* Value context — sits between heading and grid */}
         <div className="pricing-context fade">
           <div className="pricing-context-ico">💡</div>
           <div className="pricing-context-body">
@@ -1284,7 +1385,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
         <div className="fade" style={{textAlign:"center"}}>
           <div className="label" style={{justifyContent:"center"}}>FAQ</div>
           <h2 className="sh" style={{textAlign:"center"}}>Honest answers</h2>
-          <p className="sp" style={{maxWidth:380,margin:"0 auto"}}>No fluff. No pressure.</p>
+          <p className="sp" style={{textAlign:"center",maxWidth:380,margin:"0 auto"}}>No fluff. No pressure.</p>
         </div>
         <div className="faq-box">
           {FAQS.map((q,i)=>(
@@ -1299,19 +1400,19 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── FINAL CTA — emotionally split headline ── */}
+    {/* ── FINAL CTA ── */}
     <section className="cta-sec">
       <div className="w">
         <div className="cta-card fade">
-          <span className="cta-h-stop">Stop losing leads.</span>
-          <span className="cta-h-start">Start converting them <em>instantly.</em></span>
+          <span className="cta-h-stop">Stop losing customers</span>
+          <span className="cta-h-start">who already want to <em>buy.</em></span>
           <p className="cta-p">
             Don't make them wait. Don't lose them to whoever replies faster.<br/>
             Fastrill answers in 2 seconds — in their language, every time, 24/7.
           </p>
           <div className="cta-btns">
             <a href="/signup" className="btn-primary">Start Free — No Card Needed →</a>
-            <a href="https://wa.me/919346079265" className="btn-ghost">💬 Chat on WhatsApp</a>
+            <a href="https://wa.me/919346079265" className="btn-ghost">💬 Message us on WhatsApp</a>
           </div>
           <p className="cta-note">14-day free trial · Setup in 10 minutes · Cancel anytime · No credit card required</p>
         </div>
