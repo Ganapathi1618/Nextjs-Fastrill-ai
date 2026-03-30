@@ -219,7 +219,7 @@ body::before{
   text-decoration:none;font-family:var(--display);
   font-weight:1000;font-size:60px;letter-spacing:-0.5px;color:var(--ink);
 }
-.logo img{width:60px;height:60px;object-fit:contain;flex-shrink:0;}
+.logo img{width:32px;height:32px;object-fit:contain;flex-shrink:0;}
 .logo em{color:var(--teal);font-style:normal;}
 .nmid{display:flex;align-items:center;gap:2px;list-style:none;}
 .nmid a{
@@ -425,7 +425,7 @@ body::before{
 /* ── TRUST BAR ── */
 .trust{
   border-bottom:1px solid var(--line);
-  padding:13px clamp(16px,4vw,56px);
+  padding:13px clamp(14px,3vw,36px);
   display:flex;align-items:center;justify-content:center;
   gap:clamp(14px,3vw,36px);flex-wrap:wrap;
   background:var(--s1);
