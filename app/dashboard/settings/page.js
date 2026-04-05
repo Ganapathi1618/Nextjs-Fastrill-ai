@@ -27,6 +27,7 @@ const TABS = [
   { id:"services", label:"Services",  icon:"📋" },
   { id:"ai",       label:"AI Brain",  icon:"🧠" },
   { id:"whatsapp", label:"WhatsApp",  icon:"💬" },
+  { id:"billing",  label:"Plan & Billing", icon:"💳" },
   { id:"account",  label:"Account",   icon:"👤" },
 ]
 
@@ -34,9 +35,68 @@ const LANGUAGES  = ["English","Hindi","Telugu","Tamil","Kannada","Malayalam","Ma
 const BIZ_TYPES  = ["Salon","Beauty Parlour","Spa","Hair Studio","Nail Studio","Makeup Studio","Skin Clinic","Dermatology Clinic","Dental Clinic","Ayurvedic Clinic","Physiotherapy Clinic","Yoga Studio","Fitness Studio","Gym","Wellness Center","Agency","Consulting","Restaurant","Retail","Education","Real Estate","Other"]
 const CATEGORIES = ["Hair","Skin","Nails","Bridal","Massage","Body","Dental","Fitness","Ayurveda","Consultation","Membership","Other"]
 
+const PLANS = [
+  {
+    id: "starter",
+    name: "Starter",
+    price: "₹999",
+    period: "/month",
+    description: "Perfect to get started",
+    color: "#00C9B1",
+    features: [
+      "AI WhatsApp receptionist",
+      "Booking, reschedule, cancel",
+      "Telugu, Hindi, English",
+      "Dashboard & analytics",
+      "Up to 500 conversations/month",
+    ],
+    locked: [
+      "Appointment reminders",
+      "Lead recovery",
+      "Bulk campaigns",
+    ]
+  },
+  {
+    id: "growth",
+    name: "Growth",
+    price: "₹1,999",
+    period: "/month",
+    description: "Most popular for growing businesses",
+    color: "#6366f1",
+    popular: true,
+    features: [
+      "Everything in Starter",
+      "Appointment reminders (24hr before)",
+      "Lead recovery follow-ups",
+      "Unlimited conversations",
+      "Priority support",
+    ],
+    locked: [
+      "Bulk campaigns",
+    ]
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: "₹3,999",
+    period: "/month",
+    description: "For high-volume businesses",
+    color: "#f59e0b",
+    features: [
+      "Everything in Growth",
+      "Bulk WhatsApp campaigns",
+      "Customer segments",
+      "Advanced analytics",
+      "Dedicated support",
+    ],
+    locked: []
+  },
+]
+
 export default function SettingsPage() {
   const [userId, setUserId]         = useState(null)
   const [userEmail, setUserEmail]   = useState("")
+  const [userName, setUserName]     = useState("")
   const [tab, setTab]               = useState("business")
   const [loading, setLoading]       = useState(true)
   const [saving, setSaving]         = useState(false)
@@ -48,6 +108,14 @@ export default function SettingsPage() {
   const [testMsg, setTestMsg]       = useState("")
   const [testReply, setTestReply]   = useState("")
   const [testing, setTesting]       = useState(false)
+  const [subscribing, setSubscribing] = useState(null)
+
+  // Plan state
+  const [currentPlan, setCurrentPlan]               = useState("trial")
+  const [planExpiry, setPlanExpiry]                 = useState(null)
+  const [remindersEnabled, setRemindersEnabled]     = useState(false)
+  const [leadRecoveryEnabled, setLeadRecoveryEnabled] = useState(false)
+  const [campaignsEnabled, setCampaignsEnabled]     = useState(false)
 
   const [business, setBusiness] = useState({
     business_name:"", business_type:"Salon", phone:"", location:"",
@@ -60,11 +128,10 @@ export default function SettingsPage() {
   const [services, setServices]     = useState([])
   const [newSvc, setNewSvc]         = useState({ name:"", price:"", duration:"30", category:"Hair", capacity:"1", service_type:"appointment", description:"" })
   const [editingId, setEditingId]   = useState(null)
-  const [newPassword, setNewPassword]     = useState("")
+  const [newPassword, setNewPassword]       = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [changingPass, setChangingPass]   = useState(false)
+  const [changingPass, setChangingPass]     = useState(false)
 
-  // ── Theme tokens (matches existing dashboard) ─────────────────
   const bg         = dark ? "#08080e"                 : "#f0f2f5"
   const sidebar    = dark ? "#0c0c15"                 : "#ffffff"
   const card       = dark ? "#0f0f1a"                 : "#ffffff"
@@ -97,6 +164,25 @@ export default function SettingsPage() {
     else { setSaved(true); setTimeout(() => setSaved(false), 2500) }
   }
 
+  // Check if plan allows a feature
+  function planAllows(feature) {
+    if (feature === "reminders" || feature === "lead_recovery") {
+      return currentPlan === "growth" || currentPlan === "pro"
+    }
+    if (feature === "campaigns") return currentPlan === "pro"
+    return true
+  }
+
+  // Format plan expiry date
+  function formatExpiry(dateStr) {
+    if (!dateStr) return null
+    try {
+      return new Date(dateStr).toLocaleDateString("en-IN", {
+        day: "numeric", month: "long", year: "numeric"
+      })
+    } catch(e) { return null }
+  }
+
   useEffect(() => {
     const t = localStorage.getItem("fastrill-theme")
     if (t) setDark(t === "dark")
@@ -104,14 +190,25 @@ export default function SettingsPage() {
       const supabase = getSupabase()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { window.location.href = "/login"; return }
-      setUserId(user.id); setUserEmail(user.email || "")
+      setUserId(user.id)
+      setUserEmail(user.email || "")
+      setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "")
+
       const [{ data: biz }, { data: kn }, { data: svcs }, { data: wa }] = await Promise.all([
         supabase.from("business_settings").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("business_knowledge").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("services").select("*").eq("user_id", user.id).order("category"),
         supabase.from("whatsapp_connections").select("*").eq("user_id", user.id).maybeSingle(),
       ])
-      if (biz) setBusiness(b => ({ ...b, ...biz }))
+
+      if (biz) {
+        setBusiness(b => ({ ...b, ...biz }))
+        setCurrentPlan(biz.plan || "trial")
+        setPlanExpiry(biz.plan_expires_at || null)
+        setRemindersEnabled(biz.reminders_enabled || false)
+        setLeadRecoveryEnabled(biz.lead_recovery_enabled || false)
+        setCampaignsEnabled(biz.campaigns_enabled || false)
+      }
       if (biz || kn) setAi(a => ({
         ...a,
         ai_language:       biz?.ai_language       || "English",
@@ -128,6 +225,80 @@ export default function SettingsPage() {
     }
     load()
   }, [])
+
+  // Save feature toggles
+  async function saveFeatureToggle(field, value) {
+    const supabase = getSupabase()
+    await supabase.from("business_settings")
+      .update({ [field]: value })
+      .eq("user_id", userId)
+  }
+
+  // Handle plan subscription via Razorpay
+  async function handleSubscribe(planId) {
+    if (!userId) return
+    setSubscribing(planId)
+    try {
+      // Create subscription on backend
+      const res = await fetch("/api/razorpay/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan: planId,
+          userId,
+          userEmail,
+          userName
+        })
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+
+      // Open Razorpay checkout
+      const options = {
+        key:             data.keyId,
+        subscription_id: data.subscriptionId,
+        name:            "Fastrill",
+        description:     "Fastrill " + planId.charAt(0).toUpperCase() + planId.slice(1) + " Plan",
+        image:           "/logo.png",
+        prefill: {
+          email: userEmail,
+          name:  userName
+        },
+        theme: { color: "#00C9B1" },
+        handler: function(response) {
+          // Payment successful — webhook will activate the plan
+          // Show success message and reload after 2s
+          showToast("Payment successful! Your plan is being activated...")
+          setTimeout(() => window.location.reload(), 3000)
+        },
+        modal: {
+          ondismiss: function() {
+            setSubscribing(null)
+          }
+        }
+      }
+
+      // Load Razorpay script if not already loaded
+      if (!window.Razorpay) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script")
+          script.src = "https://checkout.razorpay.com/v1/checkout.js"
+          script.onload = resolve
+          script.onerror = reject
+          document.body.appendChild(script)
+        })
+      }
+
+      const rzp = new window.Razorpay(options)
+      rzp.open()
+
+    } catch(e) {
+      console.error("Subscribe error:", e)
+      showToast(e.message || "Payment failed. Please try again.", "error")
+    } finally {
+      setSubscribing(null)
+    }
+  }
 
   async function saveBusiness() {
     if (!business.business_name?.trim()) { showToast("Business name is required", "error"); return }
@@ -245,10 +416,12 @@ export default function SettingsPage() {
 
   const toggleTheme = () => { const n = !dark; setDark(n); localStorage.setItem("fastrill-theme", n ? "dark" : "light") }
   const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
-
   const svcBadge = (type) => type === "package"
     ? { color:"#38bdf8", bg:"rgba(56,189,248,0.1)", border:"rgba(56,189,248,0.2)" }
     : { color: accent,   bg: accent+"18",           border: accent+"33" }
+
+  const planColors = { trial: textMuted, starter: "#00C9B1", growth: "#6366f1", pro: "#f59e0b" }
+  const planColor  = planColors[currentPlan] || textMuted
 
   return (
     <>
@@ -259,7 +432,6 @@ export default function SettingsPage() {
         .s-wrap{display:flex;height:100vh;overflow:hidden;}
         .s-sidebar{width:224px;flex-shrink:0;background:${sidebar};border-right:1px solid ${border};display:flex;flex-direction:column;overflow-y:auto;}
         .s-logo{padding:16px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:flex;flex-direction:row;align-items:center;gap:10px;border-bottom:1px solid ${border};line-height:1;}
-        .s-logo span{color:${accent};}
         .s-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${textFaint};font-weight:600;}
         .s-nav{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${textMuted};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:none;}
         .s-nav:hover{background:${inputBg};color:${text};}
@@ -273,13 +445,17 @@ export default function SettingsPage() {
         .s-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
         .s-topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${border};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sidebar};}
         .s-content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};}
-        .s-tabs{display:flex;gap:0;border-bottom:1px solid ${border};background:${sidebar};flex-shrink:0;padding:0 24px;}
-        .s-tab{padding:14px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:${textMuted};font-weight:500;font-size:13px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.12s;display:flex;align-items:center;gap:6px;}
+        .s-tabs{display:flex;gap:0;border-bottom:1px solid ${border};background:${sidebar};flex-shrink:0;padding:0 24px;overflow-x:auto;}
+        .s-tab{padding:14px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:${textMuted};font-weight:500;font-size:13px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.12s;display:flex;align-items:center;gap:6px;white-space:nowrap;}
         .s-tab.active{border-bottom-color:${accent};color:${accent};font-weight:700;}
         .s-card{background:${card};border:1px solid ${cardBorder};border-radius:13px;padding:22px;margin-bottom:16px;}
         .tog{width:38px;height:22px;border-radius:100px;position:relative;cursor:pointer;border:none;flex-shrink:0;transition:background 0.2s;}
         .tog::after{content:'';position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 0.2s;}
         .tog-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid ${border};}
+        .plan-card{background:${card};border:1px solid ${cardBorder};border-radius:13px;padding:20px;flex:1;min-width:200px;position:relative;transition:border-color 0.2s;}
+        .plan-card.current{border-width:2px;}
+        .plan-feat{font-size:12px;color:${textMuted};padding:4px 0;display:flex;align-items:center;gap:7px;}
+        .plan-locked{font-size:12px;color:${textFaint};padding:4px 0;display:flex;align-items:center;gap:7px;text-decoration:line-through;}
         .hamburger{display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:#eeeef5;margin-right:4px;}
         .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
         select option{background-color:#0c0c15!important;color:#eeeef5!important;}
@@ -291,8 +467,9 @@ export default function SettingsPage() {
           .hamburger{display:flex!important;}
           .s-topbar{padding:0 12px!important;}
           .s-content{padding:12px!important;}
-          .s-tabs{padding:0 8px;overflow-x:auto;}
+          .s-tabs{padding:0 8px;}
           .s-tab{padding:12px 10px;font-size:12px;}
+          .plans-grid{flex-direction:column!important;}
         }
         .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);padding:6px 0;z-index:200;}
         @media(max-width:767px){.bottom-nav{display:flex;justify-content:space-around;}.s-main{padding-bottom:60px;}}
@@ -303,12 +480,13 @@ export default function SettingsPage() {
       `}</style>
 
       <div className="s-wrap">
-        {/* Mobile overlay */}
         {mobOpen && <div className="mob-overlay" onClick={() => setMobOpen(false)} />}
 
-        {/* Sidebar */}
         <aside className={`s-sidebar${mobOpen ? " open" : ""}`}>
-          <a href="/dashboard" className="s-logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:text,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:accent}}>rill</span></span></a>
+          <a href="/dashboard" className="s-logo">
+            <img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} />
+            <span style={{fontWeight:800,fontSize:20,color:text,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:accent}}>rill</span></span>
+          </a>
           <div className="s-section">Platform</div>
           {NAV.map(n => (
             <a key={n.id} href={n.path} className={`s-nav${n.id === "settings" ? " active" : ""}`}>
@@ -325,13 +503,16 @@ export default function SettingsPage() {
           </div>
         </aside>
 
-        {/* Main */}
         <div className="s-main">
-          {/* Topbar */}
           <div className="s-topbar">
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <button className="hamburger" onClick={() => setMobOpen(o => !o)}>☰</button>
               <span style={{ fontWeight:700, fontSize:15, color:text }}>Settings</span>
+              {currentPlan !== "trial" && (
+                <span style={{ fontSize:11, fontWeight:700, color:planColor, background:planColor+"18", border:`1px solid ${planColor}33`, borderRadius:100, padding:"2px 10px" }}>
+                  {currentPlan.toUpperCase()}
+                </span>
+              )}
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               {(tab === "business" || tab === "ai") && (
@@ -352,14 +533,12 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Error banner */}
           {saveError && (
             <div style={{ margin:"0 24px", marginTop:8, background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#f87171" }}>
               ⚠️ {saveError}
             </div>
           )}
 
-          {/* Tabs */}
           <div className="s-tabs">
             {TABS.map(t => (
               <button key={t.id} className={`s-tab${tab === t.id ? " active" : ""}`} onClick={() => setTab(t.id)}>
@@ -369,7 +548,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="s-content">
-            <div style={{ maxWidth: 680 }}>
+            <div style={{ maxWidth: 720 }}>
 
               {loading ? (
                 <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"80px 0",gap:12,color:textMuted}}>
@@ -425,17 +604,15 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <label style={lbl}>About Your Business <span style={{ color:textFaint }}>(AI uses this to answer customer questions)</span></label>
-                      <textarea value={business.description} onChange={e => setBusiness(b=>({...b,description:e.target.value}))} placeholder="Your specialties, experience, certifications, what to expect when visiting..." rows={3} style={{ ...inp, resize:"vertical", lineHeight:1.6 }} />
+                      <textarea value={business.description} onChange={e => setBusiness(b=>({...b,description:e.target.value}))} placeholder="Your specialties, experience, certifications..." rows={3} style={{ ...inp, resize:"vertical", lineHeight:1.6 }} />
                     </div>
                   </div>
-                  <div style={{ marginTop:12, fontSize:12, color:textFaint }}>💡 After saving, your AI immediately uses this info to answer customer questions</div>
                 </div>
               )}
 
               {/* ── SERVICES ── */}
               {tab === "services" && (
                 <>
-                  {/* Add service */}
                   <div className="s-card">
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
                       <div style={{ fontWeight:700, fontSize:14, color:text }}>Add Service</div>
@@ -447,13 +624,10 @@ export default function SettingsPage() {
                         ))}
                       </div>
                     </div>
-                    <div style={{ fontSize:11.5, color:textFaint, marginBottom:14, padding:"8px 12px", background:inputBg, borderRadius:7, borderLeft:`2px solid ${newSvc.service_type==="package"?"#38bdf8":accent}` }}>
-                      {newSvc.service_type==="appointment" ? "⏰ Appointment — time slot booking with duration" : "📦 Package — bundle or membership, no slot booking needed"}
-                    </div>
                     <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr", gap:10, marginBottom:10 }}>
                       <div>
                         <label style={lbl}>Service Name *</label>
-                        <input value={newSvc.name} onChange={e => setNewSvc(s=>({...s,name:e.target.value}))} placeholder={newSvc.service_type==="appointment"?"e.g. Hair Spa":"e.g. Bridal Package"} style={inp} />
+                        <input value={newSvc.name} onChange={e => setNewSvc(s=>({...s,name:e.target.value}))} placeholder="e.g. Hair Spa" style={inp} />
                       </div>
                       <div>
                         <label style={lbl}>Price (₹) *</label>
@@ -466,7 +640,7 @@ export default function SettingsPage() {
                         </select>
                       </div>
                     </div>
-                    {newSvc.service_type === "appointment" ? (
+                    {newSvc.service_type === "appointment" && (
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
                         <div>
                           <label style={lbl}>Duration (minutes)</label>
@@ -475,29 +649,22 @@ export default function SettingsPage() {
                           </select>
                         </div>
                         <div>
-                          <label style={lbl}>Capacity <span style={{ color:textFaint }}>(parallel bookings per slot)</span></label>
-                          <input type="number" min="1" max="20" value={newSvc.capacity} onChange={e => setNewSvc(s=>({...s,capacity:e.target.value}))} placeholder="1" style={inp} />
+                          <label style={lbl}>Capacity</label>
+                          <input type="number" min="1" max="20" value={newSvc.capacity} onChange={e => setNewSvc(s=>({...s,capacity:e.target.value}))} style={inp} />
                         </div>
                       </div>
-                    ) : (
-                      <div style={{ marginBottom:10 }}>
-                        <label style={lbl}>Package Description</label>
-                        <input value={newSvc.description} onChange={e => setNewSvc(s=>({...s,description:e.target.value}))} placeholder="e.g. Includes 10 sessions, valid 3 months" style={inp} />
-                      </div>
                     )}
-                    <button onClick={addService} disabled={saving||!newSvc.name||!newSvc.price} style={{ ...btnPrimary, opacity: saving||!newSvc.name||!newSvc.price ? 0.5 : 1, cursor: saving||!newSvc.name||!newSvc.price ? "not-allowed":"pointer" }}>
+                    <button onClick={addService} disabled={saving||!newSvc.name||!newSvc.price} style={{ ...btnPrimary, opacity: saving||!newSvc.name||!newSvc.price ? 0.5 : 1 }}>
                       {saving ? "Adding..." : "+ Add Service"}
                     </button>
                   </div>
 
-                  {/* Services list */}
                   <div className="s-card" style={{ padding:0, overflow:"hidden" }}>
                     <div style={{ padding:"12px 16px", borderBottom:`1px solid ${border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                       <div style={{ fontWeight:700, fontSize:13, color:text }}>Your Services ({services.length})</div>
-                      <div style={{ fontSize:11, color:textFaint }}>{services.filter(s=>s.service_type!=="package").length} appointments · {services.filter(s=>s.service_type==="package").length} packages</div>
                     </div>
                     {services.length === 0 ? (
-                      <div style={{ textAlign:"center", padding:32, color:textFaint, fontSize:12 }}>No services yet — add one above</div>
+                      <div style={{ textAlign:"center", padding:32, color:textFaint, fontSize:12 }}>No services yet</div>
                     ) : CATEGORIES.filter(cat => services.some(s => s.category === cat)).map(cat => (
                       <div key={cat}>
                         <div style={{ padding:"7px 16px", background:inputBg, fontSize:10, fontWeight:700, color:textFaint, letterSpacing:"1px", textTransform:"uppercase" }}>{cat}</div>
@@ -522,7 +689,7 @@ export default function SettingsPage() {
                                     {svc.is_active===false?"Off":"On"}
                                   </button>
                                   <button onClick={() => setEditingId(svc.id)} style={{ background:"transparent", border:"none", color:textMuted, cursor:"pointer", fontSize:11, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Edit</button>
-                                  <button onClick={() => deleteService(svc.id)} style={{ background:"transparent", border:"none", color:textFaint, cursor:"pointer", fontSize:16, lineHeight:1 }}>×</button>
+                                  <button onClick={() => deleteService(svc.id)} style={{ background:"transparent", border:"none", color:textFaint, cursor:"pointer", fontSize:16 }}>×</button>
                                 </div>
                               )}
                             </div>
@@ -538,16 +705,13 @@ export default function SettingsPage() {
               {tab === "ai" && (
                 <>
                   <div className="s-card">
-                    <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:4 }}>AI Brain Settings</div>
-                    <div style={{ fontSize:12, color:textFaint, marginBottom:16 }}>Control how your AI responds to customers</div>
-
+                    <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:16 }}>AI Brain Settings</div>
                     <div style={{ marginBottom:14 }}>
                       <label style={lbl}>Primary Language</label>
                       <select value={ai.ai_language} onChange={e => setAi(a=>({...a,ai_language:e.target.value}))} style={inp}>
                         {LANGUAGES.map(l => <option key={l}>{l}</option>)}
                       </select>
                     </div>
-
                     <div className="tog-row">
                       <div>
                         <div style={{ fontWeight:600, fontSize:13, color:text }}>Auto Booking</div>
@@ -557,44 +721,33 @@ export default function SettingsPage() {
                         <span style={{ position:"absolute", top:3, width:16, height:16, borderRadius:"50%", background:"#fff", left: ai.auto_booking ? "19px" : "3px", transition:"left 0.2s", display:"block" }} />
                       </button>
                     </div>
-
                     <div className="tog-row" style={{ marginBottom:14 }}>
                       <div>
                         <div style={{ fontWeight:600, fontSize:13, color:text }}>Follow-up Messages</div>
-                        <div style={{ fontSize:11.5, color:textMuted }}>AI follows up with inactive leads automatically</div>
+                        <div style={{ fontSize:11.5, color:textMuted }}>AI follows up with inactive leads</div>
                       </div>
                       <button className="tog" style={{ background: ai.follow_up_enabled ? accent : "rgba(255,255,255,0.12)" }} onClick={() => setAi(a=>({...a,follow_up_enabled:!a.follow_up_enabled}))}>
                         <span style={{ position:"absolute", top:3, width:16, height:16, borderRadius:"50%", background:"#fff", left: ai.follow_up_enabled ? "19px" : "3px", transition:"left 0.2s", display:"block" }} />
                       </button>
                     </div>
-
                     <div style={{ marginBottom:14 }}>
-                      <label style={lbl}>Greeting Message <span style={{ color:textFaint }}>(sent to new customers)</span></label>
-                      <textarea value={ai.greeting_message} onChange={e => setAi(a=>({...a,greeting_message:e.target.value}))} placeholder={`Hi [Name]! Welcome to ${business.business_name||"our business"} 😊\n\nHow can I help you today?`} rows={3} style={{ ...inp, resize:"vertical", lineHeight:1.6 }} />
+                      <label style={lbl}>Greeting Message</label>
+                      <textarea value={ai.greeting_message} onChange={e => setAi(a=>({...a,greeting_message:e.target.value}))} rows={3} style={{ ...inp, resize:"vertical", lineHeight:1.6 }} />
                     </div>
-
                     <div style={{ marginBottom:14 }}>
-                      <label style={lbl}>Custom AI Instructions <span style={{ color:textFaint }}>(tone, upsells, rules)</span></label>
-                      <textarea value={ai.ai_instructions} onChange={e => setAi(a=>({...a,ai_instructions:e.target.value}))} placeholder={`Examples:\n• Always respond warmly and use the customer's first name\n• Upsell hair spa with every haircut booking\n• Free parking available in basement\n• Never mention competitor prices`} rows={5} style={{ ...inp, resize:"vertical", lineHeight:1.6 }} />
+                      <label style={lbl}>Custom AI Instructions</label>
+                      <textarea value={ai.ai_instructions} onChange={e => setAi(a=>({...a,ai_instructions:e.target.value}))} rows={5} style={{ ...inp, resize:"vertical", lineHeight:1.6 }} />
                     </div>
-
-                    <div style={{ marginBottom:14 }}>
-                      <label style={lbl}>Knowledge Base <span style={{ color:textFaint }}>(FAQs, policies, extra info)</span></label>
-                      <textarea value={ai.content||ai.knowledge} onChange={e => setAi(a=>({...a,content:e.target.value,knowledge:e.target.value}))} placeholder={`Examples:\n• Cancellation policy: cancel 2hrs before\n• We accept UPI, cash, cards\n• Nearest landmark: next to City Mall\n• Organic products only`} rows={5} style={{ ...inp, resize:"vertical", lineHeight:1.6 }} />
-                    </div>
-
-                    <div style={{ background:`${accent}08`, border:`1px solid ${accent}22`, borderRadius:9, padding:"12px 14px", fontSize:12, color:textMuted, lineHeight:1.7 }}>
-                      💡 <strong style={{ color:text }}>The more you fill in, the smarter your AI gets.</strong> Add upsell rules, FAQs, parking info, cancellation policy — anything a new staff member would need to know.
+                    <div>
+                      <label style={lbl}>Knowledge Base</label>
+                      <textarea value={ai.content||ai.knowledge} onChange={e => setAi(a=>({...a,content:e.target.value,knowledge:e.target.value}))} rows={5} style={{ ...inp, resize:"vertical", lineHeight:1.6 }} />
                     </div>
                   </div>
-
-                  {/* Test AI */}
                   <div className="s-card">
-                    <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:4 }}>Test AI Reply</div>
-                    <div style={{ fontSize:12, color:textFaint, marginBottom:14 }}>Send a test message to see how your AI responds</div>
+                    <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:14 }}>Test AI Reply</div>
                     <div style={{ display:"flex", gap:10, marginBottom:12 }}>
                       <input value={testMsg} onChange={e => setTestMsg(e.target.value)} onKeyDown={e => e.key==="Enter" && testAI()} placeholder="e.g. I want to book hair spa tomorrow evening" style={{ ...inp, flex:1 }} />
-                      <button onClick={testAI} disabled={testing||!testMsg.trim()} style={{ ...btnPrimary, opacity: testing||!testMsg.trim() ? 0.5 : 1, whiteSpace:"nowrap" }}>
+                      <button onClick={testAI} disabled={testing||!testMsg.trim()} style={{ ...btnPrimary, opacity: testing||!testMsg.trim() ? 0.5 : 1 }}>
                         {testing ? "Testing..." : "Test →"}
                       </button>
                     </div>
@@ -631,7 +784,7 @@ export default function SettingsPage() {
                     <div className="s-card" style={{ textAlign:"center" }}>
                       <div style={{ fontSize:36, marginBottom:12 }}>💬</div>
                       <div style={{ fontWeight:800, fontSize:16, color:text, marginBottom:6 }}>Connect Your WhatsApp</div>
-                      <div style={{ fontSize:13, color:textMuted, marginBottom:20, lineHeight:1.6 }}>Link your business WhatsApp to activate AI replies, lead capture, and auto-booking.</div>
+                      <div style={{ fontSize:13, color:textMuted, marginBottom:20 }}>Link your business WhatsApp to activate AI replies.</div>
                       <button onClick={() => {
                         const appId=process.env.NEXT_PUBLIC_META_APP_ID||""
                         const configId=process.env.NEXT_PUBLIC_META_CONFIG_ID||""
@@ -642,15 +795,176 @@ export default function SettingsPage() {
                       </button>
                     </div>
                   )}
+                </>
+              )}
 
-                  <div className="s-card">
-                    <div style={{ fontWeight:700, fontSize:13.5, color:text, marginBottom:12 }}>Webhook Configuration</div>
-                    {[["Webhook URL",(process.env.NEXT_PUBLIC_APP_URL||"https://fastrill.com")+"/api/meta/webhook"],["Verify Token",process.env.WEBHOOK_VERIFY_TOKEN||"configure in .env"],["Events","messages, message_status"]].map(([l,v]) => (
-                      <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${border}` }}>
-                        <span style={{ fontSize:12, color:textMuted }}>{l}</span>
-                        <span style={{ fontSize:11.5, fontWeight:600, color:text, fontFamily:"monospace", wordBreak:"break-all", textAlign:"right", maxWidth:"60%" }}>{v}</span>
+              {/* ── PLAN & BILLING ── */}
+              {tab === "billing" && (
+                <>
+                  {/* Current plan status */}
+                  <div className="s-card" style={{ border:`1px solid ${planColor}44`, marginBottom:20 }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+                      <div>
+                        <div style={{ fontSize:11, color:textMuted, marginBottom:4, textTransform:"uppercase", letterSpacing:"1px" }}>Current Plan</div>
+                        <div style={{ fontWeight:800, fontSize:22, color:planColor }}>
+                          {currentPlan === "trial" ? "Free Trial" : "Fastrill " + currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}
+                        </div>
+                        {planExpiry && (
+                          <div style={{ fontSize:12, color:textMuted, marginTop:4 }}>
+                            {new Date(planExpiry) > new Date() ? "Renews" : "Expired"} on {formatExpiry(planExpiry)}
+                          </div>
+                        )}
+                        {currentPlan === "trial" && (
+                          <div style={{ fontSize:12, color:"#f59e0b", marginTop:4 }}>
+                            Upgrade to unlock reminders, lead recovery and more
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      <div style={{ display:"flex", gap:8 }}>
+                        {currentPlan !== "trial" && (
+                          <span style={{ fontSize:12, fontWeight:700, color:planColor, background:planColor+"18", border:`1px solid ${planColor}33`, borderRadius:100, padding:"4px 14px" }}>
+                            Active
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Feature toggles — only show if on paid plan */}
+                  {currentPlan !== "trial" && (
+                    <div className="s-card" style={{ marginBottom:20 }}>
+                      <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:4 }}>Feature Controls</div>
+                      <div style={{ fontSize:12, color:textMuted, marginBottom:16 }}>Turn features on or off based on your preference</div>
+
+                      {/* Appointment Reminders */}
+                      <div className="tog-row">
+                        <div>
+                          <div style={{ fontWeight:600, fontSize:13, color: planAllows("reminders") ? text : textFaint }}>
+                            Appointment Reminders
+                            {!planAllows("reminders") && <span style={{ fontSize:10, color:"#f59e0b", marginLeft:8, background:"rgba(245,158,11,0.1)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:100, padding:"1px 7px" }}>Growth+</span>}
+                          </div>
+                          <div style={{ fontSize:11.5, color:textMuted }}>Send WhatsApp reminder 24hrs before appointment</div>
+                        </div>
+                        <button
+                          className="tog"
+                          disabled={!planAllows("reminders")}
+                          style={{ background: remindersEnabled && planAllows("reminders") ? accent : "rgba(255,255,255,0.12)", opacity: planAllows("reminders") ? 1 : 0.4, cursor: planAllows("reminders") ? "pointer" : "not-allowed" }}
+                          onClick={async () => {
+                            if (!planAllows("reminders")) return
+                            const newVal = !remindersEnabled
+                            setRemindersEnabled(newVal)
+                            await saveFeatureToggle("reminders_enabled", newVal)
+                          }}>
+                          <span style={{ position:"absolute", top:3, width:16, height:16, borderRadius:"50%", background:"#fff", left: remindersEnabled && planAllows("reminders") ? "19px" : "3px", transition:"left 0.2s", display:"block" }} />
+                        </button>
+                      </div>
+
+                      {/* Lead Recovery */}
+                      <div className="tog-row">
+                        <div>
+                          <div style={{ fontWeight:600, fontSize:13, color: planAllows("lead_recovery") ? text : textFaint }}>
+                            Lead Recovery
+                            {!planAllows("lead_recovery") && <span style={{ fontSize:10, color:"#f59e0b", marginLeft:8, background:"rgba(245,158,11,0.1)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:100, padding:"1px 7px" }}>Growth+</span>}
+                          </div>
+                          <div style={{ fontSize:11.5, color:textMuted }}>Auto follow-up with leads who didn't book</div>
+                        </div>
+                        <button
+                          className="tog"
+                          disabled={!planAllows("lead_recovery")}
+                          style={{ background: leadRecoveryEnabled && planAllows("lead_recovery") ? accent : "rgba(255,255,255,0.12)", opacity: planAllows("lead_recovery") ? 1 : 0.4, cursor: planAllows("lead_recovery") ? "pointer" : "not-allowed" }}
+                          onClick={async () => {
+                            if (!planAllows("lead_recovery")) return
+                            const newVal = !leadRecoveryEnabled
+                            setLeadRecoveryEnabled(newVal)
+                            await saveFeatureToggle("lead_recovery_enabled", newVal)
+                          }}>
+                          <span style={{ position:"absolute", top:3, width:16, height:16, borderRadius:"50%", background:"#fff", left: leadRecoveryEnabled && planAllows("lead_recovery") ? "19px" : "3px", transition:"left 0.2s", display:"block" }} />
+                        </button>
+                      </div>
+
+                      {/* Campaigns */}
+                      <div className="tog-row" style={{ borderBottom:"none" }}>
+                        <div>
+                          <div style={{ fontWeight:600, fontSize:13, color: planAllows("campaigns") ? text : textFaint }}>
+                            Bulk Campaigns
+                            {!planAllows("campaigns") && <span style={{ fontSize:10, color:"#f59e0b", marginLeft:8, background:"rgba(245,158,11,0.1)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:100, padding:"1px 7px" }}>Pro only</span>}
+                          </div>
+                          <div style={{ fontSize:11.5, color:textMuted }}>Send bulk WhatsApp messages to customer segments</div>
+                        </div>
+                        <button
+                          className="tog"
+                          disabled={!planAllows("campaigns")}
+                          style={{ background: campaignsEnabled && planAllows("campaigns") ? accent : "rgba(255,255,255,0.12)", opacity: planAllows("campaigns") ? 1 : 0.4, cursor: planAllows("campaigns") ? "pointer" : "not-allowed" }}
+                          onClick={async () => {
+                            if (!planAllows("campaigns")) return
+                            const newVal = !campaignsEnabled
+                            setCampaignsEnabled(newVal)
+                            await saveFeatureToggle("campaigns_enabled", newVal)
+                          }}>
+                          <span style={{ position:"absolute", top:3, width:16, height:16, borderRadius:"50%", background:"#fff", left: campaignsEnabled && planAllows("campaigns") ? "19px" : "3px", transition:"left 0.2s", display:"block" }} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Plan cards */}
+                  <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:14 }}>
+                    {currentPlan === "trial" ? "Choose a Plan" : "Upgrade Plan"}
+                  </div>
+                  <div className="plans-grid" style={{ display:"flex", gap:14, alignItems:"stretch", marginBottom:20 }}>
+                    {PLANS.map(plan => {
+                      const isCurrent = currentPlan === plan.id
+                      return (
+                        <div key={plan.id} className={`plan-card${isCurrent ? " current" : ""}`}
+                          style={{ borderColor: isCurrent ? plan.color : cardBorder }}>
+                          {plan.popular && (
+                            <div style={{ position:"absolute", top:-10, left:"50%", transform:"translateX(-50%)", fontSize:10, fontWeight:700, color:"#fff", background:"#6366f1", borderRadius:100, padding:"2px 12px", whiteSpace:"nowrap" }}>
+                              MOST POPULAR
+                            </div>
+                          )}
+                          {isCurrent && (
+                            <div style={{ position:"absolute", top:-10, right:16, fontSize:10, fontWeight:700, color:plan.color, background:plan.color+"22", border:`1px solid ${plan.color}44`, borderRadius:100, padding:"2px 10px" }}>
+                              CURRENT
+                            </div>
+                          )}
+                          <div style={{ fontWeight:800, fontSize:16, color:plan.color, marginBottom:4 }}>{plan.name}</div>
+                          <div style={{ fontSize:11, color:textMuted, marginBottom:12 }}>{plan.description}</div>
+                          <div style={{ display:"flex", alignItems:"baseline", gap:2, marginBottom:16 }}>
+                            <span style={{ fontWeight:800, fontSize:26, color:text }}>{plan.price}</span>
+                            <span style={{ fontSize:12, color:textMuted }}>{plan.period}</span>
+                          </div>
+                          {plan.features.map(f => (
+                            <div key={f} className="plan-feat">
+                              <span style={{ color:plan.color, fontSize:14 }}>✓</span> {f}
+                            </div>
+                          ))}
+                          {plan.locked.map(f => (
+                            <div key={f} className="plan-locked">
+                              <span style={{ fontSize:14 }}>✗</span> {f}
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => !isCurrent && handleSubscribe(plan.id)}
+                            disabled={isCurrent || subscribing === plan.id}
+                            style={{
+                              marginTop:16, width:"100%", padding:"10px",
+                              borderRadius:9, fontWeight:700, fontSize:13,
+                              cursor: isCurrent ? "default" : "pointer",
+                              border: isCurrent ? `1px solid ${plan.color}44` : "none",
+                              background: isCurrent ? "transparent" : plan.color,
+                              color: isCurrent ? plan.color : "#000",
+                              fontFamily:"'Plus Jakarta Sans',sans-serif",
+                              opacity: subscribing && subscribing !== plan.id ? 0.5 : 1
+                            }}>
+                            {subscribing === plan.id ? "Opening payment..." : isCurrent ? "Current Plan" : "Upgrade to " + plan.name + " →"}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div style={{ fontSize:11.5, color:textFaint, textAlign:"center", lineHeight:1.8 }}>
+                    All plans include GST. Cancel anytime. Payments secured by Razorpay.
                   </div>
                 </>
               )}
@@ -665,17 +979,16 @@ export default function SettingsPage() {
                       <input value={userEmail} readOnly style={{ ...inp, opacity:0.6 }} />
                     </div>
                   </div>
-
                   <div className="s-card">
                     <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:16 }}>Change Password</div>
                     <form onSubmit={handleChangePassword}>
                       <div style={{ marginBottom:12 }}>
                         <label style={lbl}>New Password</label>
-                        <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Minimum 8 characters" minLength={8} style={inp} />
+                        <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Minimum 8 characters" style={inp} />
                       </div>
                       <div style={{ marginBottom:16 }}>
                         <label style={lbl}>Confirm New Password</label>
-                        <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat new password" style={{ ...inp, border: confirmPassword && confirmPassword !== newPassword ? "1px solid #f87171" : `1px solid ${cardBorder}` }} />
+                        <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} style={{ ...inp, border: confirmPassword && confirmPassword !== newPassword ? "1px solid #f87171" : `1px solid ${cardBorder}` }} />
                         {confirmPassword && confirmPassword !== newPassword && <p style={{ color:"#f87171", fontSize:11, marginTop:4 }}>Passwords do not match</p>}
                       </div>
                       <button type="submit" disabled={changingPass} style={{ ...btnPrimary, opacity:changingPass?0.7:1 }}>
@@ -683,7 +996,6 @@ export default function SettingsPage() {
                       </button>
                     </form>
                   </div>
-
                   <div className="s-card" style={{ border:"1px solid rgba(239,68,68,0.2)" }}>
                     <div style={{ fontWeight:700, fontSize:14, color:"#f87171", marginBottom:4 }}>Danger Zone</div>
                     <div style={{ fontSize:13, color:textMuted, marginBottom:16 }}>Sign out from all devices</div>
@@ -698,7 +1010,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Mobile bottom nav */}
       <div className="bottom-nav">
         {[
           { id:"overview", icon:"⬡", label:"Home",     path:"/dashboard" },
