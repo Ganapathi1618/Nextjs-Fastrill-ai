@@ -1,15 +1,18 @@
 import "./globals.css"
+import { ToastProvider } from "@/components/Toast"
 
 export const metadata = {
-  title: "Fastrill – WhatsApp Growth Engine",
-  description: "Automate WhatsApp replies with real-time intent detection",
+  title: "Fastrill",
+  description: "WhatsApp AI Receptionist"
 }
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        {children}
+        <ToastProvider>
+          {children}
+        </ToastProvider>
       </body>
     </html>
   )
