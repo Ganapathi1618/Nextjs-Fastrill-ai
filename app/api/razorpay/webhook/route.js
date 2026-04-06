@@ -66,4 +66,56 @@ async function POST(req) {
     const userId         = notes.user_id
     const planId         = payload.plan_id
 
-    if (!userId) return Nex
+    if (!userId) return NextResponse.json({ status: "no_user_id" })
+
+    if (eventType === "subscription.activated" || eventType === "subscription.charged") {
+      const planName = notes.plan || getPlanFromId(planId)
+      if (!planName) return NextResponse.json({ status: "unknown_plan" })
+
+      const features = PLAN_FEATURES[planName]
+      const expiry = new Date()
+      expiry.setDate(expiry.getDate() + 33)
+
+      await supabaseAdmin.from("business_settings")
+        .update({
+          ...features,
+          plan_expires_at: expiry.toISOString(),
+          razorpay_subscription_id: subscriptionId,
+        })
+        .eq("user_id", userId)
+
+      await supabaseAdmin.from("ai_event_log").insert({
+        user_id:    userId,
+        stage:      "plan_" + eventType,
+        input_json: { plan: planName, subscription_id: subscriptionId, event: eventType },
+        success:    true,
+        created_at: new Date().toISOString()
+      }).catch(() => {})
+    }
+
+    if (eventType === "subscription.cancelled") {
+      await supabaseAdmin.from("business_settings")
+        .update({ razorpay_subscription_id: null })
+        .eq("user_id", userId)
+    }
+
+    if (eventType === "subscription.halted") {
+      await supabaseAdmin.from("business_settings")
+        .update({
+          plan:                    "trial",
+          reminders_enabled:       false,
+          lead_recovery_enabled:   false,
+          campaigns_enabled:       false,
+          razorpay_subscription_id: null,
+        })
+        .eq("user_id", userId)
+    }
+
+    return NextResponse.json({ status: "ok", event: eventType })
+
+  } catch(e) {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+module.exports = { POST }
