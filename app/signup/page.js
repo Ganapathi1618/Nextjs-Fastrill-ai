@@ -75,29 +75,41 @@ export default function SignupPage() {
     } finally { setLoading(false) }
   }
 
-  async function handleVerifyOTP(e) {
-    e.preventDefault()
-    if (!otp || otp.length < 6) { setError("Please enter the 6-digit code"); return }
-    setLoading(true); setError("")
-    try {
-      const { error } = await getSupabase().auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: otp.trim(),
-        type:  "email"
-      })
-      if (error) throw error
-      window.location.href = "/onboarding"
-    } catch(err) {
-      if (err.message?.includes("expired")) {
-        setError("Code expired. Please request a new one.")
-      } else if (err.message?.includes("invalid")) {
-        setError("Invalid code. Please check and try again.")
-      } else {
-        setError(err.message || "Verification failed. Please try again.")
-      }
-    } finally { setLoading(false) }
-  }
+ async function handleVerifyOTP(e) {
+  e.preventDefault()
+  if (!otp || otp.length < 6) { setError("Please enter the 6-digit code"); return }
+  setLoading(true); setError("")
+  try {
+    const { data, error } = await getSupabase().auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: otp.trim(),
+      type:  "email"
+    })
+    if (error) throw error
 
+    // Initialize business settings with correct plan
+    const session = data?.session
+    if (session?.access_token) {
+      await fetch("/api/onboarding/init", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        }
+      })
+    }
+
+    window.location.href = "/onboarding"
+  } catch(err) {
+    if (err.message?.includes("expired")) {
+      setError("Code expired. Please request a new one.")
+    } else if (err.message?.includes("invalid")) {
+      setError("Invalid code. Please check and try again.")
+    } else {
+      setError(err.message || "Verification failed. Please try again.")
+    }
+  } finally { setLoading(false) }
+}
   async function handleResend() {
     if (resendTimer > 0) return
     setLoading(true); setError(""); setMessage("")
