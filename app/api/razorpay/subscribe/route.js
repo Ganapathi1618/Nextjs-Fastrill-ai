@@ -1,7 +1,4 @@
 // app/api/razorpay/subscribe/route.js
-// Creates a Razorpay subscription for a user and returns the subscription ID
-// Frontend uses this to open Razorpay checkout
-
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
 const Razorpay = require("razorpay")
@@ -19,23 +16,33 @@ const PLAN_MAP = {
 
 async function POST(req) {
   try {
-    const { plan, userId, userEmail, userName } = await req.json()
+    // Auth check — derive userId from JWT, never trust request body
+    const authHeader = req.headers.get("authorization")
+    if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    if (!plan || !userId) {
-      return NextResponse.json({ error: "Missing plan or userId" }, { status: 400 })
-    }
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(
+      authHeader.replace("Bearer ", "")
+    )
+    if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const userId = user.id
+    const userEmail = user.email
+
+    const { plan, userName } = await req.json()
+    if (!plan) return NextResponse.json({ error: "Missing plan" }, { status: 400 })
 
     const planId = PLAN_MAP[plan]
-    if (!planId) {
-      return NextResponse.json({ error: "Invalid plan: " + plan }, { status: 400 })
-    }
+    if (!planId) return NextResponse.json({ error: "Invalid plan: " + plan }, { status: 400 })
 
     const razorpay = new Razorpay({
       key_id:     process.env.RAZORPAY_KEY_ID,
       key_secret: process.env.RAZORPAY_KEY_SECRET,
     })
 
-    // Create or fetch Razorpay customer
     let razorpayCustomerId = null
     const { data: biz } = await supabaseAdmin
       .from("business_settings")
@@ -46,49 +53,37 @@ async function POST(req) {
     if (biz?.razorpay_customer_id) {
       razorpayCustomerId = biz.razorpay_customer_id
     } else {
-      // Create new Razorpay customer
       const customer = await razorpay.customers.create({
         name:  userName  || "Fastrill User",
         email: userEmail || "",
         notes: { user_id: userId }
       })
       razorpayCustomerId = customer.id
-
-      // Save customer ID
       await supabaseAdmin.from("business_settings")
         .update({ razorpay_customer_id: razorpayCustomerId })
         .eq("user_id", userId)
     }
 
-    // Create subscription
     const subscription = await razorpay.subscriptions.create({
       plan_id:         planId,
       customer_notify: 1,
       quantity:        1,
-      total_count:     12,  // 12 billing cycles = 1 year, then renews
-      notes: {
-        user_id:    userId,
-        plan:       plan,
-        user_email: userEmail || ""
-      }
+      total_count:     12,
+      notes: { user_id: userId, plan, user_email: userEmail || "" }
     })
 
-    // Save subscription ID to DB
     await supabaseAdmin.from("business_settings")
       .update({ razorpay_subscription_id: subscription.id })
       .eq("user_id", userId)
-
-    console.log("✅ Subscription created:", subscription.id, "plan:", plan, "user:", userId)
 
     return NextResponse.json({
       subscriptionId: subscription.id,
       keyId: process.env.RAZORPAY_KEY_ID,
       plan
     })
-
   } catch(e) {
-    console.error("❌ Subscribe API error:", e.message)
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    console.error("Subscribe API error:", e.message)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
