@@ -1,22 +1,32 @@
 // app/api/test-ai/route.js
-// Used by Settings page "Test AI" button
-// Runs a test message through the full AI pipeline
-
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
 export async function POST(req) {
   try {
-    const { message, userId } = await req.json()
+    // Auth check — derive userId from JWT, never trust request body
+    const authHeader = req.headers.get("authorization")
+    if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const supabaseAuth = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(
+      authHeader.replace("Bearer ", "")
+    )
+    if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const userId = user.id
+
+    const { message } = await req.json()
     if (!message?.trim()) return NextResponse.json({ error: "Message required" }, { status: 400 })
-    if (!userId)           return NextResponse.json({ error: "userId required" }, { status: 400 })
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    // Load business context
     const [{ data: biz }, { data: kn }, { data: svcs }] = await Promise.all([
       supabase.from("business_settings").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("business_knowledge").select("*").eq("user_id", userId).maybeSingle(),
@@ -29,7 +39,7 @@ export async function POST(req) {
     const services = (svcs || []).filter(s => s.is_active !== false)
 
     if (!process.env.SARVAM_API_KEY) {
-      return NextResponse.json({ reply: "⚠️ SARVAM_API_KEY not configured. Add it to your environment variables to test AI replies." })
+      return NextResponse.json({ reply: "⚠️ SARVAM_API_KEY not configured." })
     }
 
     const svcBlock = services.map(s =>
@@ -62,16 +72,14 @@ This is a TEST — reply naturally as if a real customer sent this message.`
     })
 
     const data = await res.json()
-    if (data?.error) return NextResponse.json({ error: "AI error: " + data.error.message }, { status: 500 })
+    if (data?.error) return NextResponse.json({ error: "AI error" }, { status: 500 })
 
     let reply = data?.choices?.[0]?.message?.content || ""
-    // Strip think tags
     reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, "").trim()
     if (reply.includes("<think>")) reply = reply.split("<think>")[0].trim()
 
     return NextResponse.json({ reply: reply || "No reply generated" })
   } catch(e) {
-    console.error("❌ test-ai error:", e.message)
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
