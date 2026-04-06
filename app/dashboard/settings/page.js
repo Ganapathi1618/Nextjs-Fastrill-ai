@@ -110,7 +110,6 @@ export default function SettingsPage() {
   const [testing, setTesting]       = useState(false)
   const [subscribing, setSubscribing] = useState(null)
 
-  // Plan state
   const [currentPlan, setCurrentPlan]               = useState("trial")
   const [planExpiry, setPlanExpiry]                 = useState(null)
   const [remindersEnabled, setRemindersEnabled]     = useState(false)
@@ -164,7 +163,6 @@ export default function SettingsPage() {
     else { setSaved(true); setTimeout(() => setSaved(false), 2500) }
   }
 
-  // Check if plan allows a feature
   function planAllows(feature) {
     if (feature === "reminders" || feature === "lead_recovery") {
       return currentPlan === "growth" || currentPlan === "pro"
@@ -173,7 +171,6 @@ export default function SettingsPage() {
     return true
   }
 
-  // Format plan expiry date
   function formatExpiry(dateStr) {
     if (!dateStr) return null
     try {
@@ -226,7 +223,6 @@ export default function SettingsPage() {
     load()
   }, [])
 
-  // Save feature toggles
   async function saveFeatureToggle(field, value) {
     const supabase = getSupabase()
     await supabase.from("business_settings")
@@ -234,26 +230,25 @@ export default function SettingsPage() {
       .eq("user_id", userId)
   }
 
-  // Handle plan subscription via Razorpay
+  // FIXED: auth token passed, userId removed from body
   async function handleSubscribe(planId) {
     if (!userId) return
     setSubscribing(planId)
     try {
-      // Create subscription on backend
+      const { data: { session } } = await getSupabase().auth.getSession()
+      const token = session?.access_token
+
       const res = await fetch("/api/razorpay/subscribe", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan: planId,
-          userId,
-          userEmail,
-          userName
-        })
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ plan: planId, userName })
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
 
-      // Open Razorpay checkout
       const options = {
         key:             data.keyId,
         subscription_id: data.subscriptionId,
@@ -266,8 +261,6 @@ export default function SettingsPage() {
         },
         theme: { color: "#00C9B1" },
         handler: function(response) {
-          // Payment successful — webhook will activate the plan
-          // Show success message and reload after 2s
           showToast("Payment successful! Your plan is being activated...")
           setTimeout(() => window.location.reload(), 3000)
         },
@@ -278,7 +271,6 @@ export default function SettingsPage() {
         }
       }
 
-      // Load Razorpay script if not already loaded
       if (!window.Razorpay) {
         await new Promise((resolve, reject) => {
           const script = document.createElement("script")
@@ -293,7 +285,6 @@ export default function SettingsPage() {
       rzp.open()
 
     } catch(e) {
-      console.error("Subscribe error:", e)
       showToast(e.message || "Payment failed. Please try again.", "error")
     } finally {
       setSubscribing(null)
@@ -384,11 +375,21 @@ export default function SettingsPage() {
     showToast("Updated ✓")
   }
 
+  // FIXED: auth token passed, userId removed from body
   async function testAI() {
     if (!testMsg.trim()) return
     setTesting(true); setTestReply("")
     try {
-      const res = await fetch("/api/test-ai", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ message: testMsg, userId }) })
+      const { data: { session } } = await getSupabase().auth.getSession()
+      const token = session?.access_token
+      const res = await fetch("/api/test-ai", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ message: testMsg })
+      })
       const data = await res.json()
       setTestReply(data.reply || "No reply received")
     } catch(e) { setTestReply("Error: " + e.message) }
@@ -557,7 +558,6 @@ export default function SettingsPage() {
                 </div>
               ) : (<>
 
-              {/* ── BUSINESS ── */}
               {tab === "business" && (
                 <div className="s-card">
                   <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:16 }}>Business Information</div>
@@ -610,7 +610,6 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* ── SERVICES ── */}
               {tab === "services" && (
                 <>
                   <div className="s-card">
@@ -701,7 +700,6 @@ export default function SettingsPage() {
                 </>
               )}
 
-              {/* ── AI BRAIN ── */}
               {tab === "ai" && (
                 <>
                   <div className="s-card">
@@ -761,7 +759,6 @@ export default function SettingsPage() {
                 </>
               )}
 
-              {/* ── WHATSAPP ── */}
               {tab === "whatsapp" && (
                 <>
                   {waConn ? (
@@ -798,10 +795,8 @@ export default function SettingsPage() {
                 </>
               )}
 
-              {/* ── PLAN & BILLING ── */}
               {tab === "billing" && (
                 <>
-                  {/* Current plan status */}
                   <div className="s-card" style={{ border:`1px solid ${planColor}44`, marginBottom:20 }}>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
                       <div>
@@ -830,13 +825,10 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Feature toggles — only show if on paid plan */}
                   {currentPlan !== "trial" && (
                     <div className="s-card" style={{ marginBottom:20 }}>
                       <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:4 }}>Feature Controls</div>
                       <div style={{ fontSize:12, color:textMuted, marginBottom:16 }}>Turn features on or off based on your preference</div>
-
-                      {/* Appointment Reminders */}
                       <div className="tog-row">
                         <div>
                           <div style={{ fontWeight:600, fontSize:13, color: planAllows("reminders") ? text : textFaint }}>
@@ -845,9 +837,7 @@ export default function SettingsPage() {
                           </div>
                           <div style={{ fontSize:11.5, color:textMuted }}>Send WhatsApp reminder 24hrs before appointment</div>
                         </div>
-                        <button
-                          className="tog"
-                          disabled={!planAllows("reminders")}
+                        <button className="tog" disabled={!planAllows("reminders")}
                           style={{ background: remindersEnabled && planAllows("reminders") ? accent : "rgba(255,255,255,0.12)", opacity: planAllows("reminders") ? 1 : 0.4, cursor: planAllows("reminders") ? "pointer" : "not-allowed" }}
                           onClick={async () => {
                             if (!planAllows("reminders")) return
@@ -858,8 +848,6 @@ export default function SettingsPage() {
                           <span style={{ position:"absolute", top:3, width:16, height:16, borderRadius:"50%", background:"#fff", left: remindersEnabled && planAllows("reminders") ? "19px" : "3px", transition:"left 0.2s", display:"block" }} />
                         </button>
                       </div>
-
-                      {/* Lead Recovery */}
                       <div className="tog-row">
                         <div>
                           <div style={{ fontWeight:600, fontSize:13, color: planAllows("lead_recovery") ? text : textFaint }}>
@@ -868,9 +856,7 @@ export default function SettingsPage() {
                           </div>
                           <div style={{ fontSize:11.5, color:textMuted }}>Auto follow-up with leads who didn't book</div>
                         </div>
-                        <button
-                          className="tog"
-                          disabled={!planAllows("lead_recovery")}
+                        <button className="tog" disabled={!planAllows("lead_recovery")}
                           style={{ background: leadRecoveryEnabled && planAllows("lead_recovery") ? accent : "rgba(255,255,255,0.12)", opacity: planAllows("lead_recovery") ? 1 : 0.4, cursor: planAllows("lead_recovery") ? "pointer" : "not-allowed" }}
                           onClick={async () => {
                             if (!planAllows("lead_recovery")) return
@@ -881,8 +867,6 @@ export default function SettingsPage() {
                           <span style={{ position:"absolute", top:3, width:16, height:16, borderRadius:"50%", background:"#fff", left: leadRecoveryEnabled && planAllows("lead_recovery") ? "19px" : "3px", transition:"left 0.2s", display:"block" }} />
                         </button>
                       </div>
-
-                      {/* Campaigns */}
                       <div className="tog-row" style={{ borderBottom:"none" }}>
                         <div>
                           <div style={{ fontWeight:600, fontSize:13, color: planAllows("campaigns") ? text : textFaint }}>
@@ -891,9 +875,7 @@ export default function SettingsPage() {
                           </div>
                           <div style={{ fontSize:11.5, color:textMuted }}>Send bulk WhatsApp messages to customer segments</div>
                         </div>
-                        <button
-                          className="tog"
-                          disabled={!planAllows("campaigns")}
+                        <button className="tog" disabled={!planAllows("campaigns")}
                           style={{ background: campaignsEnabled && planAllows("campaigns") ? accent : "rgba(255,255,255,0.12)", opacity: planAllows("campaigns") ? 1 : 0.4, cursor: planAllows("campaigns") ? "pointer" : "not-allowed" }}
                           onClick={async () => {
                             if (!planAllows("campaigns")) return
@@ -907,7 +889,6 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  {/* Plan cards */}
                   <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:14 }}>
                     {currentPlan === "trial" ? "Choose a Plan" : "Upgrade Plan"}
                   </div>
@@ -962,14 +943,12 @@ export default function SettingsPage() {
                       )
                     })}
                   </div>
-
                   <div style={{ fontSize:11.5, color:textFaint, textAlign:"center", lineHeight:1.8 }}>
                     All plans include GST. Cancel anytime. Payments secured by Razorpay.
                   </div>
                 </>
               )}
 
-              {/* ── ACCOUNT ── */}
               {tab === "account" && (
                 <>
                   <div className="s-card">
