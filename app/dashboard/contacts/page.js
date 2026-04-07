@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase"
 import { useAuth }  from "@/lib/hooks/useAuth"
 import { useTheme } from "@/lib/hooks/useTheme"
 import { useToast } from "@/components/Toast"
+import { usePlanGuard } from "@/lib/hooks/usePlanGuard"
 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
@@ -20,6 +21,7 @@ const NAV = [
 const TAG_COLORS = { vip:"#f59e0b", returning:"#a78bfa", new_lead:"#38bdf8", inactive:"#fb7185" }
 
 export default function Contacts() {
+  usePlanGuard()  
   const { userId, userEmail, loading: authLoading, logout } = useAuth()
   const { dark, toggleTheme, colors, inputStyle: inp } = useTheme()
   const toast  = useToast()
