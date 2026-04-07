@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase"
 import { useAuth }  from "@/lib/hooks/useAuth"
 import { useTheme } from "@/lib/hooks/useTheme"
 import { useToast } from "@/components/Toast"
-export default function Dashboard(
+import { usePlanGuard } from "@/lib/hooks/usePlanGuard"
 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
