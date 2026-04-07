@@ -1,3 +1,9 @@
+import { usePlanGuard } from "@/lib/hooks/usePlanGuard"
+
+export default function DashboardPage() {
+  usePlanGuard() // ← add this line
+  // rest of your code...
+}
 "use client"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
