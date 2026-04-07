@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/Toast"
+import { usePlanGuard } from "@/lib/hooks/usePlanGuard"
 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
@@ -16,6 +17,7 @@ const NAV = [
 ]
 
 export default function Analytics() {
+  usePlanGuard()  
   const router = useRouter()
   const toast  = useToast()
   const [userId,    setUserId]    = useState(null)
