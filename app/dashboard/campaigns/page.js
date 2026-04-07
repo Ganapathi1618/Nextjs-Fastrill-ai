@@ -46,7 +46,7 @@ const INDUSTRIES = ["All","Salon","Clinic","Spa","Gym","Restaurant"]
 function toPhone(p){const d=(p||"").replace(/[^0-9]/g,"");if(d.length===10)return"91"+d;if(d.length===12&&d.startsWith("91"))return d;if(d.length===11&&d.startsWith("0"))return"91"+d.slice(1);return d}
 function dedupe(p){const d=(p||"").replace(/[^0-9]/g,"");return d.length>=12?d.slice(-10):d}
 
-export default function Campaigns(){
+export default function Campaigns() {
   usePlanGuard()  
   const router  = useRouter()
   const fileRef = useRef(null)
