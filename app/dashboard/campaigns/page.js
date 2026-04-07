@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import { usePlanGuard } from "@/lib/hooks/usePlanGuard"
 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
@@ -46,6 +47,7 @@ function toPhone(p){const d=(p||"").replace(/[^0-9]/g,"");if(d.length===10)retur
 function dedupe(p){const d=(p||"").replace(/[^0-9]/g,"");return d.length>=12?d.slice(-10):d}
 
 export default function Campaigns(){
+  usePlanGuard()  
   const router  = useRouter()
   const fileRef = useRef(null)
   const pollRef = useRef(null)
