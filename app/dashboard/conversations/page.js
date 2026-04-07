@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/Toast"
+export default function Dashboard(
 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
@@ -41,6 +42,7 @@ function formatConvoTime(ts) {
 }
 
 export default function Conversations() {
+  usePlanGuard()  
   const router = useRouter()
   const toast  = useToast()
 
