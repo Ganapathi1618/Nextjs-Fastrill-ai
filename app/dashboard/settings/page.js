@@ -219,7 +219,10 @@ export default function SettingsPage() {
       if (svcs) setServices(svcs)
       if (wa)   setWaConn(wa)
       setLoading(false)
-    }
+    if (typeof window !== "undefined") {
+  const params = new URLSearchParams(window.location.search)
+  if (params.get("expired") === "1") setTab("billing")
+}
     load()
   }, [])
 
@@ -535,10 +538,11 @@ export default function SettingsPage() {
           </div>
 
           {saveError && (
-            <div style={{ margin:"0 24px", marginTop:8, background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#f87171" }}>
-              ⚠️ {saveError}
-            </div>
-          )}
+            {typeof window !== "undefined" && new URLSearchParams(window.location.search).get("expired") === "1" && (
+  <div style={{ margin:"0 24px", marginTop:8, background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:8, padding:"12px 16px", fontSize:13, color:"#f87171", display:"flex", alignItems:"center", gap:10 }}>
+    🔒 <strong>Your plan has expired.</strong> Upgrade below to continue using Fastrill.
+  </div>
+)}
 
           <div className="s-tabs">
             {TABS.map(t => (
