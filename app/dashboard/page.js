@@ -1,15 +1,9 @@
-import { usePlanGuard } from "@/lib/hooks/usePlanGuard"
-
-export default function DashboardPage() {
-  usePlanGuard() // ← add this line
-  // rest of your code...
-}
 "use client"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/Toast"
-
+import { usePlanGuard } from "@/lib/hooks/usePlanGuard"
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
   { id:"inbox",     label:"Conversations",  icon:"◎", path:"/dashboard/conversations" },
@@ -22,6 +16,7 @@ const NAV = [
 ]
 
 export default function Dashboard() {
+  usePlanGuard()  
   const router = useRouter()
   const toast  = useToast()
 
