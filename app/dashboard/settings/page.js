@@ -216,13 +216,14 @@ export default function SettingsPage() {
         content:           kn?.content            || "",
         knowledge:         kn?.knowledge          || "",
       }))
-      if (svcs) setServices(svcs)
+     if (svcs) setServices(svcs)
       if (wa)   setWaConn(wa)
       setLoading(false)
-    if (typeof window !== "undefined") {
-  const params = new URLSearchParams(window.location.search)
-  if (params.get("expired") === "1") setTab("billing")
-}
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search)
+        if (params.get("expired") === "1") setTab("billing")
+      }
+    }
     load()
   }, [])
 
