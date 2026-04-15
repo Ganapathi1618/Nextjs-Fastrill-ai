@@ -12,6 +12,24 @@ const supabaseAdmin = createClient(
 
 const processingLock = new Set()
 
+// ── Rate limiting ──────────────────────────────────────────────
+const rateLimitMap = new Map()
+const RATE_LIMIT_WINDOW_MS = 60000
+const RATE_LIMIT_MAX       = 100
+
+function isRateLimited(phone) {
+  const now  = Date.now()
+  const data = rateLimitMap.get(phone) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS }
+  if (now > data.resetAt) {
+    rateLimitMap.set(phone, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
+    return false
+  }
+  if (data.count >= RATE_LIMIT_MAX) return true
+  data.count++
+  rateLimitMap.set(phone, data)
+  return false
+}
+
 async function GET(req) {
   const { searchParams } = new URL(req.url)
   const mode      = searchParams.get("hub.mode")
@@ -82,6 +100,12 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
 
   if (processingLock.has(msg.messageId)) return
   if (await isDuplicate(msg.messageId)) return
+
+  // ── Rate limit check ───────────────────────────────────────
+  if (isRateLimited(msg.phone)) {
+    console.error("🚫 Rate limited:", msg.phone)
+    return
+  }
 
   processingLock.add(msg.messageId)
   setTimeout(() => processingLock.delete(msg.messageId), 30000)
