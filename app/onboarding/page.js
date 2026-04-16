@@ -48,10 +48,11 @@ const LANGUAGES = ["English","Hindi","Telugu","Tamil","Kannada","Malayalam","Mar
 const STEPS     = ["Business","Services","AI Setup","WhatsApp"]
 
 export default function OnboardingPage() {
-  const [step, setStep]   = useState(0)
-  const [userId, setUserId] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [step, setStep]       = useState(0)
+  const [userId, setUserId]   = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState("")
 
   // Step 1 - Business
   const [bizName, setBizName]   = useState("")
@@ -61,19 +62,21 @@ export default function OnboardingPage() {
   const [phone, setPhone]       = useState("")
 
   // Step 2 - Services
-  const [services, setServices] = useState([])
+  const [services, setServices]   = useState([])
   const [customSvc, setCustomSvc] = useState({ name:"", price:"", duration:"30" })
 
   // Step 3 - AI
-  const [language, setLanguage] = useState("English")
+  const [language, setLanguage]         = useState("English")
   const [instructions, setInstructions] = useState("")
 
   useEffect(() => {
-    getSupabase().auth.getUser().then(({ data: { user } }) => {
+    async function init() {
+      const supabase = getSupabase()
+      const { data: { user } } = await supabase.auth.getUser()
       if (!user) { window.location.href = "/login"; return }
       setUserId(user.id)
-      // Check if already onboarded
-      const supabase = getSupabase()
+
+      // Check if already onboarded — skip to dashboard
       const { data: biz } = await supabase
         .from("business_settings")
         .select("business_name")
@@ -84,7 +87,10 @@ export default function OnboardingPage() {
         window.location.href = "/dashboard"
         return
       }
-    })
+
+      setLoading(false)
+    }
+    init()
   }, [])
 
   // Auto-load popular services when biz type selected
@@ -98,8 +104,8 @@ export default function OnboardingPage() {
 
   async function saveStep1() {
     if (!bizName.trim()) { setError("Please enter your business name"); return false }
-    if (!bizType)         { setError("Please select your business type"); return false }
-    setLoading(true); setError("")
+    if (!bizType)        { setError("Please select your business type"); return false }
+    setSaving(true); setError("")
     try {
       const supabase = getSupabase()
       const { error } = await supabase.from("business_settings").upsert({
@@ -114,24 +120,23 @@ export default function OnboardingPage() {
       if (error) throw error
       return true
     } catch(e) { setError(e.message || "Save failed"); return false }
-    finally { setLoading(false) }
+    finally { setSaving(false) }
   }
 
   async function saveStep2() {
     const selected = services.filter(s => s.selected)
     if (selected.length === 0) { setError("Please add at least one service"); return false }
-    setLoading(true); setError("")
+    setSaving(true); setError("")
     try {
       const supabase = getSupabase()
-      // Delete existing services first
       await supabase.from("services").delete().eq("user_id", userId)
-      // Insert selected services
       const rows = selected.map(s => ({
         user_id:      userId,
         name:         s.name,
         price:        parseInt(s.price) || 0,
         duration:     parseInt(s.duration) || 30,
-        service_type: "time_based",
+        service_type: "appointment",
+        category:     "Other",
         is_active:    true,
         created_at:   new Date().toISOString()
       }))
@@ -139,11 +144,11 @@ export default function OnboardingPage() {
       if (error) throw error
       return true
     } catch(e) { setError(e.message || "Save failed"); return false }
-    finally { setLoading(false) }
+    finally { setSaving(false) }
   }
 
   async function saveStep3() {
-    setLoading(true); setError("")
+    setSaving(true); setError("")
     try {
       const supabase = getSupabase()
       const { error } = await supabase.from("business_settings").upsert({
@@ -155,7 +160,7 @@ export default function OnboardingPage() {
       if (error) throw error
       return true
     } catch(e) { setError(e.message || "Save failed"); return false }
-    finally { setLoading(false) }
+    finally { setSaving(false) }
   }
 
   async function handleNext() {
@@ -176,13 +181,28 @@ export default function OnboardingPage() {
     setCustomSvc({ name:"", price:"", duration:"30" })
   }
 
-  const bg      = "#08080e"
-  const card    = "#0f0f1a"
-  const border  = "rgba(255,255,255,0.08)"
-  const text    = "#eeeef5"
-  const muted   = "rgba(255,255,255,0.45)"
-  const accent  = "#00C9B1"
-  const inp     = { width:"100%", padding:"10px 12px", borderRadius:8, border:"1px solid "+border, background:"rgba(255,255,255,0.04)", color:text, fontSize:14, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif" }
+  const bg     = "#08080e"
+  const card   = "#0f0f1a"
+  const border = "rgba(255,255,255,0.08)"
+  const text   = "#eeeef5"
+  const muted  = "rgba(255,255,255,0.45)"
+  const accent = "#00C9B1"
+  const inp    = {
+    width:"100%", padding:"10px 12px", borderRadius:8,
+    border:"1px solid "+border, background:"rgba(255,255,255,0.04)",
+    color:text, fontSize:14, outline:"none", boxSizing:"border-box",
+    fontFamily:"'Plus Jakarta Sans',sans-serif"
+  }
+
+  if (loading) return (
+    <div style={{ minHeight:"100vh", background:bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ width:32, height:32, border:"3px solid "+accent, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 12px" }} />
+        <div style={{ color:muted, fontSize:14 }}>Loading...</div>
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      </div>
+    </div>
+  )
 
   return (
     <>
@@ -190,6 +210,7 @@ export default function OnboardingPage() {
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
         body{background:${bg};font-family:'Plus Jakarta Sans',sans-serif;color:${text};}
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         .biz-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
         .biz-card{padding:14px;border-radius:10px;border:1px solid ${border};background:rgba(255,255,255,0.03);cursor:pointer;transition:all 0.15s;text-align:center;}
         .biz-card:hover{border-color:${accent}44;background:${accent}08;}
@@ -206,24 +227,26 @@ export default function OnboardingPage() {
         .lang-btn.on{border-color:${accent};background:${accent}15;color:${accent};font-weight:600;}
         @media(max-width:480px){.biz-grid{grid-template-columns:repeat(2,1fr);}.lang-grid{grid-template-columns:repeat(2,1fr);}}
       `}</style>
+
       <div style={{ minHeight:"100vh", background:bg, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
         <div style={{ width:"100%", maxWidth:"560px" }}>
 
           {/* Logo */}
           <div style={{ textAlign:"center", marginBottom:"32px" }}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"10px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:"#00C9B1"}}>rill</span></span></div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"10px"}}>
+              <img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} />
+              <span style={{fontWeight:800,fontSize:20,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:"#00C9B1"}}>rill</span></span>
+            </div>
             <p style={{ color:muted, fontSize:"14px", marginTop:"6px" }}>Let's set up your AI receptionist</p>
           </div>
 
-          {/* Progress */}
-          <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"28px" }}>
+          {/* Progress bar */}
+          <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"8px" }}>
             {STEPS.map((s, i) => (
-              <div key={i} style={{ display:"flex", alignItems:"center", flex:1 }}>
-                <div style={{ width:"100%", height:"4px", borderRadius:"2px", background: i <= step ? accent : border, transition:"background 0.3s" }} />
-              </div>
+              <div key={i} style={{ flex:1, height:"4px", borderRadius:"2px", background: i <= step ? accent : border, transition:"background 0.3s" }} />
             ))}
           </div>
-          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"24px", marginTop:"-18px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"24px" }}>
             {STEPS.map((s, i) => (
               <span key={i} style={{ fontSize:"11px", color: i === step ? accent : muted, fontWeight: i === step ? 600 : 400 }}>{s}</span>
             ))}
@@ -232,7 +255,11 @@ export default function OnboardingPage() {
           {/* Card */}
           <div style={{ background:card, border:"1px solid "+border, borderRadius:"16px", padding:"28px" }}>
 
-            {error && <div style={{ background:"#2d1515", border:"1px solid #f87171", borderRadius:"8px", padding:"10px 14px", marginBottom:"16px", color:"#f87171", fontSize:"13px" }}>{error}</div>}
+            {error && (
+              <div style={{ background:"#2d1515", border:"1px solid #f87171", borderRadius:"8px", padding:"10px 14px", marginBottom:"16px", color:"#f87171", fontSize:"13px" }}>
+                {error}
+              </div>
+            )}
 
             {/* STEP 0: Business Info */}
             {step === 0 && (
@@ -284,7 +311,9 @@ export default function OnboardingPage() {
                   <div className="svc-list" style={{ marginBottom:"16px" }}>
                     {services.map((svc, i) => (
                       <div key={i} className="svc-row">
-                        <div className={"svc-check" + (svc.selected?" on":"")} onClick={() => setServices(s => s.map((x,j) => j===i ? {...x,selected:!x.selected} : x))}>
+                        <div
+                          className={"svc-check" + (svc.selected?" on":"")}
+                          onClick={() => setServices(s => s.map((x,j) => j===i ? {...x,selected:!x.selected} : x))}>
                           {svc.selected && <span style={{ color:"#000", fontSize:"12px", fontWeight:"700" }}>✓</span>}
                         </div>
                         <div style={{ flex:1 }}>
@@ -303,7 +332,10 @@ export default function OnboardingPage() {
                     <input type="number" value={customSvc.price} onChange={e => setCustomSvc(s=>({...s,price:e.target.value}))} placeholder="₹ Price" style={{ ...inp, fontSize:12 }} />
                     <input type="number" value={customSvc.duration} onChange={e => setCustomSvc(s=>({...s,duration:e.target.value}))} placeholder="Mins" style={{ ...inp, fontSize:12 }} />
                   </div>
-                  <button onClick={addCustomService} disabled={!customSvc.name||!customSvc.price} style={{ padding:"8px 16px", borderRadius:"7px", border:"none", background: !customSvc.name||!customSvc.price?"rgba(255,255,255,0.1)":accent, color: !customSvc.name||!customSvc.price?muted:"#000", fontSize:"12px", fontWeight:"700", cursor: !customSvc.name||!customSvc.price?"not-allowed":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                  <button
+                    onClick={addCustomService}
+                    disabled={!customSvc.name||!customSvc.price}
+                    style={{ padding:"8px 16px", borderRadius:"7px", border:"none", background: !customSvc.name||!customSvc.price?"rgba(255,255,255,0.1)":accent, color: !customSvc.name||!customSvc.price?muted:"#000", fontSize:"12px", fontWeight:"700", cursor: !customSvc.name||!customSvc.price?"not-allowed":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
                     + Add
                   </button>
                 </div>
@@ -324,9 +356,15 @@ export default function OnboardingPage() {
                 </div>
 
                 <label style={{ display:"block", fontSize:"12px", color:muted, marginBottom:"5px" }}>
-                  AI instructions <span style={{ color:"rgba(255,255,255,0.2)" }}>(optional — tell AI your rules)</span>
+                  AI instructions <span style={{ color:"rgba(255,255,255,0.2)" }}>(optional)</span>
                 </label>
-                <textarea value={instructions} onChange={e => setInstructions(e.target.value)} placeholder={"Examples:\n• Always be warm and use customer's name\n• Upsell hair spa with every haircut\n• Free parking available in basement\n• Never share pricing without confirming first"} rows={5} style={{ ...inp, resize:"vertical", lineHeight:1.6 }} />
+                <textarea
+                  value={instructions}
+                  onChange={e => setInstructions(e.target.value)}
+                  placeholder={"Examples:\n• Always be warm and use customer's name\n• Upsell hair spa with every haircut\n• Free parking available in basement"}
+                  rows={5}
+                  style={{ ...inp, resize:"vertical", lineHeight:1.6 }}
+                />
 
                 <div style={{ marginTop:"14px", padding:"12px 14px", background:accent+"0a", border:"1px solid "+accent+"22", borderRadius:"9px", fontSize:"12px", color:muted, lineHeight:1.7 }}>
                   💡 <strong style={{ color:text }}>The more you add, the smarter your AI gets.</strong> You can always update this from Settings → AI Brain.
@@ -351,19 +389,22 @@ export default function OnboardingPage() {
                   <div style={{ fontSize:"12px", color:muted, lineHeight:1.7, marginBottom:"16px" }}>
                     You'll be redirected to Facebook to authorize Fastrill to use your WhatsApp Business number. This takes about 2 minutes.
                   </div>
-                  <button onClick={() => {
-                    // These are public Meta app IDs — safe to be in client code
-                    const appId    = process.env.NEXT_PUBLIC_META_APP_ID || "780799931531576"
-                    const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1090960043190718"
-                    const appUrl   = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-                    const redirect = encodeURIComponent(appUrl + "/api/meta/callback")
-                    window.location.href = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirect}&response_type=code&config_id=${configId}`
-                  }} style={{ width:"100%", padding:"12px", borderRadius:"9px", border:"none", background:"#1877f2", color:"#fff", fontWeight:"700", fontSize:"14px", cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                  <button
+                    onClick={() => {
+                      const appId    = process.env.NEXT_PUBLIC_META_APP_ID || "780799931531576"
+                      const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1090960043190718"
+                      const appUrl   = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+                      const redirect = encodeURIComponent(appUrl + "/api/meta/callback")
+                      window.location.href = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirect}&response_type=code&config_id=${configId}`
+                    }}
+                    style={{ width:"100%", padding:"12px", borderRadius:"9px", border:"none", background:"#1877f2", color:"#fff", fontWeight:"700", fontSize:"14px", cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
                     Connect WhatsApp via Meta →
                   </button>
                 </div>
 
-                <button onClick={() => { window.location.href = "/dashboard" }} style={{ width:"100%", padding:"10px", borderRadius:"8px", border:"1px solid "+border, background:"transparent", color:muted, fontSize:"13px", cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                <button
+                  onClick={() => { window.location.href = "/dashboard" }}
+                  style={{ width:"100%", padding:"10px", borderRadius:"8px", border:"1px solid "+border, background:"transparent", color:muted, fontSize:"13px", cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
                   Skip for now — connect later from Settings
                 </button>
               </>
@@ -372,22 +413,29 @@ export default function OnboardingPage() {
             {/* Navigation */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:"24px" }}>
               {step > 0 ? (
-                <button onClick={() => { setStep(s => s-1); setError("") }} style={{ padding:"10px 20px", borderRadius:"8px", border:"1px solid "+border, background:"transparent", color:muted, fontSize:"13px", cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                <button
+                  onClick={() => { setStep(s => s-1); setError("") }}
+                  style={{ padding:"10px 20px", borderRadius:"8px", border:"1px solid "+border, background:"transparent", color:muted, fontSize:"13px", cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
                   ← Back
                 </button>
               ) : <div />}
 
               {step < 3 && (
-                <button onClick={handleNext} disabled={loading} style={{ padding:"11px 28px", borderRadius:"9px", border:"none", background: loading?"rgba(0,208,132,0.4)":accent, color:"#000", fontWeight:"700", fontSize:"14px", cursor: loading?"not-allowed":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
-                  {loading ? "Saving..." : step === 2 ? "Save & Connect WhatsApp →" : "Continue →"}
+                <button
+                  onClick={handleNext}
+                  disabled={saving}
+                  style={{ padding:"11px 28px", borderRadius:"9px", border:"none", background: saving?"rgba(0,208,132,0.4)":accent, color:"#000", fontWeight:"700", fontSize:"14px", cursor: saving?"not-allowed":"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                  {saving ? "Saving..." : step === 2 ? "Save & Connect WhatsApp →" : "Continue →"}
                 </button>
               )}
             </div>
+
           </div>
 
           <p style={{ textAlign:"center", marginTop:"16px", color:muted, fontSize:"12px" }}>
             You can change everything later from the Settings page
           </p>
+
         </div>
       </div>
     </>
