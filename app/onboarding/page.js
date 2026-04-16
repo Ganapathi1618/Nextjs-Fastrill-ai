@@ -72,6 +72,18 @@ export default function OnboardingPage() {
     getSupabase().auth.getUser().then(({ data: { user } }) => {
       if (!user) { window.location.href = "/login"; return }
       setUserId(user.id)
+      // Check if already onboarded
+      const supabase = getSupabase()
+      const { data: biz } = await supabase
+        .from("business_settings")
+        .select("business_name")
+        .eq("user_id", user.id)
+        .maybeSingle()
+
+      if (biz?.business_name) {
+        window.location.href = "/dashboard"
+        return
+      }
     })
   }, [])
 
