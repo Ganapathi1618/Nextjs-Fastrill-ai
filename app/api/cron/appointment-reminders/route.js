@@ -14,14 +14,9 @@ async function sendWhatsAppMessage(accessToken, phoneNumberId, to, message) {
       "https://graph.facebook.com/v18.0/" + phoneNumberId + "/messages",
       {
         method: "POST",
-        headers: {
-          "Authorization": "Bearer " + accessToken,
-          "Content-Type": "application/json"
-        },
+        headers: { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json" },
         body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "text",
+          messaging_product: "whatsapp", to: phone, type: "text",
           text: { body: message, preview_url: false }
         })
       }
@@ -41,12 +36,14 @@ export async function GET(req) {
   }
 
   try {
-    // Get tomorrow's date
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const tomorrowStr = tomorrow.toISOString().split("T")[0]
+    // Get IST time
+    const nowIST    = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
+    const todayIST  = nowIST.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
+    const tomorrowIST = new Date(nowIST)
+    tomorrowIST.setDate(tomorrowIST.getDate() + 1)
+    const tomorrowStr = tomorrowIST.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
 
-    // Get all users with reminders enabled
+    // Get businesses with reminders enabled
     const { data: businesses } = await supabaseAdmin
       .from("business_settings")
       .select("user_id, business_name, reminders_enabled, plan, plan_expires_at")
@@ -61,19 +58,15 @@ export async function GET(req) {
     let totalSkipped = 0
 
     for (const biz of businesses) {
-      // Skip expired plans
       if (biz.plan_expires_at && new Date(biz.plan_expires_at) < new Date()) continue
 
-      // Get WhatsApp connection
       const { data: conn } = await supabaseAdmin
         .from("whatsapp_connections")
         .select("access_token, phone_number_id")
-        .eq("user_id", biz.user_id)
-        .single()
-
+        .eq("user_id", biz.user_id).single()
       if (!conn) continue
 
-      // Get tomorrow's confirmed bookings
+      // Get tomorrow's confirmed bookings not yet reminded
       const { data: bookings } = await supabaseAdmin
         .from("bookings")
         .select("id, customer_name, customer_phone, service, booking_time, reminder_sent")
@@ -87,33 +80,33 @@ export async function GET(req) {
       for (const booking of bookings) {
         if (!booking.customer_phone) { totalSkipped++; continue }
 
-        const name    = (booking.customer_name || "there").split(" ")[0]
-        const time    = booking.booking_time
-          ? new Date("2000-01-01T" + booking.booking_time).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })
+        const name = (booking.customer_name || "there").split(" ")[0]
+        const time = booking.booking_time
+          ? new Date("2000-01-01T" + booking.booking_time).toLocaleTimeString("en-IN", {
+              hour: "2-digit", minute: "2-digit", hour12: true
+            })
           : null
 
+        // Clean message — no sticker emojis
         const message = [
           "Hi " + name + "! 👋",
           "",
-          "This is a friendly reminder that you have an appointment tomorrow:",
+          "Just a reminder — you have an appointment tomorrow:",
           "",
-          "📋 Service: " + booking.service,
-          time ? "⏰ Time: " + time : "",
-          "📍 " + (biz.business_name || "our salon"),
+          "Service: " + booking.service,
+          time ? "Time: " + time : "",
+          "At: " + (biz.business_name || "our salon"),
           "",
           "See you tomorrow! If you need to reschedule or cancel, just reply here. 😊"
-        ].filter(l => l !== undefined).join("\n").replace(/\n{3,}/g, "\n\n")
+        ].filter(Boolean).join("\n")
 
         const sent = await sendWhatsAppMessage(
-          conn.access_token,
-          conn.phone_number_id,
-          booking.customer_phone,
-          message
+          conn.access_token, conn.phone_number_id,
+          booking.customer_phone, message
         )
 
         if (sent) {
-          await supabaseAdmin
-            .from("bookings")
+          await supabaseAdmin.from("bookings")
             .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
             .eq("id", booking.id)
           totalSent++
@@ -123,12 +116,7 @@ export async function GET(req) {
       }
     }
 
-    return NextResponse.json({
-      status: "ok",
-      sent: totalSent,
-      skipped: totalSkipped,
-      date: tomorrowStr
-    })
+    return NextResponse.json({ status: "ok", sent: totalSent, skipped: totalSkipped, date: tomorrowStr })
 
   } catch(e) {
     console.error("❌ Reminders cron failed:", e.message)
