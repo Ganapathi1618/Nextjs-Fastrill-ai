@@ -2,9 +2,9 @@ name: Fastrill Cron Jobs
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # 7:30 AM IST (2:00 AM UTC) — reminders
-    - cron: '0 4 * * *'  # 9:30 AM IST (4:00 AM UTC) — lead recovery
-  workflow_dispatch:      # manual trigger for testing
+    - cron: '0 */2 * * *'   # every 2 hours — reminders
+    - cron: '0 4 * * *'     # 9:30 AM IST — lead recovery
+  workflow_dispatch:
 
 jobs:
   appointment-reminders:
