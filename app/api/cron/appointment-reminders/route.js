@@ -98,8 +98,9 @@ export async function GET(req) {
       return NextResponse.json({ status: "no businesses with reminders enabled" })
     }
 
-    let totalSent = 0
+   let totalSent = 0
     let totalSkipped = 0
+    const currentHourIST = nowIST.getHours()
 
     for (const biz of businesses) {
       // Skip expired plans
@@ -114,7 +115,6 @@ export async function GET(req) {
       // ── 24HR REMINDERS ─────────────────────────────────────
       // Send to customers who want 24hr reminders (default)
       // Only run this between 7am-9am IST to avoid spamming
-      const currentHourIST = nowIST.getHours()
       if (currentHourIST >= 7 && currentHourIST <= 9) {
         const { data: bookings24 } = await supabaseAdmin
           .from("bookings")
