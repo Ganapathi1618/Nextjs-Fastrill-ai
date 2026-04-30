@@ -151,7 +151,7 @@ export default function Campaigns() {
 
       // Fetch approved templates only
       const res = await fetch(
-        `https://graph.facebook.com/v18.0/${wabaId}/message_templates?status=APPROVED&limit=100&fields=id,name,category,language,components,status&access_token=${wa.access_token}`
+       `https://graph.facebook.com/v18.0/${wabaId}/message_templates?limit=100&fields=id,name,category,language,components,status&access_token=${wa.access_token}`
       )
       const data = await res.json()
 
@@ -160,13 +160,14 @@ export default function Campaigns() {
         setTmplLoading(false)
         return
       }
-
-      const approved = (data.data||[]).map(t => parseMetaTemplate(t))
-      setTemplates(approved)
-
-      if (approved.length === 0) {
-        setTmplError("no_templates")
-      }
+// Meta uses both APPROVED (old) and ACTIVE (new) for usable templates
+const approved = (data.data||[])
+  .filter(t => t.status === "APPROVED" || t.status === "ACTIVE")
+  .map(t => parseMetaTemplate(t))
+setTemplates(approved)
+if (approved.length === 0) {
+  setTmplError("no_templates")
+}
     } catch(e) {
       console.error("fetchMetaTemplates failed:", e.message)
       setTmplError("Failed to load templates. Check your WhatsApp connection.")
@@ -297,12 +298,12 @@ export default function Campaigns() {
 
   function calcRoi(c) {
     const sc  = c.sent_count||0
-    const rpl = Math.min(c.replied_count||0, sc)
+    const rpl = sc > 0 ? Math.min(c.replied_count||0, sc) : 0
     const tmpl= templates.find(t=>t.template_name===c.template_name)
     const cost= parseFloat((sc*(tmpl?.metaCost||0.83)).toFixed(2))
     const bookings = Math.round(rpl*0.6)
     const revenue  = bookings*1200
-    const roi      = cost>0 ? Math.round(((revenue-cost)/cost)*100) : 0
+    const roi = totalCost>0 ? Math.min(Math.round(((estRevenue-totalCost)/totalCost)*100), 9999) : 0
     return { cost, bookings, revenue, roi }
   }
 
