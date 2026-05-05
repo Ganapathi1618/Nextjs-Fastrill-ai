@@ -829,7 +829,7 @@ export default function Campaigns() {
                           ))}
                         </div>
                             {c.status==="draft"&&(
-  <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${bdr}`}}>
+  <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid "+bdr}}>
     <button
       onClick={()=>{
         setCampaignName(c.name||"")
