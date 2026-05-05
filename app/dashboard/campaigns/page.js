@@ -185,7 +185,10 @@ export default function Campaigns() {
         `https://graph.facebook.com/v18.0/${wabaId}/message_templates?limit=100&fields=id,name,category,language,components,status&access_token=${wa.access_token}`
       )
       const data = await r2.json()
-
+      console.log("META API RESPONSE:", JSON.stringify(data, null, 2))
+      console.log("WABA ID USED:", wabaId)
+      console.log("ALL TEMPLATES:", data.data?.map(t => ({name: t.name, status: t.status})))
+      
       if (data.error) {
         setTmplError("Meta API error: " + data.error.message)
         setTmplLoading(false)
