@@ -1014,7 +1014,7 @@ export default function Campaigns() {
                         {/* First var — auto customer name */}
                         {selectedTmpl?.vars.some(v=>v.num==="1")&&(
                           <div style={{marginBottom:16,padding:"12px 14px",background:ibg,borderRadius:9,border:`1px solid ${acc}22`}}>
-                            <div style={{fontSize:12,color:acc,fontWeight:600,marginBottom:2}}>{{"{{"}}1{{"}}"}}</div>
+                            <div style={{fontSize:12,color:acc,fontWeight:600,marginBottom:2}}>{"{{1}}"}</div>
                             <div style={{fontSize:12.5,color:tx}}>Customer's first name — auto-personalised per send</div>
                           </div>
                         )}
