@@ -185,9 +185,6 @@ export default function Campaigns() {
         `https://graph.facebook.com/v18.0/${wabaId}/message_templates?limit=100&fields=id,name,category,language,components,status&access_token=${wa.access_token}`
       )
       const data = await r2.json()
-      console.log("META API RESPONSE:", JSON.stringify(data, null, 2))
-      console.log("WABA ID USED:", wabaId)
-      console.log("ALL TEMPLATES:", data.data?.map(t => ({name: t.name, status: t.status})))
       
       if (data.error) {
         setTmplError("Meta API error: " + data.error.message)
@@ -831,7 +828,23 @@ export default function Campaigns() {
                             </div>
                           ))}
                         </div>
-                      </div>
+                            {c.status==="draft"&&(
+  <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${bdr}`}}>
+    <button
+      onClick={()=>{
+        setCampaignName(c.name||"")
+        setSegment(c.segment||"all")
+        const tmpl=templates.find(t=>t.template_name===c.template_name)
+        if(tmpl) setSelectedTmplId(tmpl.id)
+        setView("compose")
+        setStep("setup")
+      }}
+      style={{padding:"8px 20px",borderRadius:8,background:adim,border:`1px solid ${acc}44`,color:acc,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+      ✏️ Open & Edit Draft
+    </button>
+  </div>
+)}
+                    </div>
                     )
                   })}
                 </div>
