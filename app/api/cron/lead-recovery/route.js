@@ -1,3 +1,4 @@
+// app/api/cron/lead-recovery/route.js
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
@@ -6,12 +7,12 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-async function sendWhatsAppMessage(accessToken, phoneNumberId, to, message) {
+async function sendWhatsApp(accessToken, phoneNumberId, to, message) {
   const phone = to.replace(/[^0-9]/g, "")
   if (phone.length < 10) return false
   try {
     const res = await fetch(
-      "https://graph.facebook.com/v18.0/" + phoneNumberId + "/messages",
+      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
       {
         method: "POST",
         headers: {
@@ -27,11 +28,31 @@ async function sendWhatsAppMessage(accessToken, phoneNumberId, to, message) {
       }
     )
     const data = await res.json()
-    return !data.error
+    if (data.error) {
+      console.error("❌ WA send error:", data.error.message)
+      return false
+    }
+    return true
   } catch(e) {
-    console.error("❌ WA send failed:", e.message)
+    console.error("❌ WA send exception:", e.message)
     return false
   }
+}
+
+function buildRecoveryMessage(name, bizName, services) {
+  const svcText = services?.length
+    ? services.slice(0, 3).join(", ")
+    : "our services"
+
+  return [
+    "Hi " + name + "! 👋",
+    "",
+    "You recently enquired at *" + bizName + "* but didn't complete your booking.",
+    "",
+    "We'd love to have you! We offer: " + svcText,
+    "",
+    "Want to book a slot? Just reply here and our AI will help you in seconds. 😊"
+  ].join("\n")
 }
 
 export async function GET(req) {
@@ -41,88 +62,108 @@ export async function GET(req) {
   }
 
   try {
-    // Leads older than 24 hours but less than 72 hours, still open
-    const now = new Date()
-    const from = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString()
-    const to   = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+    const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
 
-    // Get all users with lead recovery enabled
+    // Find leads that messaged 24-72 hours ago, never booked, never recovered
+    const cutoffStart = new Date(nowIST.getTime() - 72 * 60 * 60 * 1000).toISOString()
+    const cutoffEnd   = new Date(nowIST.getTime() - 24 * 60 * 60 * 1000).toISOString()
+
+    // Get businesses on growth/pro plan
     const { data: businesses } = await supabaseAdmin
       .from("business_settings")
-      .select("user_id, business_name, lead_recovery_enabled, plan, plan_expires_at")
-      .eq("lead_recovery_enabled", true)
+      .select("user_id, business_name, plan, plan_expires_at")
       .in("plan", ["growth", "pro"])
 
     if (!businesses?.length) {
-      return NextResponse.json({ status: "no businesses with lead recovery enabled" })
+      return NextResponse.json({ status: "no eligible businesses" })
     }
 
-    let totalSent = 0
-    let totalSkipped = 0
+    let totalSent = 0, totalSkipped = 0
 
     for (const biz of businesses) {
       // Skip expired plans
       if (biz.plan_expires_at && new Date(biz.plan_expires_at) < new Date()) continue
 
-      // Get WhatsApp connection
       const { data: conn } = await supabaseAdmin
         .from("whatsapp_connections")
         .select("access_token, phone_number_id")
         .eq("user_id", biz.user_id)
         .single()
-
       if (!conn) continue
 
-      // Get open leads in the 24-72 hour window not yet followed up
+      // Get services for this business
+      const { data: svcData } = await supabaseAdmin
+        .from("services")
+        .select("name")
+        .eq("user_id", biz.user_id)
+        .eq("is_active", true)
+        .limit(5)
+      const services = (svcData || []).map(s => s.name)
+
+      // Find open leads in time window that haven't been recovered
       const { data: leads } = await supabaseAdmin
         .from("leads")
-        .select("id, name, phone, source, estimated_value, recovery_sent")
+        .select("id, name, phone, status, recovery_sent")
         .eq("user_id", biz.user_id)
         .eq("status", "open")
         .eq("recovery_sent", false)
-        .gte("created_at", from)
-        .lte("created_at", to)
+        .gte("last_message_at", cutoffStart)
+        .lte("last_message_at", cutoffEnd)
 
       if (!leads?.length) continue
 
+      // Check which leads already have a booking — skip them
+      const phones = leads.map(l => l.phone).filter(Boolean)
+      const { data: booked } = await supabaseAdmin
+        .from("bookings")
+        .select("customer_phone")
+        .eq("user_id", biz.user_id)
+        .in("customer_phone", phones)
+        .in("status", ["confirmed", "pending", "completed"])
+
+      const bookedPhones = new Set((booked || []).map(b => b.customer_phone))
+
       for (const lead of leads) {
         if (!lead.phone) { totalSkipped++; continue }
+        if (bookedPhones.has(lead.phone)) {
+          // Lead converted — mark recovery_sent so we don't process again
+          await supabaseAdmin.from("leads")
+            .update({ recovery_sent: true, status: "converted" })
+            .eq("id", lead.id)
+          totalSkipped++
+          continue
+        }
 
-        const name = (lead.name || "there").split(" ")[0]
+        const name    = (lead.name || "there").split(" ")[0]
+        const message = buildRecoveryMessage(name, biz.business_name, services)
 
-        const message = [
-          "Hi " + name + "! 😊",
-          "",
-          "We noticed you reached out to us earlier but we haven't heard back.",
-          "",
-          "We'd love to help you! Whether you want to book an appointment, know our prices, or have any questions — just reply here and we'll get back to you right away.",
-          "",
-          "Looking forward to seeing you at " + (biz.business_name || "our salon") + "! 🌟"
-        ].join("\n")
-
-        const sent = await sendWhatsAppMessage(
-          conn.access_token,
-          conn.phone_number_id,
-          lead.phone,
-          message
-        )
+        const sent = await sendWhatsApp(conn.access_token, conn.phone_number_id, lead.phone, message)
 
         if (sent) {
-          await supabaseAdmin
-            .from("leads")
-            .update({ recovery_sent: true, recovery_sent_at: new Date().toISOString() })
+          await supabaseAdmin.from("leads")
+            .update({
+              recovery_sent:    true,
+              recovery_sent_at: new Date().toISOString(),
+              status:           "contacted"
+            })
             .eq("id", lead.id)
           totalSent++
+          console.log("✅ Lead recovery sent:", lead.phone)
         } else {
           totalSkipped++
+          console.warn("⚠️ Lead recovery failed:", lead.phone)
         }
+
+        // 1 second delay between sends — rate limit safety
+        await new Promise(r => setTimeout(r, 1000))
       }
     }
 
     return NextResponse.json({
       status: "ok",
-      sent: totalSent,
-      skipped: totalSkipped
+      sent:    totalSent,
+      skipped: totalSkipped,
+      checkedAt: nowIST.toISOString()
     })
 
   } catch(e) {
