@@ -205,6 +205,7 @@ export default function SettingsPage() {
         setRemindersEnabled(biz.reminders_enabled || false)
         setLeadRecoveryEnabled(biz.lead_recovery_enabled || false)
         setCampaignsEnabled(biz.campaigns_enabled || false)
+        setActiveOffer(biz.active_offer || "")
       }
       if (biz || kn) setAi(a => ({
         ...a,
@@ -321,6 +322,7 @@ export default function SettingsPage() {
           user_id: userId, ai_language: ai.ai_language,
           ai_instructions: ai.ai_instructions, greeting_message: ai.greeting_message,
           auto_booking: ai.auto_booking, follow_up_enabled: ai.follow_up_enabled
+          active_offer: activeOffer
         }, { onConflict: "user_id" }),
         supabase.from("business_knowledge").upsert({
           user_id: userId, content: ai.content, knowledge: ai.knowledge,
@@ -749,6 +751,25 @@ export default function SettingsPage() {
                       <label style={lbl}>Knowledge Base</label>
                       <textarea value={ai.content||ai.knowledge} onChange={e => setAi(a=>({...a,content:e.target.value,knowledge:e.target.value}))} rows={5} style={{ ...inp, resize:"vertical", lineHeight:1.6 }} />
                     </div>
+                <div style={{marginTop:14,padding:"14px 16px",background:inputBg,borderRadius:10,border:`1px solid ${accent}22`}}>
+  <label style={{...lbl,color:accent,fontWeight:700}}>
+    🎁 Active Offer
+    <span style={{color:textFaint,fontWeight:400,marginLeft:6}}>
+      (AI mentions this when customers enquire or reply to campaigns)
+    </span>
+  </label>
+  <input
+    value={activeOffer}
+    onChange={e=>setActiveOffer(e.target.value)}
+    placeholder="e.g. 20% off all services this week — valid till Sunday"
+    style={inp}
+  />
+  <div style={{fontSize:11,color:textMuted,marginTop:6,lineHeight:1.6}}>
+    When a customer replies to a campaign saying "CLAIM" or asks about an offer,
+    the AI will automatically mention this offer and help them book.
+    Leave empty if no active offer.
+  </div>
+</div>
                   </div>
                   <div className="s-card">
                     <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:14 }}>Test AI Reply</div>
