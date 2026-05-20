@@ -115,6 +115,7 @@ export default function SettingsPage() {
   const [remindersEnabled, setRemindersEnabled]     = useState(false)
   const [leadRecoveryEnabled, setLeadRecoveryEnabled] = useState(false)
   const [campaignsEnabled, setCampaignsEnabled]     = useState(false)
+  const [activeOffer, setActiveOffer] = useState("")
 
   const [business, setBusiness] = useState({
     business_name:"", business_type:"Salon", phone:"", location:"",
