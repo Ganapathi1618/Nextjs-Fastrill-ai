@@ -321,7 +321,7 @@ export default function SettingsPage() {
         supabase.from("business_settings").upsert({
           user_id: userId, ai_language: ai.ai_language,
           ai_instructions: ai.ai_instructions, greeting_message: ai.greeting_message,
-          auto_booking: ai.auto_booking, follow_up_enabled: ai.follow_up_enabled
+          auto_booking: ai.auto_booking, follow_up_enabled: ai.follow_up_enabled,
           active_offer: activeOffer
         }, { onConflict: "user_id" }),
         supabase.from("business_knowledge").upsert({
