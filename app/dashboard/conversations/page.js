@@ -171,9 +171,8 @@ export default function Conversations() {
     setSending(true)
     const text  = msgInput.trim()
     setMsgInput("")
-    let phone = (selected.phone || "").replace(/[^0-9]/g,"")
-// Ensure country code — if 10 digits add 91
-if (phone.length === 10) phone = "91" + phone
+    const phone = (selected.phone || "").replace(/[^0-9]/g,"")
+console.log("📤 Sending to phone:", phone)
     try {
       const authHeader = await getAuthHeader()
       if (!authHeader) { toast.error("Session expired — please refresh"); setSending(false); return }
@@ -183,6 +182,7 @@ if (phone.length === 10) phone = "91" + phone
         body: JSON.stringify({ to: phone, message: text, conversationId: selected.id, customerPhone: selected.phone })
       })
       const result = await res.json()
+      console.log("📨 Send result:", JSON.stringify(result))
       if (!result.success) { toast.error("Send failed: " + (result.error || "Unknown error")); setSending(false); return }
       if (result.messageId) {
         const { data: savedMsg } = await supabase.from("messages").select("*").eq("wa_message_id", result.messageId).maybeSingle()
