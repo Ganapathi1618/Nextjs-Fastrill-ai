@@ -150,15 +150,39 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     return
   }
 
-  const reply = await orchestrate({
-    userId,
-    conversationId: conversation?.id,
-    phone:          msg.phone,
-    contactName:    msg.contactName,
-    message:        msg.effectiveText || "",
-    isMediaOnly:    msg.isMediaOnly,
-    phoneNumberId
-  })
+  // Check if customer is replying to a campaign message
+let campaignContext = null
+try {
+  const { data: lastOutbound } = await supabaseAdmin
+    .from("messages")
+    .select("message_text, message_type, created_at")
+    .eq("conversation_id", conversation?.id)
+    .eq("direction", "outbound")
+    .eq("message_type", "template")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (lastOutbound) {
+    const hoursSince = (Date.now() - new Date(lastOutbound.created_at).getTime()) / 3600000
+    if (hoursSince < 24) {
+      campaignContext = lastOutbound.message_text
+    }
+  }
+} catch(e) {
+  console.error("⚠️ campaignContext fetch failed:", e.message)
+}
+
+const reply = await orchestrate({
+  userId,
+  conversationId: conversation?.id,
+  phone:          msg.phone,
+  contactName:    msg.contactName,
+  message:        msg.effectiveText || "",
+  isMediaOnly:    msg.isMediaOnly,
+  phoneNumberId,
+  campaignContext
+})
 
   await saveInboundMessage({
     userId, phoneNumberId, from: msg.from,
