@@ -25,12 +25,22 @@ const SEGMENTS = [
   {id:"csv",       label:"Upload CSV",    desc:"Upload a .csv or .txt file",icon:"📎"},
 ]
 
-// Meta pricing per category (India rates)
 const META_COST = {
   MARKETING:      0.83,
   UTILITY:        0.35,
   AUTHENTICATION: 0.15,
   SERVICE:        0.29,
+}
+
+// Smart variable labels by position — based on common WhatsApp template patterns
+const SMART_LABELS = {
+  "1": { label:"Customer Name",   hint:"Auto-filled per recipient — personalised per send", auto:true },
+  "2": { label:"Business Name",   hint:"e.g. Priya Beauty Salon" },
+  "3": { label:"Date",            hint:"e.g. Saturday, 24 May" },
+  "4": { label:"Time",            hint:"e.g. 3:00 PM" },
+  "5": { label:"Doctor / Staff",  hint:"e.g. Dr. Sharma" },
+  "6": { label:"Offer / Details", hint:"e.g. 20% off all services" },
+  "7": { label:"Extra Info",      hint:"Any additional detail" },
 }
 
 function toPhone(p) {
@@ -70,10 +80,10 @@ export default function Campaigns() {
   const [bizName,    setBizName]    = useState("")
   const [loading,    setLoading]    = useState(true)
 
-  // Templates — fetched from Meta API
+  // Templates
   const [templates,   setTemplates]   = useState([])
   const [tmplLoading, setTmplLoading] = useState(false)
-  const [tmplError,   setTmplError]   = useState("") // "" | "no_templates" | "no_whatsapp" | error msg
+  const [tmplError,   setTmplError]   = useState("")
 
   // History
   const [history,     setHistory]     = useState([])
@@ -91,12 +101,15 @@ export default function Campaigns() {
   const [manualNums,     setManualNums]     = useState("")
   const [csvNums,        setCsvNums]        = useState([])
   const [testPhone,      setTestPhone]      = useState("")
-  const [testState,      setTestState]      = useState("idle") // idle | sending | done | fail
+  const [testState,      setTestState]      = useState("idle")
 
   // Send progress
   const [sending,   setSending]   = useState(false)
   const [sentCount, setSentCount] = useState(0)
   const [failCount, setFailCount] = useState(0)
+
+  // Pending draft to load after templates fetch
+  const pendingDraftRef = useRef(null)
 
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
@@ -109,6 +122,16 @@ export default function Campaigns() {
 
   useEffect(() => { if (userId) init() }, [userId])
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
+
+  // FIX: When templates load, check if there's a pending draft to open
+  useEffect(() => {
+    if (templates.length > 0 && pendingDraftRef.current) {
+      const tmplName = pendingDraftRef.current
+      pendingDraftRef.current = null
+      const tmpl = templates.find(t=>t.template_name===tmplName)
+      if (tmpl) setSelectedTmplId(tmpl.id)
+    }
+  }, [templates])
 
   async function init() {
     setLoading(true)
@@ -139,9 +162,6 @@ export default function Campaigns() {
     setLoading(false)
   }
 
-  // ── FETCH META TEMPLATES ───────────────────────────────────────
-  // Fetches ALL templates then filters to APPROVED + ACTIVE only
-  // Uses saved waba_id or auto-fetches it from phone_number_id
   async function fetchMetaTemplates(wa) {
     if (!wa?.access_token) { setTmplError("no_whatsapp"); return }
     setTmplLoading(true)
@@ -149,93 +169,66 @@ export default function Campaigns() {
     setTemplates([])
 
     try {
-      // Step 1: Get WABA ID
       let wabaId = wa.waba_id
-
       if (!wabaId) {
-        // Fetch WABA ID from phone number ID
         const r = await fetch(
           `https://graph.facebook.com/v18.0/${wa.phone_number_id}?fields=whatsapp_business_account&access_token=${wa.access_token}`
         )
         const d = await r.json()
-        if (d.error) {
-          setTmplError("Meta API error: " + d.error.message)
-          setTmplLoading(false)
-          return
-        }
+        if (d.error) { setTmplError("Meta API error: "+d.error.message); setTmplLoading(false); return }
         wabaId = d?.whatsapp_business_account?.id
         if (wabaId) {
-          await supabase.from("whatsapp_connections")
-            .update({ waba_id: wabaId })
-            .eq("user_id", userId)
-          setWhatsapp(prev => ({...prev, waba_id: wabaId}))
+          await supabase.from("whatsapp_connections").update({ waba_id: wabaId }).eq("user_id", userId)
+          setWhatsapp(prev=>({...prev, waba_id: wabaId}))
           wa = {...wa, waba_id: wabaId}
         }
       }
-
       if (!wabaId) {
         setTmplError("Could not find WhatsApp Business Account ID. Please reconnect WhatsApp in Settings.")
         setTmplLoading(false)
         return
       }
-
-      // Step 2: Fetch ALL templates — no status filter in URL
-      // We filter client-side to catch both APPROVED and ACTIVE statuses
       const r2 = await fetch(
         `https://graph.facebook.com/v18.0/${wabaId}/message_templates?limit=100&fields=id,name,category,language,components,status&access_token=${wa.access_token}`
       )
       const data = await r2.json()
-      
-      if (data.error) {
-        setTmplError("Meta API error: " + data.error.message)
-        setTmplLoading(false)
-        return
-      }
+      if (data.error) { setTmplError("Meta API error: "+data.error.message); setTmplLoading(false); return }
 
-      const allTemplates = data.data || []
-
-      // Filter: only usable templates
-      // Meta uses APPROVED (old) and ACTIVE (new) for ready-to-send templates
-      const usable = allTemplates.filter(t =>
-        t.status === "APPROVED" ||
-        t.status === "ACTIVE" ||
-        (t.status || "").startsWith("ACTIVE")
+      const usable = (data.data||[]).filter(t=>
+        t.status==="APPROVED" || t.status==="ACTIVE" || (t.status||"").startsWith("ACTIVE")
       )
-
-      if (usable.length === 0) {
-        setTmplError("no_templates")
-        setTmplLoading(false)
-        return
-      }
-
-      setTemplates(usable.map(t => parseTemplate(t)))
+      if (usable.length===0) { setTmplError("no_templates"); setTmplLoading(false); return }
+      setTemplates(usable.map(t=>parseTemplate(t)))
     } catch(e) {
       console.error("fetchMetaTemplates error:", e.message)
-      setTmplError("Failed to load templates: " + e.message)
+      setTmplError("Failed to load templates: "+e.message)
     }
     setTmplLoading(false)
   }
 
-  // Parse Meta template into our usable format
+  // FIX: Parse template with smart labels + extract header vars separately
   function parseTemplate(t) {
     const components = t.components || []
-    const bodyComp   = components.find(c => c.type==="BODY")
-    const headerComp = components.find(c => c.type==="HEADER")
-    const footerComp = components.find(c => c.type==="FOOTER")
+    const bodyComp   = components.find(c=>c.type==="BODY")
+    const headerComp = components.find(c=>c.type==="HEADER")
+    const footerComp = components.find(c=>c.type==="FOOTER")
     const bodyText   = bodyComp?.text   || ""
     const headerText = headerComp?.text || ""
     const footerText = footerComp?.text || ""
 
-    // Extract variable numbers {{1}}, {{2}} etc from body text
-    const varMatches = bodyText.match(/\{\{(\d+)\}\}/g) || []
-    const varNums    = [...new Set(varMatches.map(m => m.replace(/\D/g,"")))]
-      .sort((a,b) => parseInt(a)-parseInt(b))
+    // FIX: Extract vars from BOTH header and body — deduplicated and sorted
+    const allText    = headerText + " " + bodyText
+    const varMatches = allText.match(/\{\{(\d+)\}\}/g) || []
+    const varNums    = [...new Set(varMatches.map(m=>m.replace(/\D/g,"")))]
+      .sort((a,b)=>parseInt(a)-parseInt(b))
 
+    // FIX: Use smart labels based on position
     const vars = varNums.map(num => ({
       key:   "var_"+num,
-      label: "Variable {{"+num+"}}",
+      label: SMART_LABELS[num]?.label || "Variable {{"+num+"}}",
+      hint:  SMART_LABELS[num]?.hint  || "Value for {{"+num+"}}",
+      auto:  SMART_LABELS[num]?.auto  || false,
       num,
-      hint:  "Value for {{"+num+"}} in message"
     }))
 
     const metaCost = META_COST[t.category] || 0.83
@@ -243,24 +236,24 @@ export default function Campaigns() {
     return {
       id:            t.id,
       template_name: t.name,
-      label:         t.name.replace(/_/g," ").replace(/\b\w/g, l=>l.toUpperCase()),
+      label:         t.name.replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase()),
       category:      t.category || "MARKETING",
       language:      t.language || "en",
       metaCost,
       icon:          getCategoryIcon(t.category),
-      desc:          (t.category||"MARKETING") + " · " + (t.language||"en"),
+      desc:          (t.category||"MARKETING")+" · "+(t.language||"en"),
       vars,
       bodyText,
       headerText,
       footerText,
       preview: (v={}) => {
         let text = ""
-        if (headerText) text += headerText + "\n\n"
+        if (headerText) text += headerText+"\n\n"
         text += bodyText
-        if (footerText) text += "\n\n" + footerText
+        if (footerText) text += "\n\n"+footerText
         varNums.forEach(num => {
           text = text.replace(
-            new RegExp("\\{\\{"+num+"\\}\\}", "g"),
+            new RegExp("\\{\\{"+num+"\\}\\}","g"),
             v["var_"+num] || "{{"+num+"}}"
           )
         })
@@ -280,7 +273,6 @@ export default function Campaigns() {
     setHistLoading(false)
   }, [userId])
 
-  // ── AUDIENCE ──────────────────────────────────────────────────
   function segCount(segId) {
     if (segId==="manual"||segId==="csv") return null
     const ago30 = new Date(Date.now()-30*86400000)
@@ -308,73 +300,97 @@ export default function Campaigns() {
     return pool.filter(c=>!optouts.includes(dedupe(c.phone)))
   }
 
-  // ── STATS — fixed ROI calculation ─────────────────────────────
   function getDashboardStats() {
     const completed  = history.filter(c=>c.status==="done"||c.status==="completed")
     const totalSent  = completed.reduce((a,c)=>a+(c.sent_count||0),0)
     const totalDlv   = completed.reduce((a,c)=>a+(c.delivered_count||0),0)
     const totalRead  = completed.reduce((a,c)=>a+(c.read_count||0),0)
-    // Cap replied at sent — data integrity guard
-    const totalReply = completed.reduce((a,c)=>a+Math.min(c.replied_count||0, c.sent_count||0),0)
+    const totalReply = completed.reduce((a,c)=>a+Math.min(c.replied_count||0,c.sent_count||0),0)
     const totalCost  = completed.reduce((a,c)=>{
       const tmpl = templates.find(t=>t.template_name===c.template_name)
       return a+(c.sent_count||0)*(tmpl?.metaCost||0.83)
     },0)
-    const deliveryRate = totalSent>0 ? Math.min(100,Math.round((totalDlv/totalSent)*100))   : 0
-    const readRate     = totalSent>0 ? Math.min(100,Math.round((totalRead/totalSent)*100))   : 0
-    const replyRate    = totalSent>0 ? Math.min(100,Math.round((totalReply/totalSent)*100))  : 0
+    const deliveryRate = totalSent>0?Math.min(100,Math.round((totalDlv/totalSent)*100)):0
+    const readRate     = totalSent>0?Math.min(100,Math.round((totalRead/totalSent)*100)):0
+    const replyRate    = totalSent>0?Math.min(100,Math.round((totalReply/totalSent)*100)):0
     const estBookings  = Math.round(totalReply*0.6)
     const estRevenue   = estBookings*1200
     const costFixed    = parseFloat(totalCost.toFixed(2))
-    // Only show ROI for campaigns with meaningful data (10+ sends)
-    const roi = (costFixed>0 && totalSent>=10)
-      ? Math.min(Math.round(((estRevenue-costFixed)/costFixed)*100), 9999)
-      : 0
+    const roi = (costFixed>0&&totalSent>=10)
+      ? Math.min(Math.round(((estRevenue-costFixed)/costFixed)*100),9999) : 0
     return {
       totalSent,totalDlv,totalRead,totalReply,
       totalCost:costFixed,deliveryRate,readRate,replyRate,
-      estBookings,estRevenue,roi,
-      campaignCount:completed.length
+      estBookings,estRevenue,roi,campaignCount:completed.length
     }
   }
 
   function calcRoi(c) {
     const sc   = c.sent_count||0
-    const rpl  = Math.min(c.replied_count||0, sc)
+    const rpl  = Math.min(c.replied_count||0,sc)
     const tmpl = templates.find(t=>t.template_name===c.template_name)
     const cost = parseFloat((sc*(tmpl?.metaCost||0.83)).toFixed(2))
     const bookings = Math.round(rpl*0.6)
     const revenue  = bookings*1200
-    // Only show ROI for 10+ sends to avoid misleading numbers
-    const roi = (cost>0 && sc>=10)
-      ? Math.min(Math.round(((revenue-cost)/cost)*100), 9999)
-      : 0
-    return { cost, bookings, revenue, roi, showRoi: sc>=10 }
+    const roi = (cost>0&&sc>=10)?Math.min(Math.round(((revenue-cost)/cost)*100),9999):0
+    return { cost, bookings, revenue, roi, showRoi:sc>=10 }
   }
 
-  // ── BUILD SEND PAYLOAD ─────────────────────────────────────────
+  // FIX: buildPayload — sends BOTH header and body components correctly
   function buildPayload(customerName, phone) {
     const tmpl = templates.find(t=>t.id===selectedTmplId)
     if (!tmpl) return null
     const firstName = (customerName||"there").split(" ")[0]
 
-    // Build parameters in order: {{1}}, {{2}} etc
-    const varNums    = tmpl.vars.map(v=>v.num).sort((a,b)=>parseInt(a)-parseInt(b))
-    const parameters = varNums.map(num => ({
-      type: "text",
-      text: String(num==="1" ? firstName : (tmplVals["var_"+num]||"N/A"))
-    }))
+    const getValue = (num) => {
+      if (num==="1") return firstName
+      return String(tmplVals["var_"+num]||"N/A")
+    }
 
-    return {
+    // Extract body variable numbers
+    const bodyNums = [...new Set(
+      (tmpl.bodyText.match(/\{\{(\d+)\}\}/g)||[]).map(m=>m.replace(/\D/g,""))
+    )].sort((a,b)=>parseInt(a)-parseInt(b))
+
+    // Extract header variable numbers
+    const headerNums = [...new Set(
+      (tmpl.headerText.match(/\{\{(\d+)\}\}/g)||[]).map(m=>m.replace(/\D/g,""))
+    )].sort((a,b)=>parseInt(a)-parseInt(b))
+
+    const components = []
+
+    // Add header component if template has header variables
+    if (headerNums.length > 0) {
+      components.push({
+        type: "header",
+        parameters: headerNums.map(num=>({ type:"text", text:getValue(num) }))
+      })
+    }
+
+    // Add body component if template has body variables
+    if (bodyNums.length > 0) {
+      components.push({
+        type: "body",
+        parameters: bodyNums.map(num=>({ type:"text", text:getValue(num) }))
+      })
+    }
+
+    const payload = {
       messaging_product: "whatsapp",
       to: phone,
       type: "template",
       template: {
         name:     tmpl.template_name,
         language: { code: tmpl.language||"en" },
-        components: parameters.length>0 ? [{ type:"body", parameters }] : []
       }
     }
+
+    // Only add components if there are any — Meta rejects empty array
+    if (components.length > 0) {
+      payload.template.components = components
+    }
+
+    return payload
   }
 
   function getPreview() {
@@ -383,7 +399,6 @@ export default function Campaigns() {
     return tmpl.preview({ ...tmplVals, var_1: tmplVals.var_1||"Priya" })
   }
 
-  // ── SEND TEST ──────────────────────────────────────────────────
   async function sendTest() {
     if (!testPhone.trim()||!whatsapp||!selectedTmplId||testState==="sending") return
     setTestState("sending")
@@ -396,6 +411,7 @@ export default function Campaigns() {
       )
       const d = await res.json()
       if (d.error) {
+        console.error("Test send error:", d.error)
         alert("Test failed: "+d.error.message)
         setTestState("fail")
       } else {
@@ -408,7 +424,6 @@ export default function Campaigns() {
     setTimeout(()=>setTestState("idle"),3000)
   }
 
-  // ── POLL DELIVERY ──────────────────────────────────────────────
   async function pollDelivery(campId, waIds) {
     if (pollRef.current) clearInterval(pollRef.current)
     if (!waIds?.length||!campId) return
@@ -425,10 +440,9 @@ export default function Campaigns() {
         await supabase.from("campaigns").update({delivered_count:delivered,read_count:read}).eq("id",campId)
         await loadHistory()
       } catch(e) {}
-    }, 10000)
+    },10000)
   }
 
-  // ── SEND CAMPAIGN ──────────────────────────────────────────────
   async function sendCampaign() {
     const aud  = getAudience()
     const tmpl = templates.find(t=>t.id===selectedTmplId)
@@ -452,7 +466,7 @@ export default function Campaigns() {
     for (const customer of aud) {
       const phone   = toPhone(customer.phone)
       const payload = buildPayload(customer.name||"Customer", phone)
-      if (!payload) continue
+      if (!payload) { fc++; setFailCount(fc); continue }
       try {
         const res = await fetch(
           `https://graph.facebook.com/v18.0/${whatsapp.phone_number_id}/messages`,
@@ -473,6 +487,7 @@ export default function Campaigns() {
             })
           } catch(e) {}
         } else {
+          console.error("Send error for", phone, d.error.message)
           fc++; setFailCount(fc)
         }
       } catch(e) { fc++; setFailCount(fc) }
@@ -505,6 +520,23 @@ export default function Campaigns() {
     } catch(e) { console.error("saveDraft:", e.message) }
   }
 
+  // FIX: Open draft — handles case where templates not yet loaded
+  function openDraft(c) {
+    setCampaignName(c.name||"")
+    setSegment(c.segment||"all")
+    setView("compose")
+    setStep("setup")
+    if (templates.length > 0) {
+      const tmpl = templates.find(t=>t.template_name===c.template_name)
+      if (tmpl) setSelectedTmplId(tmpl.id)
+      else setSelectedTmplId("")
+    } else {
+      // Store pending draft — will be resolved in useEffect when templates load
+      pendingDraftRef.current = c.template_name
+      if (whatsapp) fetchMetaTemplates(whatsapp)
+    }
+  }
+
   function handleCsv(e) {
     const file = e.target.files[0]; if (!file) return
     const reader = new FileReader()
@@ -524,7 +556,6 @@ export default function Campaigns() {
   const toggleTheme = () => { const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
   const logout      = async() => { await supabase.auth.signOut(); router.push("/login") }
 
-  // ── THEME ──────────────────────────────────────────────────────
   const bg   = dark?"#08080e":"#f0f2f5"
   const sb   = dark?"#0c0c15":"#ffffff"
   const card = dark?"#0f0f1a":"#ffffff"
@@ -536,15 +567,16 @@ export default function Campaigns() {
   const ibg  = dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
   const acc  = dark?"#00C9B1":"#00897A"
   const adim = dark?"rgba(0,208,132,0.1)":"rgba(0,147,90,0.08)"
-  const inp  = { background:ibg, border:`1px solid ${cbdr}`, borderRadius:9, padding:"11px 14px", fontSize:13.5, color:tx, fontFamily:"'Plus Jakarta Sans',sans-serif", outline:"none", width:"100%" }
+  const inp  = { background:ibg, border:"1px solid "+cbdr, borderRadius:9, padding:"11px 14px", fontSize:13.5, color:tx, fontFamily:"'Plus Jakarta Sans',sans-serif", outline:"none", width:"100%" }
   const ui   = userEmail?userEmail[0].toUpperCase():"G"
 
-  const selectedTmpl  = templates.find(t=>t.id===selectedTmplId)||null
-  const audience      = getAudience()
-  const previewText   = getPreview()
-  const nonAutoVars   = selectedTmpl?.vars.filter(v=>v.num!=="1")||[]
+  const selectedTmpl = templates.find(t=>t.id===selectedTmplId)||null
+  const audience     = getAudience()
+  const previewText  = getPreview()
+  // FIX: nonAutoVars excludes auto-filled vars (customer name)
+  const nonAutoVars  = selectedTmpl?.vars.filter(v=>!v.auto)||[]
   const allVarsFilled = nonAutoVars.every(v=>!!tmplVals[v.key])
-  const canSend       = !!whatsapp&&!!campaignName.trim()&&audience.length>0&&!!selectedTmplId&&allVarsFilled
+  const canSend = !!whatsapp&&!!campaignName.trim()&&audience.length>0&&!!selectedTmplId&&allVarsFilled
 
   return (
     <>
@@ -642,8 +674,8 @@ export default function Campaigns() {
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <button className="hbtn" onClick={()=>setMobOpen(s=>!s)}>☰</button>
               <span style={{fontWeight:700,fontSize:15,color:tx}}>Campaigns</span>
-              <div style={{display:"flex",background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:2,gap:1,marginLeft:8}}>
-                {[["dashboard","Overview"],["compose","Compose"],["history",`History (${history.length})`]].map(([v,l])=>(
+              <div style={{display:"flex",background:ibg,border:"1px solid "+cbdr,borderRadius:8,padding:2,gap:1,marginLeft:8}}>
+                {[["dashboard","Overview"],["compose","Compose"],["history","History ("+history.length+")"]].map(([v,l])=>(
                   <button key={v} className={"tb"+(view===v?" on":"")}
                     onClick={()=>{ setView(v); if(v==="history"||v==="dashboard") loadHistory() }}>
                     {l}
@@ -658,7 +690,7 @@ export default function Campaigns() {
                 </div>
               )}
               <button onClick={toggleTheme}
-                style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",background:ibg,border:`1px solid ${cbdr}`,borderRadius:7,cursor:"pointer",fontSize:11.5,color:txm,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",background:ibg,border:"1px solid "+cbdr,borderRadius:7,cursor:"pointer",fontSize:11.5,color:txm,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                 <span>{dark?"🌙":"☀️"}</span>
                 <div style={{width:28,height:15,borderRadius:100,background:dark?acc:"#d1d5db",position:"relative",flexShrink:0}}>
                   <div style={{position:"absolute",top:2,width:11,height:11,borderRadius:"50%",background:"#fff",left:dark?"15px":"2px",transition:"left 0.2s"}}/>
@@ -685,12 +717,12 @@ export default function Campaigns() {
 
                 <div className="dash-kpi">
                   {[
-                    {label:"Total Sent",    val:s.totalSent.toLocaleString(), sub:"messages",                    color:tx,        icon:"📤"},
-                    {label:"Delivery Rate", val:s.deliveryRate+"%",            sub:s.totalDlv+" delivered",       color:"#38bdf8", icon:"📬"},
-                    {label:"Read Rate",     val:s.readRate+"%",                sub:s.totalRead+" read",           color:"#a78bfa", icon:"👁"},
-                    {label:"Reply Rate",    val:s.replyRate+"%",               sub:s.totalReply+" replied",       color:acc,       icon:"↩"},
+                    {label:"Total Sent",    val:s.totalSent.toLocaleString(), sub:"messages",              color:tx,        icon:"📤"},
+                    {label:"Delivery Rate", val:s.deliveryRate+"%",           sub:s.totalDlv+" delivered", color:"#38bdf8", icon:"📬"},
+                    {label:"Read Rate",     val:s.readRate+"%",               sub:s.totalRead+" read",     color:"#a78bfa", icon:"👁"},
+                    {label:"Reply Rate",    val:s.replyRate+"%",              sub:s.totalReply+" replied", color:acc,       icon:"↩"},
                   ].map(k=>(
-                    <div key={k.label} style={{background:card,border:`1px solid ${cbdr}`,borderRadius:14,padding:"22px 20px"}}>
+                    <div key={k.label} style={{background:card,border:"1px solid "+cbdr,borderRadius:14,padding:"22px 20px"}}>
                       <div style={{fontSize:12,color:txf,fontWeight:600,marginBottom:12}}>{k.icon} {k.label}</div>
                       <div style={{fontSize:36,fontWeight:800,color:k.color,letterSpacing:"-1.5px",lineHeight:1}}>{k.val}</div>
                       <div style={{fontSize:11.5,color:txf,marginTop:6}}>{k.sub}</div>
@@ -698,15 +730,15 @@ export default function Campaigns() {
                   ))}
                 </div>
 
-                <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:14,padding:"24px 28px",marginBottom:24}}>
+                <div style={{background:card,border:"1px solid "+cbdr,borderRadius:14,padding:"24px 28px",marginBottom:24}}>
                   <div style={{fontSize:14,fontWeight:700,color:acc,marginBottom:16}}>📊 Revenue Impact</div>
                   <div className="dash-rev">
                     {[
-                      {label:"Meta Spend",    val:`₹${s.totalCost.toLocaleString()}`,  color:txm},
-                      {label:"Est. Bookings", val:s.estBookings,                        color:"#a78bfa"},
-                      {label:"Est. Revenue",  val:`₹${s.estRevenue.toLocaleString()}`,  color:acc},
+                      {label:"Meta Spend",    val:"₹"+s.totalCost.toLocaleString(),  color:txm},
+                      {label:"Est. Bookings", val:s.estBookings,                      color:"#a78bfa"},
+                      {label:"Est. Revenue",  val:"₹"+s.estRevenue.toLocaleString(),  color:acc},
                       {label:"ROI",           val:s.totalSent>=10?(s.roi>0?"+":"")+s.roi+"%":"N/A", color:s.totalSent>=10&&s.roi>0?acc:txm},
-                      {label:"Cost/Reply",    val:s.totalReply>0?`₹${(s.totalCost/s.totalReply).toFixed(1)}`:"—", color:txm},
+                      {label:"Cost/Reply",    val:s.totalReply>0?"₹"+(s.totalCost/s.totalReply).toFixed(1):"—", color:txm},
                     ].map(r=>(
                       <div key={r.label} style={{background:ibg,borderRadius:10,padding:"14px 16px",textAlign:"center"}}>
                         <div style={{fontSize:11,color:txf,marginBottom:6}}>{r.label}</div>
@@ -720,8 +752,8 @@ export default function Campaigns() {
                 </div>
 
                 {history.length>0?(
-                  <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:14,overflow:"hidden"}}>
-                    <div style={{padding:"16px 22px",borderBottom:`1px solid ${bdr}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{background:card,border:"1px solid "+cbdr,borderRadius:14,overflow:"hidden"}}>
+                    <div style={{padding:"16px 22px",borderBottom:"1px solid "+bdr,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div style={{fontSize:14,fontWeight:700,color:tx}}>Recent Campaigns</div>
                       <button onClick={()=>setView("history")} style={{fontSize:12,color:acc,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>View all →</button>
                     </div>
@@ -730,11 +762,13 @@ export default function Campaigns() {
                       const rpl=Math.min(c.replied_count||0,sc)
                       const isDone=c.status==="done"||c.status==="completed"
                       return(
-                        <div key={c.id} style={{padding:"14px 22px",borderBottom:`1px solid ${bdr}`,display:"flex",alignItems:"center",gap:16}}>
+                        <div key={c.id} style={{padding:"14px 22px",borderBottom:"1px solid "+bdr,display:"flex",alignItems:"center",gap:16}}>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
                               <span style={{fontWeight:600,fontSize:13.5,color:tx}}>{c.name}</span>
-                              <span style={{fontSize:10,padding:"2px 8px",borderRadius:100,background:isDone?adim:c.status==="live"?"rgba(56,189,248,0.1)":"rgba(245,158,11,0.1)",color:isDone?acc:c.status==="live"?"#38bdf8":"#f59e0b",fontWeight:700}}>
+                              <span style={{fontSize:10,padding:"2px 8px",borderRadius:100,
+                                background:isDone?adim:c.status==="live"?"rgba(56,189,248,0.1)":"rgba(245,158,11,0.1)",
+                                color:isDone?acc:c.status==="live"?"#38bdf8":"#f59e0b",fontWeight:700}}>
                                 {c.status==="live"?"Sending":isDone?"Done":c.status==="draft"?"Draft":c.status}
                               </span>
                             </div>
@@ -751,7 +785,7 @@ export default function Campaigns() {
                     })}
                   </div>
                 ):(
-                  <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:16,padding:"72px 24px",textAlign:"center"}}>
+                  <div style={{background:card,border:"1px solid "+cbdr,borderRadius:16,padding:"72px 24px",textAlign:"center"}}>
                     <div style={{fontSize:52,marginBottom:16,opacity:0.2}}>📢</div>
                     <div style={{fontWeight:800,fontSize:18,color:tx,marginBottom:8}}>No campaigns yet</div>
                     <div style={{fontSize:13.5,color:txf,marginBottom:28}}>Create your first WhatsApp campaign</div>
@@ -772,14 +806,14 @@ export default function Campaigns() {
                   <div style={{fontWeight:800,fontSize:20,color:tx}}>Campaign History</div>
                   <div style={{fontSize:12.5,color:txf,marginTop:3}}>Real Meta cost · ROI shown for 10+ sends</div>
                 </div>
-                <button onClick={loadHistory} style={{padding:"8px 16px",borderRadius:9,background:ibg,border:`1px solid ${cbdr}`,color:txm,fontSize:12.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                <button onClick={loadHistory} style={{padding:"8px 16px",borderRadius:9,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:12.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                   {histLoading?"Loading...":"↻ Refresh"}
                 </button>
               </div>
               {histLoading?(
                 <div style={{textAlign:"center",padding:64,color:txf}}>Loading...</div>
               ):history.length===0?(
-                <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:16,padding:"72px 24px",textAlign:"center"}}>
+                <div style={{background:card,border:"1px solid "+cbdr,borderRadius:16,padding:"72px 24px",textAlign:"center"}}>
                   <div style={{fontSize:52,marginBottom:16,opacity:0.2}}>📢</div>
                   <div style={{fontWeight:800,fontSize:18,color:tx,marginBottom:8}}>No campaigns yet</div>
                   <button onClick={()=>setView("compose")} style={{padding:"12px 32px",borderRadius:11,background:acc,border:"none",color:"#000",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
@@ -793,14 +827,19 @@ export default function Campaigns() {
                     const sc=c.sent_count||0, dlv=c.delivered_count||0
                     const rpl=Math.min(c.replied_count||0,sc)
                     const isDone=c.status==="done"||c.status==="completed"
+                    const isDraft=c.status==="draft"
+                    const isLive=c.status==="live"
+                    const badgeBg=isDone?adim:isDraft?"rgba(245,158,11,0.1)":isLive?"rgba(56,189,248,0.1)":"rgba(245,158,11,0.1)"
+                    const badgeColor=isDone?acc:isDraft?"#f59e0b":isLive?"#38bdf8":"#f59e0b"
+                    const badgeLabel=isDone?"Done":isDraft?"Draft":isLive?"Sending":c.status
                     return(
-                      <div key={c.id} style={{background:card,border:`1px solid ${cbdr}`,borderRadius:14,padding:"20px 24px"}}>
+                      <div key={c.id} style={{background:card,border:"1px solid "+cbdr,borderRadius:14,padding:"20px 24px"}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
                           <div>
                             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                               <span style={{fontWeight:700,fontSize:15,color:tx}}>{c.name}</span>
-                              <span style={{fontSize:10,padding:"2px 8px",borderRadius:100,background:isDone?adim:c.status==="live"?"rgba(56,189,248,0.1)":"rgba(245,158,11,0.1)",color:isDone?acc:c.status==="live"?"#38bdf8":"#f59e0b",fontWeight:700}}>
-                                {isDone?"Done":c.status==="live"?"Sending":c.status==="draft"?"Draft":c.status}
+                              <span style={{fontSize:10,padding:"2px 8px",borderRadius:100,background:badgeBg,color:badgeColor,fontWeight:700}}>
+                                {badgeLabel}
                               </span>
                             </div>
                             <div style={{fontSize:12,color:txf}}>
@@ -820,7 +859,7 @@ export default function Campaigns() {
                             {label:"Delivered", val:dlv,             color:"#38bdf8"},
                             {label:"Read",      val:c.read_count||0, color:"#a78bfa"},
                             {label:"Replied",   val:rpl,             color:acc},
-                            {label:"Meta Cost", val:`₹${cost}`,      color:txm},
+                            {label:"Meta Cost", val:"₹"+cost,        color:txm},
                           ].map(stat=>(
                             <div key={stat.label} style={{background:ibg,borderRadius:9,padding:"10px 12px",textAlign:"center"}}>
                               <div style={{fontSize:11,color:txf,marginBottom:4}}>{stat.label}</div>
@@ -828,23 +867,16 @@ export default function Campaigns() {
                             </div>
                           ))}
                         </div>
-                            {c.status==="draft"&&(
-  <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid "+bdr}}>
-    <button
-      onClick={()=>{
-        setCampaignName(c.name||"")
-        setSegment(c.segment||"all")
-        const tmpl=templates.find(t=>t.template_name===c.template_name)
-        if(tmpl) setSelectedTmplId(tmpl.id)
-        setView("compose")
-        setStep("setup")
-      }}
-      style={{padding:"8px 20px",borderRadius:8,background:adim,border:`1px solid ${acc}44`,color:acc,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-      ✏️ Open & Edit Draft
-    </button>
-  </div>
-)}
-                    </div>
+                        {isDraft&&(
+                          <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid "+bdr}}>
+                            <button
+                              onClick={()=>openDraft(c)}
+                              style={{padding:"8px 20px",borderRadius:8,background:adim,border:"1px solid "+acc+"44",color:acc,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                              ✏️ Open Draft
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )
                   })}
                 </div>
@@ -860,7 +892,7 @@ export default function Campaigns() {
               <div style={{fontSize:14,color:txm}}>{sentCount} sent · {failCount} failed</div>
               <div style={{width:"100%",maxWidth:400,background:ibg,borderRadius:100,height:8,overflow:"hidden"}}>
                 <div style={{height:"100%",background:acc,borderRadius:100,
-                  width:audience.length>0?`${Math.round(((sentCount+failCount)/audience.length)*100)}%`:"0%",
+                  width:audience.length>0?Math.round(((sentCount+failCount)/audience.length)*100)+"%":"0%",
                   transition:"width 0.4s"}}/>
               </div>
               <div style={{fontSize:12.5,color:txf}}>
@@ -892,7 +924,7 @@ export default function Campaigns() {
                   New Campaign
                 </button>
                 <button onClick={()=>{ setView("history"); setStep("setup"); loadHistory() }}
-                  style={{padding:"12px 32px",borderRadius:11,background:ibg,border:`1px solid ${cbdr}`,color:txm,fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                  style={{padding:"12px 32px",borderRadius:11,background:ibg,border:"1px solid "+cbdr,color:txm,fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                   View History →
                 </button>
               </div>
@@ -902,28 +934,24 @@ export default function Campaigns() {
           {/* ── COMPOSE: SETUP ── */}
           {view==="compose"&&step==="setup"&&(
             <div className="desktop">
-              {/* Left — template list */}
               <div className="left-panel">
-                <div style={{padding:"16px 16px 12px",borderBottom:`1px solid ${bdr}`,position:"sticky",top:0,background:sb,zIndex:5}}>
+                <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+bdr,position:"sticky",top:0,background:sb,zIndex:5}}>
                   <div style={{fontWeight:700,fontSize:13,color:tx,marginBottom:3}}>Your Approved Templates</div>
                   <div style={{fontSize:11.5,color:txf}}>From your Meta WhatsApp Business account</div>
                   {whatsapp&&(
                     <button onClick={()=>fetchMetaTemplates(whatsapp)}
-                      style={{marginTop:8,padding:"5px 12px",borderRadius:7,background:ibg,border:`1px solid ${cbdr}`,color:txm,fontSize:11.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                      style={{marginTop:8,padding:"5px 12px",borderRadius:7,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:11.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                       ↻ Refresh
                     </button>
                   )}
                 </div>
 
-                {/* Loading */}
                 {tmplLoading&&(
                   <div style={{padding:32,textAlign:"center",color:txf,fontSize:13}}>
                     <div style={{fontSize:24,marginBottom:10,opacity:0.4}}>⟳</div>
                     Loading from Meta...
                   </div>
                 )}
-
-                {/* No WhatsApp */}
                 {!whatsapp&&!tmplLoading&&(
                   <div style={{padding:24,textAlign:"center"}}>
                     <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📵</div>
@@ -935,8 +963,6 @@ export default function Campaigns() {
                     </button>
                   </div>
                 )}
-
-                {/* No approved templates */}
                 {whatsapp&&!tmplLoading&&tmplError==="no_templates"&&(
                   <div style={{padding:24,textAlign:"center"}}>
                     <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📋</div>
@@ -946,25 +972,21 @@ export default function Campaigns() {
                     </div>
                     <a href="https://business.facebook.com/wa/manage/message-templates/"
                       target="_blank" rel="noreferrer"
-                      style={{display:"inline-block",padding:"9px 20px",borderRadius:9,background:acc,color:"#000",fontWeight:700,fontSize:12.5,textDecoration:"none",marginBottom:10}}>
+                      style={{display:"inline-block",padding:"9px 20px",borderRadius:9,background:acc,color:"#000",fontWeight:700,fontSize:12.5,textDecoration:"none"}}>
                       Create in Meta →
                     </a>
                   </div>
                 )}
-
-                {/* Error */}
                 {whatsapp&&!tmplLoading&&tmplError&&tmplError!=="no_templates"&&tmplError!=="no_whatsapp"&&(
                   <div style={{padding:24,textAlign:"center"}}>
                     <div style={{fontSize:32,marginBottom:12,opacity:0.3}}>⚠️</div>
                     <div style={{fontSize:12,color:"#fb7185",marginBottom:12,lineHeight:1.5}}>{tmplError}</div>
                     <button onClick={()=>fetchMetaTemplates(whatsapp)}
-                      style={{padding:"8px 20px",borderRadius:8,background:ibg,border:`1px solid ${cbdr}`,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                      style={{padding:"8px 20px",borderRadius:8,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                       ↻ Retry
                     </button>
                   </div>
                 )}
-
-                {/* Template list */}
                 {!tmplLoading&&!tmplError&&templates.map(t=>(
                   <div key={t.id} className={"tmpl-item"+(selectedTmplId===t.id?" on":"")}
                     onClick={()=>{ setSelectedTmplId(t.id); setTmplVals(p=>({business_name:p.business_name||bizName})) }}>
@@ -982,7 +1004,7 @@ export default function Campaigns() {
                       <span style={{fontSize:9.5,padding:"2px 8px",borderRadius:100,
                         background:t.category==="UTILITY"||t.category==="AUTHENTICATION"?"rgba(56,189,248,0.1)":adim,
                         color:t.category==="UTILITY"||t.category==="AUTHENTICATION"?"#38bdf8":acc,
-                        border:`1px solid ${t.category==="UTILITY"||t.category==="AUTHENTICATION"?"rgba(56,189,248,0.25)":acc+"33"}`,
+                        border:"1px solid "+(t.category==="UTILITY"||t.category==="AUTHENTICATION"?"rgba(56,189,248,0.25)":acc+"33"),
                         fontWeight:700}}>
                         {t.category}
                       </span>
@@ -992,7 +1014,6 @@ export default function Campaigns() {
                 ))}
               </div>
 
-              {/* Right — compose steps */}
               <div className="right-area">
                 <div className="right-pad">
                   {!selectedTmplId&&(
@@ -1002,7 +1023,6 @@ export default function Campaigns() {
                     </div>
                   )}
 
-                  {/* Step 1 */}
                   {selectedTmplId&&(
                     <div className="step-card">
                       <div className="step-head">
@@ -1015,7 +1035,7 @@ export default function Campaigns() {
                           <span style={{fontSize:16}}>{selectedTmpl?.icon}</span>
                           <span style={{fontWeight:600,fontSize:12,color:acc,maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selectedTmpl?.label}</span>
                           <button onClick={()=>setSelectedTmplId("")}
-                            style={{padding:"5px 12px",borderRadius:7,background:ibg,border:`1px solid ${cbdr}`,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                            style={{padding:"5px 12px",borderRadius:7,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                             ← Change
                           </button>
                         </div>
@@ -1027,23 +1047,26 @@ export default function Campaigns() {
                             onChange={e=>setCampaignName(e.target.value)} style={{...inp,fontSize:14}}/>
                         </div>
 
-                        {/* First var — auto customer name */}
-                        {selectedTmpl?.vars.some(v=>v.num==="1")&&(
-                          <div style={{marginBottom:16,padding:"12px 14px",background:ibg,borderRadius:9,border:`1px solid ${acc}22`}}>
-                            <div style={{fontSize:12,color:acc,fontWeight:600,marginBottom:2}}>{"{{1}}"}</div>
-                            <div style={{fontSize:12.5,color:tx}}>Customer's first name — auto-personalised per send</div>
+                        {/* Auto-filled var — customer name */}
+                        {selectedTmpl?.vars.some(v=>v.auto)&&(
+                          <div style={{marginBottom:16,padding:"12px 14px",background:ibg,borderRadius:9,border:"1px solid "+acc+"22"}}>
+                            <div style={{fontSize:12,color:acc,fontWeight:700,marginBottom:3}}>👤 Customer Name — Auto-personalised</div>
+                            <div style={{fontSize:12.5,color:txm}}>Each recipient gets their own first name automatically. No action needed.</div>
                           </div>
                         )}
 
-                        {/* Remaining variables */}
+                        {/* Manual vars with friendly labels */}
                         {nonAutoVars.length>0&&(
                           <>
                             <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:12}}>Fill in Template Variables</div>
                             <div className="var-grid">
                               {nonAutoVars.map(v=>(
                                 <div key={v.key}>
-                                  <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:6}}>{v.label}</div>
-                                  <input placeholder={v.hint} value={tmplVals[v.key]||""}
+                                  <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:4}}>{v.label}</div>
+                                  <div style={{fontSize:11,color:txf,marginBottom:6}}>{v.hint}</div>
+                                  <input
+                                    placeholder={v.hint}
+                                    value={tmplVals[v.key]||""}
                                     onChange={e=>setTmplVals(p=>({...p,[v.key]:e.target.value}))}
                                     style={inp}/>
                                 </div>
@@ -1052,7 +1075,7 @@ export default function Campaigns() {
                           </>
                         )}
 
-                        {nonAutoVars.length===0&&!selectedTmpl?.vars.some(v=>v.num==="1")&&(
+                        {nonAutoVars.length===0&&!selectedTmpl?.vars.some(v=>v.auto)&&(
                           <div style={{fontSize:12.5,color:txf,background:ibg,borderRadius:9,padding:"12px 14px"}}>
                             No variables — sent as-is to all recipients.
                           </div>
@@ -1061,7 +1084,6 @@ export default function Campaigns() {
                     </div>
                   )}
 
-                  {/* Step 2 */}
                   {selectedTmplId&&campaignName.trim()&&(
                     <div className="step-card">
                       <div className="step-head">
@@ -1095,7 +1117,7 @@ export default function Campaigns() {
                           })}
                         </div>
                         {segment==="manual"&&(
-                          <div style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:10,padding:16}}>
+                          <div style={{background:ibg,border:"1px solid "+cbdr,borderRadius:10,padding:16}}>
                             <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:8}}>Enter numbers (one per line or comma-separated)</div>
                             <textarea placeholder={"919876543210\n918765432109"} value={manualNums}
                               onChange={e=>setManualNums(e.target.value)} rows={5}
@@ -1106,11 +1128,11 @@ export default function Campaigns() {
                           </div>
                         )}
                         {segment==="csv"&&(
-                          <div style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:10,padding:16}}>
+                          <div style={{background:ibg,border:"1px solid "+cbdr,borderRadius:10,padding:16}}>
                             <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={handleCsv}/>
                             <button onClick={()=>fileRef.current?.click()}
-                              style={{width:"100%",padding:"12px",borderRadius:9,background:adim,border:`1px solid ${acc}44`,color:acc,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                              📎 {csvNums.length>0?`${csvNums.length} numbers loaded — click to replace`:"Upload CSV or .txt file"}
+                              style={{width:"100%",padding:"12px",borderRadius:9,background:adim,border:"1px solid "+acc+"44",color:acc,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                              📎 {csvNums.length>0?csvNums.length+" numbers loaded — click to replace":"Upload CSV or .txt file"}
                             </button>
                           </div>
                         )}
@@ -1118,7 +1140,6 @@ export default function Campaigns() {
                     </div>
                   )}
 
-                  {/* Step 3 */}
                   {selectedTmplId&&campaignName.trim()&&audience.length>0&&(
                     <div className="step-card">
                       <div className="step-head">
@@ -1150,7 +1171,7 @@ export default function Campaigns() {
                                   disabled={!testPhone.trim()||!whatsapp||testState==="sending"}
                                   style={{padding:"11px 16px",borderRadius:9,flexShrink:0,
                                     background:testState==="done"?acc:adim,
-                                    border:`1px solid ${acc}44`,
+                                    border:"1px solid "+acc+"44",
                                     color:testState==="done"?"#000":acc,
                                     fontWeight:700,fontSize:13,cursor:"pointer",
                                     fontFamily:"'Plus Jakarta Sans',sans-serif",whiteSpace:"nowrap"}}>
@@ -1158,15 +1179,15 @@ export default function Campaigns() {
                                 </button>
                               </div>
                             </div>
-                            <div style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:11,padding:"14px 16px",flex:1}}>
+                            <div style={{background:ibg,border:"1px solid "+cbdr,borderRadius:11,padding:"14px 16px",flex:1}}>
                               <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:12}}>Summary</div>
                               {[
                                 {label:"Template",  val:selectedTmpl?.label},
-                                {label:"Audience",  val:`${audience.length} recipients`},
-                                {label:"Meta Cost", val:`₹${(audience.length*(selectedTmpl?.metaCost||0.83)).toFixed(2)}`},
-                                {label:"Est. time", val:`~${Math.ceil(audience.length*1.2)}s`},
+                                {label:"Audience",  val:audience.length+" recipients"},
+                                {label:"Meta Cost", val:"₹"+(audience.length*(selectedTmpl?.metaCost||0.83)).toFixed(2)},
+                                {label:"Est. time", val:"~"+Math.ceil(audience.length*1.2)+"s"},
                               ].map(item=>(
-                                <div key={item.label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${bdr}`}}>
+                                <div key={item.label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+bdr}}>
                                   <span style={{fontSize:12.5,color:txf}}>{item.label}</span>
                                   <span style={{fontSize:12.5,fontWeight:600,color:tx}}>{item.val}</span>
                                 </div>
@@ -1178,19 +1199,19 @@ export default function Campaigns() {
                         <button onClick={sendCampaign} disabled={!canSend||sending}
                           style={{width:"100%",padding:"16px",
                             background:canSend?"#00B5A0":ibg,
-                            border:`1px solid ${canSend?"#00B5A0":cbdr}`,
+                            border:"1px solid "+(canSend?"#00B5A0":cbdr),
                             borderRadius:12,color:canSend?"#000":txm,
                             fontWeight:800,fontSize:16,
                             cursor:canSend?"pointer":"not-allowed",
                             fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:8}}>
                           {!allVarsFilled
                             ?"↑ Fill in all template variables"
-                            :`🚀 Send to ${audience.length} people · ₹${(audience.length*(selectedTmpl?.metaCost||0.83)).toFixed(2)}`}
+                            :"🚀 Send to "+audience.length+" people · ₹"+(audience.length*(selectedTmpl?.metaCost||0.83)).toFixed(2)}
                         </button>
 
                         <div style={{display:"flex",gap:10,alignItems:"center",justifyContent:"center",marginTop:4}}>
                           <button onClick={saveDraft} disabled={!campaignName.trim()||!selectedTmplId}
-                            style={{padding:"6px 16px",borderRadius:7,background:"transparent",border:`1px solid ${cbdr}`,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                            style={{padding:"6px 16px",borderRadius:7,background:"transparent",border:"1px solid "+cbdr,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                             💾 Save as Draft
                           </button>
                           <span style={{fontSize:12,color:txf}}>1 msg/sec · Meta rate safe</span>
