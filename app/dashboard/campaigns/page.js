@@ -223,13 +223,24 @@ export default function Campaigns() {
       .sort((a,b)=>parseInt(a)-parseInt(b))
 
     // FIX: Use smart labels based on position
-    const vars = varNums.map(num => ({
-      key:   "var_"+num,
-      label: SMART_LABELS[num]?.label || "Variable {{"+num+"}}",
-      hint:  SMART_LABELS[num]?.hint  || "Value for {{"+num+"}}",
-      auto:  SMART_LABELS[num]?.auto  || false,
-      num,
-    }))
+    const vars = varNums.map(num => {
+  // Extract surrounding text from template to show as context hint
+  const allTemplateText = headerText + " " + bodyText
+  const contextMatch = allTemplateText.match(
+    new RegExp('.{0,25}\\{\\{'+num+'\\}\\}.{0,25}')
+  )
+  const context = contextMatch
+    ? contextMatch[0].replace(/\{\{[0-9]+\}\}/g, "___").trim()
+    : null
+
+  return {
+    key:   "var_"+num,
+    label: num==="1" ? "Customer Name" : "Variable {{"+num+"}}",
+    hint:  context || "Value for {{"+num+"}}",
+    auto:  num==="1",
+    num,
+  }
+})
 
     const metaCost = META_COST[t.category] || 0.83
 
