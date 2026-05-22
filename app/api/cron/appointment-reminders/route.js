@@ -25,6 +25,33 @@ function formatDate(dateStr) {
   } catch(e) { return dateStr }
 }
 
+// Reliable IST date string — avoids toLocaleString conversion issues
+function getISTDateString(utcDate, offsetDays = 0) {
+  // IST = UTC + 5:30
+  const istOffsetMs = (5 * 60 + 30) * 60 * 1000
+  const istMs = utcDate.getTime() + istOffsetMs + (offsetDays * 24 * 60 * 60 * 1000)
+  const istDate = new Date(istMs)
+  const y = istDate.getUTCFullYear()
+  const m = String(istDate.getUTCMonth() + 1).padStart(2, "0")
+  const d = String(istDate.getUTCDate()).padStart(2, "0")
+  return y + "-" + m + "-" + d
+}
+
+// Reliable IST hour
+function getISTHour(utcDate) {
+  const istOffsetMs = (5 * 60 + 30) * 60 * 1000
+  const istMs = utcDate.getTime() + istOffsetMs
+  return new Date(istMs).getUTCHours()
+}
+
+// Reliable IST time string HH:MM
+function getISTTimeString(utcDate, offsetMs = 0) {
+  const istOffsetMs = (5 * 60 + 30) * 60 * 1000
+  const istMs = utcDate.getTime() + istOffsetMs + offsetMs
+  const d = new Date(istMs)
+  return String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0")
+}
+
 async function sendWhatsApp(accessToken, phoneNumberId, to, message) {
   const phone = to.replace(/[^0-9]/g, "")
   if (phone.length < 10) return false
@@ -75,7 +102,6 @@ function buildReminderMessage(name, service, dateStr, timeStr, bizName, type) {
     ].filter(Boolean).join("\n")
   }
 
-  // 24hr reminder
   return [
     "Hi " + name + "! 👋",
     "",
@@ -97,20 +123,16 @@ export async function GET(req) {
   }
 
   try {
-    // IST time
-    const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
-    const currentHourIST = nowIST.getHours()
+    const nowUTC = new Date()
 
-    const todayStr    = nowIST.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
-    const tomorrowIST = new Date(nowIST)
-    tomorrowIST.setDate(tomorrowIST.getDate() + 1)
-    const tomorrowStr = tomorrowIST.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })
+    // Reliable IST calculations — no toLocaleString conversions
+    const currentHourIST  = getISTHour(nowUTC)
+    const todayStr        = getISTDateString(nowUTC, 0)
+    const tomorrowStr     = getISTDateString(nowUTC, 1)
+    const windowStartTime = getISTTimeString(nowUTC, 90  * 60 * 1000)  // +1.5hr
+    const windowEndTime   = getISTTimeString(nowUTC, 150 * 60 * 1000)  // +2.5hr
 
-    // 2hr window: bookings in next 1.5 to 2.5 hours
-    const windowStart = new Date(nowIST.getTime() + 90  * 60 * 1000)
-    const windowEnd   = new Date(nowIST.getTime() + 150 * 60 * 1000)
-    const windowStartTime = windowStart.toLocaleTimeString("en-CA", { hour12: false, timeZone: "Asia/Kolkata" }).substring(0, 5)
-    const windowEndTime   = windowEnd.toLocaleTimeString("en-CA",   { hour12: false, timeZone: "Asia/Kolkata" }).substring(0, 5)
+    console.log("⏰ Cron running — IST hour:", currentHourIST, "today:", todayStr, "tomorrow:", tomorrowStr)
 
     // Get businesses with reminders enabled on growth/pro plan
     const { data: businesses } = await supabaseAdmin
@@ -120,25 +142,39 @@ export async function GET(req) {
       .in("plan", ["growth", "pro"])
 
     if (!businesses?.length) {
+      console.log("No businesses with reminders enabled")
       return NextResponse.json({ status: "no businesses with reminders enabled" })
     }
+
+    console.log("✅ Found", businesses.length, "businesses with reminders enabled")
 
     let totalSent = 0, totalSkipped = 0
 
     for (const biz of businesses) {
       // Skip expired plans
-      if (biz.plan_expires_at && new Date(biz.plan_expires_at) < new Date()) continue
+      if (biz.plan_expires_at && new Date(biz.plan_expires_at) < nowUTC) {
+        console.log("⚠️ Skipping expired plan:", biz.business_name)
+        continue
+      }
 
       const { data: conn } = await supabaseAdmin
         .from("whatsapp_connections")
         .select("access_token, phone_number_id")
         .eq("user_id", biz.user_id)
         .single()
-      if (!conn) continue
+
+      if (!conn) {
+        console.log("⚠️ No WhatsApp connection for:", biz.business_name)
+        continue
+      }
+
+      console.log("Processing business:", biz.business_name, "user:", biz.user_id)
 
       // ── 24HR REMINDERS — only between 7am-9am IST ──────────────
       if (currentHourIST >= 7 && currentHourIST <= 9) {
-        const { data: bookings24 } = await supabaseAdmin
+        console.log("🔔 Checking 24hr reminders for tomorrow:", tomorrowStr)
+
+        const { data: bookings24, error: err24 } = await supabaseAdmin
           .from("bookings")
           .select("id, customer_name, customer_phone, service, booking_date, booking_time, reminder_preference")
           .eq("user_id", biz.user_id)
@@ -146,9 +182,15 @@ export async function GET(req) {
           .eq("status", "confirmed")
           .eq("reminder_sent", false)
 
+        if (err24) console.error("❌ bookings24 query error:", err24.message)
+        console.log("📋 bookings24 found:", bookings24?.length || 0, JSON.stringify(bookings24))
+
         for (const booking of (bookings24 || [])) {
           const pref = booking.reminder_preference || "24hrs"
-          if (pref !== "24hrs") continue
+          if (pref !== "24hrs") {
+            console.log("⏭️ Skipping non-24hr preference:", pref)
+            continue
+          }
           if (!booking.customer_phone) { totalSkipped++; continue }
 
           const name    = (booking.customer_name || "there").split(" ")[0]
@@ -158,20 +200,28 @@ export async function GET(req) {
             biz.business_name, "24hrs"
           )
 
+          console.log("📤 Sending 24hr reminder to:", booking.customer_phone, "for:", booking.service)
           const sent = await sendWhatsApp(conn.access_token, conn.phone_number_id, booking.customer_phone, message)
+
           if (sent) {
             await supabaseAdmin.from("bookings")
               .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
               .eq("id", booking.id)
             totalSent++
+            console.log("✅ Reminder sent to:", booking.customer_phone)
           } else {
             totalSkipped++
+            console.log("❌ Reminder failed for:", booking.customer_phone)
           }
         }
+      } else {
+        console.log("⏭️ Outside 24hr window, hourIST:", currentHourIST)
       }
 
       // ── 2HR REMINDERS — every cron run ─────────────────────────
-      const { data: bookings2hr } = await supabaseAdmin
+      console.log("🔔 Checking 2hr reminders, window:", windowStartTime, "to", windowEndTime)
+
+      const { data: bookings2hr, error: err2hr } = await supabaseAdmin
         .from("bookings")
         .select("id, customer_name, customer_phone, service, booking_date, booking_time, reminder_preference")
         .eq("user_id", biz.user_id)
@@ -181,6 +231,9 @@ export async function GET(req) {
         .eq("reminder_preference", "2hrs")
         .gte("booking_time", windowStartTime)
         .lte("booking_time", windowEndTime)
+
+      if (err2hr) console.error("❌ bookings2hr query error:", err2hr.message)
+      console.log("📋 bookings2hr found:", bookings2hr?.length || 0)
 
       for (const booking of (bookings2hr || [])) {
         if (!booking.customer_phone) { totalSkipped++; continue }
@@ -208,8 +261,10 @@ export async function GET(req) {
       status: "ok",
       sent: totalSent,
       skipped: totalSkipped,
-      checkedAt: nowIST.toISOString(),
+      checkedAt: nowUTC.toISOString(),
       hourIST: currentHourIST,
+      todayStr,
+      tomorrowStr,
       windows: {
         "24hr_active": currentHourIST >= 7 && currentHourIST <= 9,
         "2hr_window": windowStartTime + " to " + windowEndTime
