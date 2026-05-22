@@ -171,7 +171,9 @@ export default function Conversations() {
     setSending(true)
     const text  = msgInput.trim()
     setMsgInput("")
-    const phone = (selected.phone || "").replace(/[^0-9]/g,"")
+    let phone = (selected.phone || "").replace(/[^0-9]/g,"")
+// Ensure country code — if 10 digits add 91
+if (phone.length === 10) phone = "91" + phone
     try {
       const authHeader = await getAuthHeader()
       if (!authHeader) { toast.error("Session expired — please refresh"); setSending(false); return }
