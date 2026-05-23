@@ -151,22 +151,13 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
   }
 
   // Check if customer is replying to a campaign message
+// Check if conversation is in campaign mode (campaign sent within 24hrs)
 let campaignContext = null
 try {
-  const { data: lastOutbound } = await supabaseAdmin
-    .from("messages")
-    .select("message_text, message_type, created_at")
-    .eq("conversation_id", conversation?.id)
-    .eq("direction", "outbound")
-    .eq("message_type", "template")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (lastOutbound) {
-    const hoursSince = (Date.now() - new Date(lastOutbound.created_at).getTime()) / 3600000
+  if (conversation?.campaign_sent_at && conversation?.campaign_message) {
+    const hoursSince = (Date.now() - new Date(conversation.campaign_sent_at).getTime()) / 3600000
     if (hoursSince < 24) {
-      campaignContext = lastOutbound.message_text
+      campaignContext = conversation.campaign_message
     }
   }
 } catch(e) {
