@@ -484,19 +484,26 @@ export default function Campaigns() {
           { method:"POST", headers:{"Authorization":`Bearer ${whatsapp.access_token}`,"Content-Type":"application/json"}, body:JSON.stringify(payload) }
         )
         const d = await res.json()
-        if (!d.error) {
-          sc++; setSentCount(sc)
-          const waId = d?.messages?.[0]?.id
-          if (waId) waIds.push(waId)
-          try {
-            const { data:convo } = await supabase.from("conversations").select("id").eq("user_id",userId).eq("phone",dedupe(customer.phone)).maybeSingle()
-            await supabase.from("messages").insert({
-              user_id:userId, customer_phone:dedupe(customer.phone),
-              conversation_id:convo?.id||null, direction:"outbound",
-              message_type:"template", message_text:getPreview().substring(0,500),
-              status:"sent", is_ai:false, wa_message_id:waId||null, created_at:now
-            })
-          } catch(e) {}
+       if (!d.error) {
+  sc++; setSentCount(sc)
+  const waId = d?.messages?.[0]?.id
+  if (waId) waIds.push(waId)
+  try {
+    const { data:convo } = await supabase.from("conversations").select("id").eq("user_id",userId).eq("phone",dedupe(customer.phone)).maybeSingle()
+    await supabase.from("messages").insert({
+      user_id:userId, customer_phone:dedupe(customer.phone),
+      conversation_id:convo?.id||null, direction:"outbound",
+      message_type:"template", message_text:getPreview().substring(0,500),
+      status:"sent", is_ai:false, wa_message_id:waId||null, created_at:now
+    })
+    // Mark conversation as campaign mode for 24hrs
+    if (convo?.id) {
+      await supabase.from("conversations").update({
+        campaign_sent_at: now,
+        campaign_message: getPreview().substring(0,500)
+      }).eq("id", convo.id)
+    }
+  } catch(e) {}
         } else {
           console.error("Send error for", phone, d.error.message)
           fc++; setFailCount(fc)
