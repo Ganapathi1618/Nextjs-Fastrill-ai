@@ -25,9 +25,7 @@ function formatDate(dateStr) {
   } catch(e) { return dateStr }
 }
 
-// Reliable IST date string — avoids toLocaleString conversion issues
 function getISTDateString(utcDate, offsetDays = 0) {
-  // IST = UTC + 5:30
   const istOffsetMs = (5 * 60 + 30) * 60 * 1000
   const istMs = utcDate.getTime() + istOffsetMs + (offsetDays * 24 * 60 * 60 * 1000)
   const istDate = new Date(istMs)
@@ -37,14 +35,12 @@ function getISTDateString(utcDate, offsetDays = 0) {
   return y + "-" + m + "-" + d
 }
 
-// Reliable IST hour
 function getISTHour(utcDate) {
   const istOffsetMs = (5 * 60 + 30) * 60 * 1000
   const istMs = utcDate.getTime() + istOffsetMs
   return new Date(istMs).getUTCHours()
 }
 
-// Reliable IST time string HH:MM
 function getISTTimeString(utcDate, offsetMs = 0) {
   const istOffsetMs = (5 * 60 + 30) * 60 * 1000
   const istMs = utcDate.getTime() + istOffsetMs + offsetMs
@@ -116,6 +112,21 @@ function buildReminderMessage(name, service, dateStr, timeStr, bizName, type) {
   ].filter(Boolean).join("\n")
 }
 
+// Set campaign context on conversation so AI handles replies correctly
+async function setCampaignContext(userId, customerPhone, message) {
+  try {
+    await supabaseAdmin.from("conversations")
+      .update({
+        campaign_sent_at: new Date().toISOString(),
+        campaign_message: message
+      })
+      .eq("user_id", userId)
+      .eq("phone", customerPhone)
+  } catch(e) {
+    console.warn("⚠️ setCampaignContext failed:", e.message)
+  }
+}
+
 export async function GET(req) {
   const authHeader = req.headers.get("authorization")
   if (authHeader !== "Bearer " + process.env.CRON_SECRET) {
@@ -125,16 +136,14 @@ export async function GET(req) {
   try {
     const nowUTC = new Date()
 
-    // Reliable IST calculations — no toLocaleString conversions
     const currentHourIST  = getISTHour(nowUTC)
     const todayStr        = getISTDateString(nowUTC, 0)
     const tomorrowStr     = getISTDateString(nowUTC, 1)
-    const windowStartTime = getISTTimeString(nowUTC, 90  * 60 * 1000)  // +1.5hr
-    const windowEndTime   = getISTTimeString(nowUTC, 150 * 60 * 1000)  // +2.5hr
+    const windowStartTime = getISTTimeString(nowUTC, 90  * 60 * 1000)
+    const windowEndTime   = getISTTimeString(nowUTC, 150 * 60 * 1000)
 
     console.log("⏰ Cron running — IST hour:", currentHourIST, "today:", todayStr, "tomorrow:", tomorrowStr)
 
-    // Get businesses with reminders enabled on growth/pro plan
     const { data: businesses } = await supabaseAdmin
       .from("business_settings")
       .select("user_id, business_name, reminders_enabled, plan, plan_expires_at")
@@ -151,7 +160,6 @@ export async function GET(req) {
     let totalSent = 0, totalSkipped = 0
 
     for (const biz of businesses) {
-      // Skip expired plans
       if (biz.plan_expires_at && new Date(biz.plan_expires_at) < nowUTC) {
         console.log("⚠️ Skipping expired plan:", biz.business_name)
         continue
@@ -170,7 +178,7 @@ export async function GET(req) {
 
       console.log("Processing business:", biz.business_name, "user:", biz.user_id)
 
-      // ── 24HR REMINDERS — only between 7am-9am IST ──────────────
+      // ── 24HR REMINDERS ─────────────────────────────────────────
       if (currentHourIST >= 7 && currentHourIST <= 9) {
         console.log("🔔 Checking 24hr reminders for tomorrow:", tomorrowStr)
 
@@ -207,6 +215,8 @@ export async function GET(req) {
             await supabaseAdmin.from("bookings")
               .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
               .eq("id", booking.id)
+            // Set campaign context so AI handles replies correctly
+            await setCampaignContext(biz.user_id, booking.customer_phone, message)
             totalSent++
             console.log("✅ Reminder sent to:", booking.customer_phone)
           } else {
@@ -218,7 +228,7 @@ export async function GET(req) {
         console.log("⏭️ Outside 24hr window, hourIST:", currentHourIST)
       }
 
-      // ── 2HR REMINDERS — every cron run ─────────────────────────
+      // ── 2HR REMINDERS ──────────────────────────────────────────
       console.log("🔔 Checking 2hr reminders, window:", windowStartTime, "to", windowEndTime)
 
       const { data: bookings2hr, error: err2hr } = await supabaseAdmin
@@ -250,6 +260,8 @@ export async function GET(req) {
           await supabaseAdmin.from("bookings")
             .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
             .eq("id", booking.id)
+          // Set campaign context so AI handles replies correctly
+          await setCampaignContext(biz.user_id, booking.customer_phone, message)
           totalSent++
         } else {
           totalSkipped++
