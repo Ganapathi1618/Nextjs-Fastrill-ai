@@ -1,7 +1,7 @@
 "use client"
 export const dynamic = "force-dynamic"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@supabase/supabase-js"
 
 function getSupabase() {
@@ -12,7 +12,7 @@ function getSupabase() {
 }
 
 export default function SignupPage() {
-  const [step, setStep]         = useState("form") // form | otp
+  const [step, setStep]         = useState("form")
   const [email, setEmail]       = useState("")
   const [password, setPassword] = useState("")
   const [confirm, setConfirm]   = useState("")
@@ -23,10 +23,50 @@ export default function SignupPage() {
   const [resendTimer, setResendTimer] = useState(0)
   const [showPass, setShowPass] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [signingIn, setSigningIn] = useState(false)
 
   const strength = password.length === 0 ? 0 : password.length < 6 ? 1 : password.length < 10 ? 2 : /[A-Z]/.test(password) && /[0-9]/.test(password) ? 4 : 3
   const strengthLabel = ["","Weak","Fair","Good","Strong"][strength]
   const strengthColor = ["","#f87171","#fbbf24","#4ade80","#00d4ff"][strength]
+
+  useEffect(() => {
+    const hash = window.location.hash
+
+    // Handle Google OAuth hash fragment on signup page
+    if (hash && hash.includes("access_token")) {
+      setSigningIn(true)
+      const supabase = getSupabase()
+      setTimeout(async () => {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          // Check if new user — no business_settings means first time
+          const { data: settings } = await supabase
+            .from("business_settings")
+            .select("id")
+            .eq("user_id", session.user.id)
+            .single()
+
+          if (!settings) {
+            // New Google user — init and send to onboarding
+            await fetch("/api/onboarding/init", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${session.access_token}`
+              }
+            })
+            window.location.href = "/onboarding"
+          } else {
+            window.location.href = "/dashboard"
+          }
+        } else {
+          setSigningIn(false)
+          setError("Authentication failed. Please try again.")
+        }
+      }, 800)
+      return
+    }
+  }, [])
 
   useState(() => {
     if (resendTimer <= 0) return
@@ -138,6 +178,19 @@ export default function SignupPage() {
     width: "100%", padding: "12px 14px", borderRadius: "10px",
     border: "1px solid #333", background: "#1a1a1a", color: "#fff",
     fontSize: "15px", outline: "none", boxSizing: "border-box"
+  }
+
+  // Spinner while processing Google OAuth
+  if (signingIn) {
+    return (
+      <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter,sans-serif" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: "48px", height: "48px", border: "3px solid #00d4ff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+          <p style={{ color: "#888", fontSize: "14px" }}>Setting up your account...</p>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    )
   }
 
   return (
