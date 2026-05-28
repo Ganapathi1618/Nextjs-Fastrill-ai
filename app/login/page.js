@@ -17,9 +17,29 @@ export default function LoginPage() {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState("")
   const [showPass, setShowPass] = useState(false)
+  const [signingIn, setSigningIn] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+    const hash = window.location.hash
+
+    // Google OAuth returns token in hash fragment — handle it here
+    if (hash && hash.includes("access_token")) {
+      setSigningIn(true)
+      const supabase = getSupabase()
+      // Small delay to let Supabase parse the hash
+      setTimeout(async () => {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          window.location.href = "/dashboard"
+        } else {
+          setSigningIn(false)
+          setError("Authentication failed. Please try again.")
+        }
+      }, 800)
+      return
+    }
+
     if (params.get("error")) setError("Authentication failed. Please try again.")
   }, [])
 
@@ -64,6 +84,19 @@ export default function LoginPage() {
     width: "100%", padding: "12px 14px", borderRadius: "10px",
     border: "1px solid #333", background: "#1a1a1a", color: "#fff",
     fontSize: "15px", outline: "none", boxSizing: "border-box"
+  }
+
+  // Show spinner while processing Google OAuth token
+  if (signingIn) {
+    return (
+      <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter,sans-serif" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: "48px", height: "48px", border: "3px solid #00d4ff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+          <p style={{ color: "#888", fontSize: "14px" }}>Signing you in...</p>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      </div>
+    )
   }
 
   return (
