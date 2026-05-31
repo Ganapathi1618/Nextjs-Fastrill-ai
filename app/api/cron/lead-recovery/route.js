@@ -1,58 +1,15 @@
-// app/api/cron/lead-recovery/route.js
+// app/api/cron/lead-recovery/route.js — v2 TEMPLATE-BASED (works outside 24hr window)
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { enrollLead } from "@/lib/sequences/sequence-engine"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-async function sendWhatsApp(accessToken, phoneNumberId, to, message) {
-  const phone = to.replace(/[^0-9]/g, "")
-  if (phone.length < 10) return false
-  try {
-    const res = await fetch(
-      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + accessToken,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "text",
-          text: { body: message, preview_url: false }
-        })
-      }
-    )
-    const data = await res.json()
-    if (data.error) {
-      console.error("❌ WA send error:", data.error.message)
-      return false
-    }
-    return true
-  } catch(e) {
-    console.error("❌ WA send exception:", e.message)
-    return false
-  }
-}
-
-function buildRecoveryMessage(name, bizName, services) {
-  const svcText = services?.length
-    ? services.slice(0, 3).join(", ")
-    : "our services"
-
-  return [
-    "Hi " + name + "! 👋",
-    "",
-    "You recently enquired at *" + bizName + "* but didn't complete your booking.",
-    "",
-    "We'd love to have you! We offer: " + svcText,
-    "",
-    "Want to book a slot? Just reply here and our AI will help you in seconds. 😊"
-  ].join("\n")
+function nowIST() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
 }
 
 export async function GET(req) {
@@ -62,45 +19,45 @@ export async function GET(req) {
   }
 
   try {
-    const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
+    const now         = nowIST()
+    const cutoffStart = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString()
+    const cutoffEnd   = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
 
-    // Find leads that messaged 24-72 hours ago, never booked, never recovered
-    const cutoffStart = new Date(nowIST.getTime() - 72 * 60 * 60 * 1000).toISOString()
-    const cutoffEnd   = new Date(nowIST.getTime() - 24 * 60 * 60 * 1000).toISOString()
-
-    // Get businesses on growth/pro plan
+    // Get businesses on growth/pro plan with lead_recovery_enabled
     const { data: businesses } = await supabaseAdmin
       .from("business_settings")
-      .select("user_id, business_name, plan, plan_expires_at")
+      .select("user_id, business_name, plan, plan_expires_at, lead_recovery_enabled")
       .in("plan", ["growth", "pro"])
+      .eq("lead_recovery_enabled", true)
 
     if (!businesses?.length) {
       return NextResponse.json({ status: "no eligible businesses" })
     }
 
-    let totalSent = 0, totalSkipped = 0
+    let totalEnrolled = 0, totalSkipped = 0
 
     for (const biz of businesses) {
-      // Skip expired plans
       if (biz.plan_expires_at && new Date(biz.plan_expires_at) < new Date()) continue
 
-      const { data: conn } = await supabaseAdmin
-        .from("whatsapp_connections")
-        .select("access_token, phone_number_id")
+      // Find the default recovery sequence for this business
+      // Business must have created a sequence with trigger = 'lead_recovery'
+      const { data: seq } = await supabaseAdmin
+        .from("sequences")
+        .select("id")
         .eq("user_id", biz.user_id)
-        .single()
-      if (!conn) continue
+        .eq("trigger", "lead_recovery")
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle()
 
-      // Get services for this business
-      const { data: svcData } = await supabaseAdmin
-        .from("services")
-        .select("name")
-        .eq("user_id", biz.user_id)
-        .eq("is_active", true)
-        .limit(5)
-      const services = (svcData || []).map(s => s.name)
+      if (!seq) {
+        // No sequence set up yet — skip this business
+        console.log("⚠️ No lead_recovery sequence for:", biz.business_name)
+        totalSkipped++
+        continue
+      }
 
-      // Find open leads in time window that haven't been recovered
+      // Find open leads in time window, not yet recovered
       const { data: leads } = await supabaseAdmin
         .from("leads")
         .select("id, name, phone, status, recovery_sent")
@@ -112,7 +69,7 @@ export async function GET(req) {
 
       if (!leads?.length) continue
 
-      // Check which leads already have a booking — skip them
+      // Skip leads that have already booked
       const phones = leads.map(l => l.phone).filter(Boolean)
       const { data: booked } = await supabaseAdmin
         .from("bookings")
@@ -125,8 +82,8 @@ export async function GET(req) {
 
       for (const lead of leads) {
         if (!lead.phone) { totalSkipped++; continue }
+
         if (bookedPhones.has(lead.phone)) {
-          // Lead converted — mark recovery_sent so we don't process again
           await supabaseAdmin.from("leads")
             .update({ recovery_sent: true, status: "converted" })
             .eq("id", lead.id)
@@ -134,12 +91,15 @@ export async function GET(req) {
           continue
         }
 
-        const name    = (lead.name || "there").split(" ")[0]
-        const message = buildRecoveryMessage(name, biz.business_name, services)
+        // Enroll into sequence — sequence engine handles the actual sending
+        const result = await enrollLead({
+          userId:     biz.user_id,
+          sequenceId: seq.id,
+          leadPhone:  lead.phone,
+          leadName:   lead.name || "Customer"
+        })
 
-        const sent = await sendWhatsApp(conn.access_token, conn.phone_number_id, lead.phone, message)
-
-        if (sent) {
+        if (result.ok) {
           await supabaseAdmin.from("leads")
             .update({
               recovery_sent:    true,
@@ -147,26 +107,23 @@ export async function GET(req) {
               status:           "contacted"
             })
             .eq("id", lead.id)
-          totalSent++
-          console.log("✅ Lead recovery sent:", lead.phone)
+          totalEnrolled++
+          console.log("✅ Lead enrolled in sequence:", lead.phone)
         } else {
+          console.warn("⚠️ Enroll failed:", lead.phone, result.reason || result.error)
           totalSkipped++
-          console.warn("⚠️ Lead recovery failed:", lead.phone)
         }
-
-        // 1 second delay between sends — rate limit safety
-        await new Promise(r => setTimeout(r, 1000))
       }
     }
 
     return NextResponse.json({
-      status: "ok",
-      sent:    totalSent,
-      skipped: totalSkipped,
-      checkedAt: nowIST.toISOString()
+      status:   "ok",
+      enrolled: totalEnrolled,
+      skipped:  totalSkipped,
+      ranAt:    now.toISOString()
     })
 
-  } catch(e) {
+  } catch (e) {
     console.error("❌ Lead recovery cron failed:", e.message)
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
