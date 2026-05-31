@@ -4,6 +4,7 @@ const { normalizeMessage }   = require("@/lib/messaging/normalizer")
 const { orchestrate }        = require("@/lib/ai/orchestrator")
 const { sendAndSave }        = require("@/lib/messaging/wa-send")
 const { isDuplicate, upsertCustomer, upsertConversation, saveInboundMessage, upsertLead, handleCompliance } = require("@/lib/crm/customer-engine")
+const { stopEnrollment }     = require("@/lib/sequences/sequence-engine")  // ← ADDED
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -150,30 +151,43 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     return
   }
 
-  // Check if customer is replying to a campaign message
-// Check if conversation is in campaign mode (campaign sent within 24hrs)
-let campaignContext = null
-try {
-  if (conversation?.campaign_sent_at && conversation?.campaign_message) {
-    const hoursSince = (Date.now() - new Date(conversation.campaign_sent_at).getTime()) / 3600000
-    if (hoursSince < 24) {
-      campaignContext = conversation.campaign_message
-    }
+  // ── STOP SEQUENCE ON REPLY (added v1) ─────────────────────
+  // Customer replied → stop any active drip sequence for them
+  // AI takes over the conversation naturally from here
+  try {
+    await stopEnrollment({
+      leadPhone: msg.phone,
+      userId,
+      reason: "replied"
+    })
+  } catch(e) {
+    console.error("⚠️ stopEnrollment failed (non-fatal):", e.message)
   }
-} catch(e) {
-  console.error("⚠️ campaignContext fetch failed:", e.message)
-}
 
-const reply = await orchestrate({
-  userId,
-  conversationId: conversation?.id,
-  phone:          msg.phone,
-  contactName:    msg.contactName,
-  message:        msg.effectiveText || "",
-  isMediaOnly:    msg.isMediaOnly,
-  phoneNumberId,
-  campaignContext
-})
+  // ── CAMPAIGN CONTEXT ───────────────────────────────────────
+  // Check if conversation is in campaign mode (campaign sent within 24hrs)
+  let campaignContext = null
+  try {
+    if (conversation?.campaign_sent_at && conversation?.campaign_message) {
+      const hoursSince = (Date.now() - new Date(conversation.campaign_sent_at).getTime()) / 3600000
+      if (hoursSince < 24) {
+        campaignContext = conversation.campaign_message
+      }
+    }
+  } catch(e) {
+    console.error("⚠️ campaignContext fetch failed:", e.message)
+  }
+
+  const reply = await orchestrate({
+    userId,
+    conversationId: conversation?.id,
+    phone:          msg.phone,
+    contactName:    msg.contactName,
+    message:        msg.effectiveText || "",
+    isMediaOnly:    msg.isMediaOnly,
+    phoneNumberId,
+    campaignContext
+  })
 
   await saveInboundMessage({
     userId, phoneNumberId, from: msg.from,
