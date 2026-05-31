@@ -1,0 +1,19 @@
+# .github/workflows/drip-sequences.yml
+# Runs every hour — fires pending sequence steps
+
+name: Drip Sequences
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # every hour on the hour
+  workflow_dispatch:        # manual trigger for testing
+
+jobs:
+  run-drip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire drip sequences cron
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/cron/drip-sequences"
