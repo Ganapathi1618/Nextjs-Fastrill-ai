@@ -1,15 +1,9 @@
 "use client"
-export const dynamic = "force-dynamic"
-
 import { useEffect, useState } from "react"
-import { createClient } from "@supabase/supabase-js"
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
-}
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase"
+import { useToast } from "@/components/Toast"
+import { usePlanGuard } from "@/lib/hooks/usePlanGuard"
 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
@@ -23,1079 +17,474 @@ const NAV = [
   { id:"settings",  label:"Settings",       icon:"◌", path:"/dashboard/settings" },
 ]
 
-const TABS = [
-  { id:"business", label:"Business",    icon:"🏢" },
-  { id:"services", label:"Services",    icon:"📋" },
-  { id:"ai",       label:"AI Brain",    icon:"🧠" },
-  { id:"whatsapp", label:"WhatsApp",    icon:"💬" },
-  { id:"billing",  label:"Plan & Billing", icon:"💳" },
-  { id:"account",  label:"Account",     icon:"👤" },
-]
+export default function Dashboard() {
+  usePlanGuard()  
+  const router = useRouter()
+  const toast  = useToast()
 
-const LANGUAGES = ["English","Hindi","Telugu","Tamil","Kannada","Malayalam","Marathi","Bengali","Gujarati","Punjabi","Auto-detect"]
-
-const BIZ_TYPES = [
-  "Salon","Beauty Parlour","Spa","Hair Studio","Nail Studio","Makeup Studio",
-  "Skin Clinic","Dermatology Clinic","Dental Clinic","Ayurvedic Clinic",
-  "Physiotherapy Clinic","Yoga Studio","Fitness Studio","Gym","Wellness Center",
-  "Real Estate","Healthcare","Consulting","Agency","Restaurant","Food Delivery",
-  "Retail","Education","Legal","Finance","Other"
-]
-
-const CATEGORIES = ["Hair","Skin","Nails","Bridal","Massage","Body","Dental","Fitness","Ayurveda","Consultation","Membership","Property","Main Course","Starters","Beverages","Desserts","Other"]
-
-const SECTOR_CATEGORIES = {
-  "Real Estate":    ["Property","Consultation","Other"],
-  "Food Delivery":  ["Main Course","Starters","Beverages","Combos","Desserts","Other"],
-  "Restaurant":     ["Main Course","Starters","Beverages","Combos","Desserts","Other"],
-  "Healthcare":     ["Consultation","Procedure","Test","Therapy","Other"],
-  "Dental Clinic":  ["Consultation","Procedure","Cleaning","Other"],
-  "Clinic":         ["Consultation","Procedure","Test","Other"],
-  "Consulting":     ["Consultation","Retainer","Project","Other"],
-  "Education":      ["Consultation","Course","Batch","Other"],
-  "Legal":          ["Consultation","Retainer","Other"],
-  "Finance":        ["Consultation","Advisory","Other"],
-  "Gym":            ["Membership","Personal Training","Classes","Other"],
-  "Yoga Studio":    ["Membership","Classes","Other"],
-  "Fitness Studio": ["Membership","Classes","Personal Training","Other"],
-}
-
-function getSectorCategories(bizType) {
-  return SECTOR_CATEGORIES[bizType] || CATEGORIES
-}
-
-const PLANS = [
-  {
-    id:"starter", name:"Starter", price:"₹999", period:"/month",
-    description:"Perfect to get started", color:"#00C9B1",
-    features:["AI WhatsApp receptionist","Booking, reschedule, cancel","Telugu, Hindi, English","Dashboard & analytics","Up to 500 conversations/month"],
-    locked:["Appointment reminders","Lead recovery","Bulk campaigns"]
-  },
-  {
-    id:"growth", name:"Growth", price:"₹1,999", period:"/month",
-    description:"Most popular for growing businesses", color:"#6366f1", popular:true,
-    features:["Everything in Starter","Appointment reminders (24hr before)","Lead recovery follow-ups","Unlimited conversations","Priority support"],
-    locked:["Bulk campaigns"]
-  },
-  {
-    id:"pro", name:"Pro", price:"₹3,999", period:"/month",
-    description:"For high-volume businesses", color:"#f59e0b",
-    features:["Everything in Growth","Bulk WhatsApp campaigns","Customer segments","Advanced analytics","Dedicated support"],
-    locked:[]
-  },
-]
-
-// ── Sector-aware AI instruction placeholders ──────────────────
-const SECTOR_PLACEHOLDERS = {
-  "Real Estate": `You are a real estate assistant. When a customer enquires:
-1. Ask their preferred location
-2. Ask budget range (e.g. 30L–50L)
-3. Ask BHK requirement (1BHK / 2BHK / 3BHK)
-Then suggest the matching property and offer to book a site visit.
-Never dump the full list — always qualify first.`,
-  "Dental Clinic": `You are a dental clinic assistant.
-Ask what dental issue or treatment the customer needs.
-Ask if they prefer a specific doctor or any available.
-Suggest the relevant service and book a consultation.
-For emergencies, offer the earliest slot.`,
-  "Physiotherapy Clinic": `You are a physiotherapy assistant.
-Ask about the customer's condition (back pain, sports injury, etc).
-Suggest the appropriate service and book an initial consultation.
-Mention that first consultation includes a full assessment.`,
-  "Gym": `You are a gym assistant.
-Ask the customer's fitness goal (weight loss, muscle gain, general fitness).
-Suggest the appropriate membership or service.
-Offer a free trial session to get them started.`,
-  "Fitness Studio": `You are a fitness studio assistant.
-Ask about the customer's fitness goal and experience level.
-Suggest the right class or personal training package.
-Book a trial session if they are new.`,
-  "Restaurant": `You are a restaurant assistant.
-Answer questions about the menu, timings, and reservations.
-For table bookings, collect party size, date, and preferred time.
-For takeaway, note items and confirm pickup time.`,
-  "Food Delivery": `You are a food ordering assistant.
-Show the menu when asked. Take the order clearly.
-Confirm the delivery address and expected time.
-Upsell add-ons or combos when relevant.`,
-  "Consulting": `You are a business consulting assistant.
-Ask the customer about their business challenge or goal.
-Qualify their budget and timeline expectations.
-Book a free 30-minute discovery call to discuss further.`,
-  "Education": `You are an educational institute assistant.
-Ask which course or program the student is interested in.
-Ask about their current qualification and goals.
-Book a free counselling session or demo class.`,
-  "Healthcare": `You are a healthcare clinic assistant.
-Ask about the patient's concern or the type of consultation needed.
-Suggest the right doctor or service.
-Book the earliest convenient appointment.`,
-  "Legal": `You are a legal services assistant.
-Ask what type of legal matter the customer needs help with.
-Offer a brief free consultation call to assess the case.
-Book the consultation with the appropriate specialist.`,
-  "Finance": `You are a financial services assistant.
-Ask about the customer's financial goal (investment, insurance, loan, etc).
-Qualify their requirements and risk profile.
-Book a free consultation call with an advisor.`,
-  "Salon": `You are a salon booking assistant.
-Suggest services based on what the customer asks.
-Book appointments efficiently — ask for date, time, and stylist if needed.
-Mention active offers or packages when relevant.`,
-  "Spa": `You are a spa booking assistant.
-Recommend treatments based on the customer's needs (relaxation, skin, body, etc).
-Book their preferred slot and mention any ongoing packages or offers.`,
-}
-
-function getAIPlaceholder(bizType) {
-  if (!bizType) return "Describe how the AI should handle your customers — what to ask, what to suggest, how to qualify leads."
-  for (const [key, val] of Object.entries(SECTOR_PLACEHOLDERS)) {
-    if (bizType.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(bizType.toLowerCase())) {
-      return val
-    }
-  }
-  return `You are a ${bizType} assistant. Greet customers warmly, understand their needs, and help them book the right service. Always qualify their requirements before suggesting options.`
-}
-
-export default function SettingsPage() {
-  const [userId, setUserId]         = useState(null)
-  const [userEmail, setUserEmail]   = useState("")
-  const [userName, setUserName]     = useState("")
-  const [tab, setTab]               = useState("business")
-  const [loading, setLoading]       = useState(true)
-  const [saving, setSaving]         = useState(false)
-  const [saved, setSaved]           = useState(false)
-  const [saveError, setSaveError]   = useState("")
-  const [dark, setDark]             = useState(true)
-  const [mobOpen, setMobOpen]       = useState(false)
-  const [waConn, setWaConn]         = useState(null)
-  const [testMsg, setTestMsg]       = useState("")
-  const [testReply, setTestReply]   = useState("")
-  const [testing, setTesting]       = useState(false)
-  const [subscribing, setSubscribing] = useState(null)
-
-  const [currentPlan, setCurrentPlan]                   = useState("trial")
-  const [planExpiry, setPlanExpiry]                     = useState(null)
-  const [remindersEnabled, setRemindersEnabled]         = useState(false)
-  const [leadRecoveryEnabled, setLeadRecoveryEnabled]   = useState(false)
-  const [campaignsEnabled, setCampaignsEnabled]         = useState(false)
-  const [activeOffer, setActiveOffer]                   = useState("")
-
-  const [business, setBusiness] = useState({
-    business_name:"", business_type:"Salon", phone:"", location:"",
-    maps_link:"", description:"", working_hours:"", website:"", email:""
-  })
-  const [ai, setAi] = useState({
-    ai_language:"English", ai_instructions:"", greeting_message:"",
-    auto_booking:true, follow_up_enabled:true, content:"", knowledge:""
-  })
-  const [services, setServices]   = useState([])
-  const [newSvc, setNewSvc]       = useState({ name:"", price:"", duration:"30", category:"Hair", capacity:"1", service_type:"appointment", description:"" })
-  const [editingId, setEditingId] = useState(null)
-  const [newPassword, setNewPassword]         = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [changingPass, setChangingPass]       = useState(false)
-
-  // ── Theme ─────────────────────────────────────────────────────
-  const bg       = dark ? "#08080e"                : "#f0f2f5"
-  const sidebar  = dark ? "#0c0c15"                : "#ffffff"
-  const card     = dark ? "#0f0f1a"                : "#ffffff"
-  const border   = dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)"
-  const cBorder  = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)"
-  const text     = dark ? "#eeeef5"                : "#111827"
-  const textMuted= dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.5)"
-  const textFaint= dark ? "rgba(255,255,255,0.2)"  : "rgba(0,0,0,0.25)"
-  const inputBg  = dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)"
-  const accent   = dark ? "#00C9B1"                : "#00897A"
-  const navActive      = dark ? "rgba(0,196,125,0.1)"  : "rgba(0,180,115,0.08)"
-  const navActiveBorder= dark ? "rgba(0,196,125,0.2)"  : "rgba(0,180,115,0.2)"
-  const navActiveText  = dark ? "#00B5A0"              : "#00897A"
-
-  const inp = {
-    background: inputBg, border: `1px solid ${cBorder}`, borderRadius: 8,
-    padding: "9px 12px", fontSize: 13, color: text,
-    fontFamily: "'Plus Jakarta Sans',sans-serif", outline: "none", width: "100%",
-    boxSizing: "border-box"
-  }
-  const btnPrimary = {
-    background: accent, color: "#000", border: "none", padding: "9px 20px",
-    borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer",
-    fontFamily: "'Plus Jakarta Sans',sans-serif"
-  }
-  const lbl = { fontSize: 11.5, color: textMuted, marginBottom: 5, display: "block" }
-
-  function showToast(msg, type="success") {
-    if (type === "error") { setSaveError(msg); setTimeout(() => setSaveError(""), 3500) }
-    else { setSaved(true); setTimeout(() => setSaved(false), 2500) }
-  }
-
-  function planAllows(feature) {
-    if (feature === "reminders" || feature === "lead_recovery") return currentPlan === "growth" || currentPlan === "pro"
-    if (feature === "campaigns") return currentPlan === "pro"
-    return true
-  }
-
-  function formatExpiry(dateStr) {
-    if (!dateStr) return null
-    try { return new Date(dateStr).toLocaleDateString("en-IN", { day:"numeric", month:"long", year:"numeric" }) }
-    catch(e) { return null }
-  }
+  const [userEmail, setUserEmail]         = useState("")
+  const [userId, setUserId]               = useState(null)
+  const [connected, setConnected]         = useState(false)
+  const [period, setPeriod]               = useState("today")
+  const [dark, setDark]                   = useState(true)
+  const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
+  const [loading, setLoading]             = useState(true)
+  const [stats, setStats]                 = useState({ revenue:0, leads:0, bookings:0, missedLeads:0, aiHandled:0, aiBookings:0, aiRevenue:0 })
+  const [funnel, setFunnel]               = useState({ customers:0, convos:0, booked:0, completed:0, revenue:0 })
+  const [todayBookings, setTodayBookings] = useState([])
+  const [sources, setSources]             = useState([])
+  const [healthScore, setHealthScore]     = useState(0)
+  const [avgServiceValue, setAvgServiceValue] = useState(0)
 
   useEffect(() => {
-    const t = localStorage.getItem("fastrill-theme")
-    if (t) setDark(t === "dark")
-    async function load() {
-      const supabase = getSupabase()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { window.location.href = "/login"; return }
-      setUserId(user.id)
-      setUserEmail(user.email || "")
-      setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "")
-
-      const [{ data: biz }, { data: kn }, { data: svcs }, { data: wa }] = await Promise.all([
-        supabase.from("business_settings").select("*").eq("user_id", user.id).maybeSingle(),
-        supabase.from("business_knowledge").select("*").eq("user_id", user.id).maybeSingle(),
-        supabase.from("services").select("*").eq("user_id", user.id).order("category"),
-        supabase.from("whatsapp_connections").select("*").eq("user_id", user.id).maybeSingle(),
-      ])
-
-      if (biz) {
-        setBusiness(b => ({ ...b, ...biz }))
-        setCurrentPlan(biz.plan || "trial")
-        setPlanExpiry(biz.plan_expires_at || null)
-        setRemindersEnabled(biz.reminders_enabled || false)
-        setLeadRecoveryEnabled(biz.lead_recovery_enabled || false)
-        setCampaignsEnabled(biz.campaigns_enabled || false)
-        setActiveOffer(biz.active_offer || "")
-      }
-      if (biz || kn) setAi(a => ({
-        ...a,
-        ai_language:       biz?.ai_language       || "English",
-        ai_instructions:   biz?.ai_instructions   || "",
-        greeting_message:  biz?.greeting_message  || "",
-        auto_booking:      biz?.auto_booking      !== false,
-        follow_up_enabled: biz?.follow_up_enabled !== false,
-        content:           kn?.content            || "",
-        knowledge:         kn?.knowledge          || "",
-      }))
-      if (svcs) setServices(svcs)
-      if (wa)   setWaConn(wa)
-      setLoading(false)
-      if (typeof window !== "undefined") {
-        const params = new URLSearchParams(window.location.search)
-        if (params.get("expired") === "1") setTab("billing")
-      }
-    }
-    load()
+    const saved = localStorage.getItem("fastrill-theme")
+    if (saved) setDark(saved === "dark")
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data?.user) { router.push("/login"); return }
+      setUserEmail(data.user.email || "")
+      setUserId(data.user.id)
+    })
   }, [])
 
-  async function saveFeatureToggle(field, value) {
-    const supabase = getSupabase()
-    await supabase.from("business_settings").update({ [field]: value }).eq("user_id", userId)
-  }
+  useEffect(() => { if (userId) loadAll() }, [userId, period])
 
-  async function handleSubscribe(planId) {
-    if (!userId) return
-    setSubscribing(planId)
+  async function loadAll() {
+    setLoading(true)
     try {
-      const { data: { session } } = await getSupabase().auth.getSession()
-      const token = session?.access_token
-      const res = await fetch("/api/razorpay/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ plan: planId, userName })
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      const options = {
-        key: data.keyId, subscription_id: data.subscriptionId,
-        name: "Fastrill",
-        description: "Fastrill " + planId.charAt(0).toUpperCase() + planId.slice(1) + " Plan",
-        image: "/logo.png",
-        prefill: { email: userEmail, name: userName },
-        theme: { color: "#00C9B1" },
-        handler: function() {
-          showToast("Payment successful! Your plan is being activated...")
-          setTimeout(() => window.location.reload(), 3000)
-        },
-        modal: { ondismiss: function() { setSubscribing(null) } }
-      }
-      if (!window.Razorpay) {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement("script")
-          script.src = "https://checkout.razorpay.com/v1/checkout.js"
-          script.onload = resolve; script.onerror = reject
-          document.body.appendChild(script)
-        })
-      }
-      const rzp = new window.Razorpay(options)
-      rzp.open()
-    } catch(e) { showToast(e.message || "Payment failed. Please try again.", "error") }
-    finally { setSubscribing(null) }
-  }
+      const now = new Date()
+      let from = new Date()
+      if (period === "today") from.setHours(0,0,0,0)
+      else if (period === "week") from.setDate(now.getDate()-7)
+      else from.setDate(1)
+      const fromISO     = from.toISOString()
+      const fromDateStr = from.toISOString().split("T")[0]
+      const todayStr    = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0")
 
-  async function saveBusiness() {
-    if (!business.business_name?.trim()) { showToast("Business name is required", "error"); return }
-    setSaving(true); setSaveError("")
-    try {
-      const supabase = getSupabase()
-      const { error } = await supabase.from("business_settings").upsert({
-        ...business, user_id: userId,
-        ai_language: ai.ai_language, ai_instructions: ai.ai_instructions,
-        greeting_message: ai.greeting_message, auto_booking: ai.auto_booking,
-        follow_up_enabled: ai.follow_up_enabled, updated_at: new Date().toISOString()
-      }, { onConflict: "user_id" })
-      if (error) throw error
-      showToast("Saved ✓")
-    } catch(e) { showToast(e.message || "Save failed", "error") }
-    finally { setSaving(false) }
-  }
-
-  async function saveAI() {
-    setSaving(true)
-    try {
-      const supabase = getSupabase()
-      await Promise.all([
-        supabase.from("business_settings").upsert({
-          user_id: userId, ai_language: ai.ai_language,
-          ai_instructions: ai.ai_instructions, greeting_message: ai.greeting_message,
-          auto_booking: ai.auto_booking, follow_up_enabled: ai.follow_up_enabled,
-          active_offer: activeOffer
-        }, { onConflict: "user_id" }),
-        supabase.from("business_knowledge").upsert({
-          user_id: userId, content: ai.content, knowledge: ai.knowledge,
-          category: "business_info"
-        }, { onConflict: "user_id,category" })
+      const [{ data:wa },{ data:biz },{ data:msgs },{ data:allBks },{ data:leads },{ data:customers }] = await Promise.all([
+        supabase.from("whatsapp_connections").select("id").eq("user_id",userId).maybeSingle(),
+        supabase.from("business_settings").select("business_name").eq("user_id",userId).maybeSingle(),
+        supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id",userId).gte("created_at",fromISO),
+        supabase.from("bookings").select("status,amount,ai_booked,booking_date,customer_name,service,booking_time").eq("user_id",userId),
+        supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id",userId).gte("created_at",fromISO),
+        supabase.from("customers").select("tag,source,created_at").eq("user_id",userId),
       ])
-      showToast("AI settings saved ✓")
-    } catch(e) { showToast(e.message || "Save failed", "error") }
-    finally { setSaving(false) }
+
+      // ── ONBOARDING REDIRECT ──────────────────────────────────
+      // New users who haven't set up their business yet
+      if (!biz?.business_name) {
+        router.push("/onboarding")
+        return
+      }
+
+      setConnected(!!wa)
+      const bks = allBks || []
+
+      const periodBks       = period==="today"
+        ? bks.filter(b=>b.booking_date===todayStr&&b.status!=="cancelled")
+        : bks.filter(b=>b.booking_date>=fromDateStr&&b.status!=="cancelled")
+      const periodConfirmed = periodBks.filter(b=>b.status==="confirmed"||b.status==="completed")
+      const revenue         = periodConfirmed.reduce((s,b)=>s+(b.amount||0),0)
+      const aiRevenue       = periodBks.filter(b=>b.ai_booked&&(b.status==="confirmed"||b.status==="completed")).reduce((s,b)=>s+(b.amount||0),0)
+      const avgVal          = periodConfirmed.length>0 ? Math.round(revenue/periodConfirmed.length) : 0
+      const aiHandled       = (msgs||[]).filter(m=>m.is_ai&&m.direction==="outbound").length
+      const aiBookings      = periodBks.filter(b=>b.ai_booked&&b.status!=="cancelled").length
+      const missedLeads     = (leads||[]).filter(l=>l.status==="open").length
+      const uniqueConvos    = new Set((msgs||[]).map(m=>m.conversation_id).filter(Boolean)).size
+
+      setAvgServiceValue(avgVal)
+      setStats({ revenue, leads:(leads||[]).length, bookings:periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue })
+
+      const allConfirmed = bks.filter(b=>b.status==="confirmed"||b.status==="completed")
+      setFunnel({ customers:(customers||[]).length, convos:uniqueConvos, booked:periodBks.length, completed:periodConfirmed.length, revenue })
+      setTodayBookings(bks.filter(b=>b.booking_date===todayStr&&b.status!=="cancelled").slice(0,4))
+
+      const srcMap={}
+      for(const l of (leads||[])) { const s=l.source||"Organic"; srcMap[s]=(srcMap[s]||0)+1 }
+      const srcColors={whatsapp:"#25d366",instagram:"#e1306c",google:"#ea4335",referral:"#f59e0b",organic:"#38bdf8"}
+      setSources(Object.entries(srcMap).map(([name,count])=>({name,count,color:srcColors[name.toLowerCase()]||"#a78bfa"})).slice(0,4))
+
+      let score=0
+      if(wa)                            score+=25
+      if(aiHandled>0)                   score+=Math.min(20,aiHandled*2)
+      if(bks.length>0)                  score+=15
+      if((leads||[]).length>0)          score+=10
+      if((customers||[]).length>2)      score+=15
+      if(aiBookings>0)                  score+=15
+      setHealthScore(Math.min(100,score))
+    } catch(e) { toast.error("Failed to load dashboard") }
+    setLoading(false)
   }
 
-  async function addService() {
-    if (!newSvc.name.trim() || !newSvc.price) { showToast("Name and price required", "error"); return }
-    setSaving(true)
-    try {
-      const supabase = getSupabase()
-      const isPkg = newSvc.service_type === "package"
-      const { data, error } = await supabase.from("services").insert({
-        name: newSvc.name.trim(), price: parseFloat(newSvc.price),
-        duration: isPkg ? null : parseInt(newSvc.duration),
-        category: newSvc.category, capacity: isPkg ? null : parseInt(newSvc.capacity),
-        service_type: newSvc.service_type, description: newSvc.description.trim() || null,
-        is_active: true, user_id: userId
-      }).select().single()
-      if (error) throw error
-      setServices(s => [...s, data])
-      setNewSvc({ name:"", price:"", duration:"30", category:"Hair", capacity:"1", service_type:"appointment", description:"" })
-      showToast("Service added ✓")
-    } catch(e) { showToast(e.message || "Failed to add", "error") }
-    finally { setSaving(false) }
+  const toggleTheme = ()=>{ const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
+  const handleLogout = async()=>{ try{ await supabase.auth.signOut(); router.push("/login") } catch(e){ toast.error("Sign out failed") } }
+  const handleConnect = ()=>{
+    const appId="780799931531576",configId="1090960043190718",redirectUri="https://fastrill.com/api/meta/callback"
+    window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}`
   }
 
-  async function toggleService(id, current) {
-    const supabase = getSupabase()
-    await supabase.from("services").update({ is_active: !current }).eq("id", id)
-    setServices(s => s.map(x => x.id === id ? { ...x, is_active: !current } : x))
-  }
+  const bg=dark?"#08080e":"#f0f2f5", sb=dark?"#0c0c15":"#ffffff", card=dark?"#0f0f1a":"#ffffff"
+  const bdr=dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.08)", cbdr=dark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.09)"
+  const tx=dark?"#eeeef5":"#111827", txm=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
+  const txf=dark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.25)", ibg=dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)"
+  const acc=dark?"#00C9B1":"#00897A"
+  const navText=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
+  const navActive=dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)"
+  const navActiveBorder=dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
+  const navActiveText=dark?"#00B5A0":"#00897A"
+  const adim=dark?"rgba(0,208,132,0.12)":"rgba(0,147,90,0.1)"
+  const ui=userEmail?userEmail[0].toUpperCase():"G"
+  const hColor=healthScore>=75?acc:healthScore>=40?"#f59e0b":"#ef4444"
+  const hLabel=healthScore>=75?"Excellent":healthScore>=40?"Needs Work":"Getting Started"
+  const circ=2*Math.PI*46
+  const pLabel=period==="today"?"Today":period==="week"?"This week":"This month"
 
-  async function deleteService(id) {
-    if (!confirm("Delete this service?")) return
-    const supabase = getSupabase()
-    await supabase.from("services").delete().eq("id", id)
-    setServices(s => s.filter(x => x.id !== id))
-    showToast("Deleted")
-  }
-
-  async function saveService(svc) {
-    const supabase = getSupabase()
-    await supabase.from("services").update({
-      name: svc.name, price: parseFloat(svc.price),
-      duration: svc.duration ? parseInt(svc.duration) : null,
-      description: svc.description, service_type: svc.service_type, category: svc.category
-    }).eq("id", svc.id)
-    setServices(s => s.map(x => x.id === svc.id ? { ...x, ...svc } : x))
-    setEditingId(null)
-    showToast("Updated ✓")
-  }
-
-  async function testAI() {
-    if (!testMsg.trim()) return
-    setTesting(true); setTestReply("")
-    try {
-      const { data: { session } } = await getSupabase().auth.getSession()
-      const token = session?.access_token
-      const res = await fetch("/api/test-ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ message: testMsg })
-      })
-      const data = await res.json()
-      setTestReply(data.reply || "No reply received")
-    } catch(e) { setTestReply("Error: " + e.message) }
-    finally { setTesting(false) }
-  }
-
-  async function handleChangePassword(e) {
-    e.preventDefault()
-    if (newPassword.length < 8) { showToast("Min 8 characters", "error"); return }
-    if (newPassword !== confirmPassword) { showToast("Passwords don't match", "error"); return }
-    setChangingPass(true)
-    try {
-      const { error } = await getSupabase().auth.updateUser({ password: newPassword })
-      if (error) throw error
-      showToast("Password updated ✓")
-      setNewPassword(""); setConfirmPassword("")
-    } catch(e) { showToast(e.message || "Failed", "error") }
-    finally { setChangingPass(false) }
-  }
-
-  async function handleLogout() {
-    await getSupabase().auth.signOut()
-    window.location.href = "/login"
-  }
-
-  const toggleTheme = () => { const n = !dark; setDark(n); localStorage.setItem("fastrill-theme", n ? "dark" : "light") }
-  const userInitial = userEmail ? userEmail[0].toUpperCase() : "G"
-  const svcBadge = (type) => type === "package"
-    ? { color:"#38bdf8", bg:"rgba(56,189,248,0.1)", border:"rgba(56,189,248,0.2)" }
-    : { color: accent,   bg: accent+"18",           border: accent+"33" }
-  const planColors = { trial: textMuted, starter: "#00C9B1", growth: "#6366f1", pro: "#f59e0b" }
-  const planColor  = planColors[currentPlan] || textMuted
+  const fMax=Math.max(funnel.customers,1)
+  const fSteps=[
+    {label:"Customers",  val:funnel.customers, pct:100,                                   color:acc,     icon:"◑"},
+    {label:"Chats",      val:funnel.convos,    pct:Math.round((funnel.convos/fMax)*100),  color:"#38bdf8",icon:"◎"},
+    {label:"Booked",     val:funnel.booked,    pct:Math.round((funnel.booked/fMax)*100),  color:"#a78bfa",icon:"◷"},
+    {label:"Completed",  val:funnel.completed, pct:Math.round((funnel.completed/fMax)*100),color:"#f59e0b",icon:"✓"},
+    {label:"Revenue",    val:"₹"+(funnel.revenue).toLocaleString(), pct:null,             color:"#fb7185",icon:"₹"},
+  ]
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-        html,body{background:${bg}!important;color:${text}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
-        .s-wrap{display:flex;height:100vh;overflow:hidden;}
-        .s-sidebar{width:224px;flex-shrink:0;background:${sidebar};border-right:1px solid ${border};display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:none;}
-        .s-sidebar::-webkit-scrollbar{display:none;}
-        .s-logo{padding:16px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:flex;align-items:center;gap:10px;border-bottom:1px solid ${border};line-height:1;}
-        .s-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${textFaint};font-weight:600;}
-        .s-nav{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${dark?"rgba(255,255,255,0.4)":"rgba(0,0,0,0.45)"};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:none;}
-        .s-nav:hover{background:${inputBg};color:${text};}
-        .s-nav.active{background:${navActive};color:${navActiveText};font-weight:600;border-color:${navActiveBorder};}
-        .s-footer{margin-top:auto;padding:14px;border-top:1px solid ${border};}
-        .s-user{display:flex;align-items:center;gap:9px;padding:9px;border-radius:9px;background:${inputBg};border:1px solid ${cBorder};}
-        .s-avatar{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,${accent},#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex-shrink:0;}
-        .s-email{font-size:11.5px;color:${textMuted};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-        .s-logout{margin-top:7px;width:100%;padding:7px;border-radius:7px;background:transparent;border:1px solid ${cBorder};font-size:12px;color:${textMuted};cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
-        .s-logout:hover{border-color:#fca5a5;color:#ef4444;}
-        .s-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-        .s-topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${border};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sidebar};}
-        .s-content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};}
-        .s-tabs{display:flex;gap:0;border-bottom:1px solid ${border};background:${sidebar};flex-shrink:0;padding:0 24px;overflow-x:auto;scrollbar-width:none;}
-        .s-tabs::-webkit-scrollbar{display:none;}
-        .s-tab{padding:14px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:${textMuted};font-weight:500;font-size:13px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all 0.12s;display:flex;align-items:center;gap:6px;white-space:nowrap;}
-        .s-tab.active{border-bottom-color:${accent};color:${accent};font-weight:700;}
-        .s-card{background:${card};border:1px solid ${cBorder};border-radius:13px;padding:22px;margin-bottom:16px;}
-        .tog{width:38px;height:22px;border-radius:100px;position:relative;cursor:pointer;border:none;flex-shrink:0;transition:background 0.2s;}
-        .tog::after{content:'';position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 0.2s;}
-        .tog-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid ${border};}
-        .plan-card{background:${card};border:1px solid ${cBorder};border-radius:13px;padding:20px;flex:1;min-width:200px;position:relative;transition:border-color 0.2s;}
-        .plan-card.current{border-width:2px;}
-        .plan-feat{font-size:12px;color:${textMuted};padding:4px 0;display:flex;align-items:center;gap:7px;}
-        .plan-locked{font-size:12px;color:${textFaint};padding:4px 0;display:flex;align-items:center;gap:7px;text-decoration:line-through;}
-        .hamburger{display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:#eeeef5;margin-right:4px;}
-        .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
-        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
-        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-        input:focus,textarea:focus,select:focus{border-color:${accent}88!important;outline:none;}
+        html,body{background:${bg}!important;color:${tx}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
+        .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
+        .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:none;}
+        .sidebar::-webkit-scrollbar{display:none;}
+        .logo{padding:16px 18px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:flex;flex-direction:row;align-items:center;gap:10px;border-bottom:1px solid ${bdr};line-height:1;}
+        .logo span{color:${acc};}
+        .nav-sec{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${txf};font-weight:600;}
+        .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
+        .nav-item:hover{background:${ibg};color:${tx};}
+        .nav-item.active{background:${navActive};color:${navActiveText};font-weight:600;border-color:${navActiveBorder};}
+        .nav-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0;}
+        .sbf{margin-top:auto;padding:14px;border-top:1px solid ${bdr};}
+        .uc{display:flex;align-items:center;gap:9px;padding:9px;border-radius:9px;background:${ibg};border:1px solid ${cbdr};}
+        .ua{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,${acc},#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex-shrink:0;}
+        .lb{margin-top:7px;width:100%;padding:7px;border-radius:7px;background:transparent;border:1px solid ${cbdr};font-size:12px;color:${txm};cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
+        .lb:hover{border-color:#fca5a5;color:#ef4444;}
+        .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+        .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${bdr};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sb};}
+        .content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};display:flex;flex-direction:column;gap:14px;}
+        .card{background:${card};border:1px solid ${cbdr};border-radius:13px;padding:18px;}
+        .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+        .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+        .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;}
+        @media(max-width:1200px){.three-col{grid-template-columns:1fr 1fr;}}
+        @media(max-width:960px){.two-col,.three-col{grid-template-columns:1fr;}}
         @media(max-width:767px){
-          .s-sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s ease;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
-          .s-sidebar.open{transform:translateX(0);}
-          .mob-overlay{display:block;}
-          .hamburger{display:flex!important;}
-          .s-topbar{padding:0 12px!important;}
-          .s-content{padding:12px!important;}
-          .s-tabs{padding:0 8px;}
-          .s-tab{padding:12px 10px;font-size:12px;}
-          .plans-grid{flex-direction:column!important;}
-          .two-col{grid-template-columns:1fr!important;}
-          .three-col{grid-template-columns:1fr 1fr!important;}
+          .kpi-grid{grid-template-columns:repeat(2,1fr)!important;}
+          .health-row{grid-template-columns:1fr!important;}
+          .wrap{position:relative;}
+          .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s;width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
+          .sidebar.open{transform:translateX(0);}
+          .topbar{padding:0 12px!important;}
+          .content{padding:12px!important;}
+          .hbtn{display:flex!important;}
+          [style*="grid-template-columns: 210px"]{grid-template-columns:1fr!important;}
+          [style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr!important;}
+          [style*="grid-template-columns: 1fr 300px"]{grid-template-columns:1fr!important;}
         }
-        .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);padding:6px 0;z-index:200;}
-        @media(max-width:767px){.bottom-nav{display:flex;justify-content:space-around;}.s-main{padding-bottom:60px;}}
-        .bnav{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;text-decoration:none;}
-        .bnav-icon{font-size:17px;color:rgba(255,255,255,0.3);}
-        .bnav-label{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
-        .bnav.active .bnav-icon,.bnav.active .bnav-label{color:#00C9B1;}
+        .mob-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
+        .mob-ov.open{display:block;}
+        .hbtn{display:none;background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:${tx};line-height:1;margin-right:2px;}
+        .period-wrap{display:flex;background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:2px;gap:1px;}
+        .pbt{padding:3px 11px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;border:none;background:transparent;color:${txm};font-family:'Plus Jakarta Sans',sans-serif;}
+        .pbt.on{background:${card};color:${tx};box-shadow:0 1px 3px rgba(0,0,0,0.15);}
+        .badge{display:flex;align-items:center;gap:5px;padding:4px 11px;border-radius:100px;font-size:11px;font-weight:600;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#ef4444;white-space:nowrap;}
+        .badge.on{background:${adim};border-color:${acc}44;color:${acc};}
+        .bdot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+        .ttog{display:flex;align-items:center;gap:6px;padding:5px 10px;background:${ibg};border:1px solid ${cbdr};border-radius:8px;cursor:pointer;font-size:11.5px;color:${txm};font-family:'Plus Jakarta Sans',sans-serif;}
+        .tpill{width:30px;height:16px;border-radius:100px;background:${dark?acc:"#d1d5db"};position:relative;flex-shrink:0;}
+        .tpill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
+        .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:${sb};border-top:1px solid ${bdr};padding:6px 0;z-index:200;}
+        @media(max-width:767px){.bnav{display:flex;justify-content:space-around;}.main{padding-bottom:60px;}}
+        .bni{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
+        .bnic{font-size:17px;color:rgba(255,255,255,0.3);}
+        .bnil{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
+        .bni.on .bnic,.bni.on .bnil{color:${acc};}
+        select option{background-color:#0c0c15!important;color:#eeeef5!important;}
       `}</style>
 
-      <div className="s-wrap">
-        {mobOpen && <div className="mob-overlay" onClick={() => setMobOpen(false)} />}
-
-        <aside className={`s-sidebar${mobOpen ? " open" : ""}`}>
-          <a href="/dashboard" className="s-logo">
-            <img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} />
-            <span style={{fontWeight:800,fontSize:20,color:text,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:accent}}>rill</span></span>
+      <div className="wrap">
+        <div className={"mob-ov"+(mobSidebarOpen?" open":"")} onClick={()=>setMobSidebarOpen(false)}/>
+        <aside className={"sidebar"+(mobSidebarOpen?" open":"")}>
+          <a href="/dashboard" className="logo">
+            <img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}}/>
+            <span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:acc}}>rill</span></span>
           </a>
-          <div className="s-section">Platform</div>
-          {NAV.map(n => (
-            <a key={n.id} href={n.path} className={`s-nav${n.id === "settings" ? " active" : ""}`}>
-              <span style={{fontSize:13,width:18,textAlign:"center"}}>{n.icon}</span>
-              <span>{n.label}</span>
-            </a>
+          <div className="nav-sec">Platform</div>
+          {NAV.map(item=>(
+            <button key={item.id} className={"nav-item"+(item.id==="overview"?" active":"")} onClick={()=>router.push(item.path)}>
+              <span className="nav-icon">{item.icon}</span><span>{item.label}</span>
+            </button>
           ))}
-          <div className="s-footer">
-            <div className="s-user">
-              <div className="s-avatar">{userInitial}</div>
-              <div className="s-email">{userEmail || "Loading..."}</div>
+          <div className="sbf">
+            <div className="uc">
+              <div className="ua">{ui}</div>
+              <div style={{fontSize:11.5,color:txm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userEmail||"Loading..."}</div>
             </div>
-            <button className="s-logout" onClick={handleLogout}>↩ Sign out</button>
+            <button className="lb" onClick={handleLogout}>↩ Sign out</button>
           </div>
         </aside>
 
-        <div className="s-main">
-          <div className="s-topbar">
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <button className="hamburger" onClick={() => setMobOpen(o => !o)}>☰</button>
-              <span style={{fontWeight:700,fontSize:15,color:text}}>Settings</span>
-              {currentPlan !== "trial" && (
-                <span style={{fontSize:11,fontWeight:700,color:planColor,background:planColor+"18",border:`1px solid ${planColor}33`,borderRadius:100,padding:"2px 10px"}}>
-                  {currentPlan.toUpperCase()}
-                </span>
-              )}
+        <div className="main">
+          <div className="topbar">
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <button className="hbtn" onClick={()=>setMobSidebarOpen(s=>!s)}>☰</button>
+              <span style={{fontWeight:700,fontSize:15,color:tx}}>Revenue Engine</span>
+              <div className="period-wrap">
+                {["today","week","month"].map(p=>(
+                  <button key={p} className={"pbt"+(period===p?" on":"")} onClick={()=>setPeriod(p)}>
+                    {p.charAt(0).toUpperCase()+p.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
-              {(tab === "business" || tab === "ai") && (
-                <button onClick={tab === "ai" ? saveAI : saveBusiness} disabled={saving} style={{
-                  ...btnPrimary,
-                  background: saved ? "#22c55e" : saveError ? "#ef4444" : accent,
-                  opacity: saving ? 0.7 : 1
-                }}>
-                  {saving ? "Saving..." : saved ? "✓ Saved" : saveError ? "✗ Error" : "Save Changes"}
-                </button>
-              )}
-              <button onClick={toggleTheme} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",background:inputBg,border:`1px solid ${cBorder}`,borderRadius:8,cursor:"pointer",fontSize:11.5,color:textMuted,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                <span>{dark ? "🌙" : "☀️"}</span>
-                <div style={{width:30,height:16,borderRadius:100,background:dark?accent:"#d1d5db",position:"relative"}}>
-                  <span style={{position:"absolute",top:2,width:12,height:12,borderRadius:"50%",background:"#fff",left:dark?"16px":"2px",transition:"left 0.2s",display:"block"}}/>
-                </div>
-              </button>
+              <button className="ttog" onClick={toggleTheme}><span>{dark?"🌙":"☀️"}</span><div className="tpill"/><span>{dark?"Dark":"Light"}</span></button>
+              <div className={"badge"+(connected?" on":"")}><span className="bdot"/>{connected?"WhatsApp Live":"Not Connected"}</div>
             </div>
           </div>
 
-          {saveError && (
-            <div style={{margin:"0 24px",marginTop:8,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#f87171"}}>
-              ⚠️ {saveError}
-            </div>
-          )}
-
-          {typeof window !== "undefined" && new URLSearchParams(window.location.search).get("expired") === "1" && (
-            <div style={{margin:"0 24px",marginTop:8,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"12px 16px",fontSize:13,color:"#f87171",display:"flex",alignItems:"center",gap:10}}>
-              🔒 <strong>Your plan has expired.</strong> Upgrade below to continue using Fastrill.
-            </div>
-          )}
-
-          <div className="s-tabs">
-            {TABS.map(t => (
-              <button key={t.id} className={`s-tab${tab === t.id ? " active" : ""}`} onClick={() => setTab(t.id)}>
-                {t.icon} {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="s-content">
-            <div style={{maxWidth:720}}>
-
-              {loading ? (
-                <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"80px 0",gap:12,color:textMuted}}>
-                  <div style={{width:20,height:20,border:`2px solid ${accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-                  <span style={{fontSize:14}}>Loading settings...</span>
-                </div>
-              ) : (<>
-
-              {/* ── BUSINESS TAB ── */}
-              {tab === "business" && (
-                <div className="s-card">
-                  <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:16}}>Business Information</div>
-                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}} className="two-col">
-                      <div>
-                        <label style={lbl}>Business Name *</label>
-                        <input value={business.business_name} onChange={e=>setBusiness(b=>({...b,business_name:e.target.value}))} placeholder="e.g. Priya Beauty Salon" style={inp}/>
-                      </div>
-                      <div>
-                        <label style={lbl}>Business Type</label>
-                        <select value={business.business_type} onChange={e=>setBusiness(b=>({...b,business_type:e.target.value}))} style={inp}>
-                          {BIZ_TYPES.map(t=><option key={t}>{t}</option>)}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Sector hint */}
-                    {business.business_type && (
-                      <div style={{padding:"9px 13px",background:inputBg,border:`1px solid ${accent}22`,borderRadius:8,fontSize:12,color:textMuted,lineHeight:1.5}}>
-                        💡 <strong style={{color:accent}}>{business.business_type}</strong> detected — go to <strong>AI Brain</strong> tab to see the recommended AI instructions for your sector.
-                      </div>
-                    )}
-
-                    <div>
-                      <label style={lbl}>Location / Address</label>
-                      <input value={business.location} onChange={e=>setBusiness(b=>({...b,location:e.target.value}))} placeholder="Shop no, Building, Street, City" style={inp}/>
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}} className="two-col">
-                      <div>
-                        <label style={lbl}>Google Maps Link</label>
-                        <input value={business.maps_link} onChange={e=>setBusiness(b=>({...b,maps_link:e.target.value}))} placeholder="https://maps.google.com/..." style={inp}/>
-                      </div>
-                      <div>
-                        <label style={lbl}>Website</label>
-                        <input value={business.website} onChange={e=>setBusiness(b=>({...b,website:e.target.value}))} placeholder="https://yoursite.com" style={inp}/>
-                      </div>
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}} className="two-col">
-                      <div>
-                        <label style={lbl}>Phone Number</label>
-                        <input value={business.phone} onChange={e=>setBusiness(b=>({...b,phone:e.target.value}))} placeholder="+91 98765 43210" style={inp}/>
-                      </div>
-                      <div>
-                        <label style={lbl}>Business Email</label>
-                        <input value={business.email} onChange={e=>setBusiness(b=>({...b,email:e.target.value}))} placeholder="hello@yourbusiness.com" style={inp}/>
-                      </div>
-                    </div>
-                    <div>
-                      <label style={lbl}>Working Hours</label>
-                      <input value={business.working_hours} onChange={e=>setBusiness(b=>({...b,working_hours:e.target.value}))} placeholder="Mon–Sat 10am–8pm, Sunday 11am–6pm" style={inp}/>
-                    </div>
-                    <div>
-                      <label style={lbl}>About Your Business <span style={{color:textFaint}}>(AI uses this to answer customer questions)</span></label>
-                      <textarea value={business.description} onChange={e=>setBusiness(b=>({...b,description:e.target.value}))} placeholder="Your specialties, experience, certifications, USPs..." rows={3} style={{...inp,resize:"vertical",lineHeight:1.6}}/>
-                    </div>
+          <div className="content">
+            {!connected&&(
+              <div style={{background:dark?`linear-gradient(135deg,${acc}0f,rgba(56,189,248,0.06))`:`linear-gradient(135deg,${acc}0a,rgba(56,189,248,0.04))`,border:`1px solid ${acc}28`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:38,height:38,borderRadius:10,background:"#25d366",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>💬</div>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13,color:tx,marginBottom:2}}>Connect WhatsApp to start generating revenue</div>
+                    <div style={{fontSize:11.5,color:txm}}>Link your business number to activate AI-powered lead conversion</div>
                   </div>
                 </div>
-              )}
+                <button onClick={handleConnect} style={{background:"#1877f2",color:"#fff",border:"none",padding:"8px 16px",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",flexShrink:0}}>Connect WhatsApp →</button>
+              </div>
+            )}
 
-              {/* ── SERVICES TAB ── */}
-              {tab === "services" && (
-                <>
-                  <div className="s-card">
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                      <div style={{fontWeight:700,fontSize:14,color:text}}>Add Service / Product</div>
-                      <div style={{display:"flex",gap:4,background:inputBg,border:`1px solid ${cBorder}`,borderRadius:8,padding:3}}>
-                        {[{val:"appointment",label:"Appointment"},{val:"package",label:"Package"}].map(opt=>(
-                          <button key={opt.val} onClick={()=>setNewSvc(s=>({...s,service_type:opt.val}))} style={{padding:"5px 12px",borderRadius:6,fontSize:11.5,fontWeight:600,cursor:"pointer",border:"none",fontFamily:"'Plus Jakarta Sans',sans-serif",background:newSvc.service_type===opt.val?(opt.val==="package"?"rgba(56,189,248,0.15)":accent+"22"):"transparent",color:newSvc.service_type===opt.val?(opt.val==="package"?"#38bdf8":accent):textMuted}}>
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Sector hint for services */}
-                    {["Real Estate","Healthcare","Food Delivery"].includes(business.business_type) && (
-                      <div style={{marginBottom:14,padding:"9px 13px",background:inputBg,border:`1px solid ${accent}22`,borderRadius:8,fontSize:12,color:textMuted}}>
-                        💡 For <strong style={{color:accent}}>{business.business_type}</strong>:
-                        {business.business_type==="Real Estate" && " Add your properties as services — e.g. '2BHK Kondapur - Prestige' at ₹45,00,000. Set duration to 60 for the site visit."}
-                        {business.business_type==="Healthcare" && " Add consultation types — e.g. 'General Consultation', 'Specialist - Cardiology'. Duration = appointment length."}
-                        {business.business_type==="Food Delivery" && " Add your menu items or combos. Duration can be set to delivery time in minutes."}
-                      </div>
-                    )}
-
-                    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}} className="three-col">
-                      <div>
-                        <label style={lbl}>
-                          {business.business_type==="Real Estate"?"Property Name *":"Service Name *"}
-                        </label>
-                        <input value={newSvc.name} onChange={e=>setNewSvc(s=>({...s,name:e.target.value}))}
-                          placeholder={business.business_type==="Real Estate"?"e.g. 2BHK Kondapur - Prestige Gardens":"e.g. Hair Spa"}
-                          style={inp}/>
-                      </div>
-                      <div>
-                        <label style={lbl}>Price (₹)</label>
-                        <input type="number" value={newSvc.price} onChange={e=>setNewSvc(s=>({...s,price:e.target.value}))}
-                          placeholder={business.business_type==="Real Estate"?"4500000":"500"}
-                          style={inp}/>
-                      </div>
-                      <div>
-                        <label style={lbl}>Category</label>
-                        <select value={newSvc.category} onChange={e=>setNewSvc(s=>({...s,category:e.target.value}))} style={inp}>
-                          {getSectorCategories(business.business_type).map(c=><option key={c}>{c}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    {newSvc.service_type === "appointment" && (
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}} className="two-col">
-                        <div>
-                          <label style={lbl}>{business.business_type==="Real Estate"?"Visit Duration (min)":"Duration (minutes)"}</label>
-                          <select value={newSvc.duration} onChange={e=>setNewSvc(s=>({...s,duration:e.target.value}))} style={inp}>
-                            {[15,20,30,45,60,75,90,120,150,180].map(d=><option key={d} value={d}>{d} min</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label style={lbl}>Capacity</label>
-                          <input type="number" min="1" max="20" value={newSvc.capacity} onChange={e=>setNewSvc(s=>({...s,capacity:e.target.value}))} style={inp}/>
-                        </div>
-                      </div>
-                    )}
-                    <button onClick={addService} disabled={saving||!newSvc.name||!newSvc.price} style={{...btnPrimary,opacity:saving||!newSvc.name||!newSvc.price?0.5:1}}>
-                      {saving?"Adding...":"+ Add"}
-                    </button>
+            {/* Health + KPIs */}
+            <div className="health-row" style={{display:"grid",gridTemplateColumns:"210px 1fr",gap:14}}>
+              <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:13,padding:"20px 16px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden"}}>
+                <div style={{position:"absolute",inset:0,background:`radial-gradient(circle at 50% 30%,${acc}0d,transparent 70%)`,pointerEvents:"none"}}/>
+                <div style={{fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase",color:txf,fontWeight:600,marginBottom:12}}>Business Health</div>
+                <div style={{position:"relative",width:110,height:110,marginBottom:12}}>
+                  <svg width="110" height="110" viewBox="0 0 110 110" style={{transform:"rotate(-90deg)"}}>
+                    <circle cx="55" cy="55" r="46" fill="none" stroke={dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.07)"} strokeWidth="7"/>
+                    <circle cx="55" cy="55" r="46" fill="none" stroke={hColor} strokeWidth="7" strokeLinecap="round"
+                      strokeDasharray={`${circ}`} strokeDashoffset={`${circ*(1-healthScore/100)}`} style={{transition:"stroke-dashoffset 1.2s ease"}}/>
+                  </svg>
+                  <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                    <div style={{fontWeight:800,fontSize:34,lineHeight:1,color:hColor}}>{healthScore}</div>
+                    <div style={{fontSize:11,color:txf}}>/100</div>
                   </div>
+                </div>
+                <div style={{fontWeight:700,fontSize:13,color:hColor,marginBottom:3}}>{hLabel}</div>
+                <div style={{fontSize:11,color:txm,lineHeight:1.5}}>{loading?"Calculating...":connected?"AI is active":"Connect WhatsApp to start"}</div>
+              </div>
 
-                  <div className="s-card" style={{padding:0,overflow:"hidden"}}>
-                    <div style={{padding:"12px 16px",borderBottom:`1px solid ${border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                      <div style={{fontWeight:700,fontSize:13,color:text}}>
-                        {business.business_type==="Real Estate"?"Your Properties":"Your Services"} ({services.length})
-                      </div>
-                    </div>
-                    {services.length === 0 ? (
-                      <div style={{textAlign:"center",padding:32,color:textFaint,fontSize:12}}>No services yet — add your first one above</div>
-                    ) : CATEGORIES.filter(cat=>services.some(s=>s.category===cat)).map(cat=>(
-                      <div key={cat}>
-                        <div style={{padding:"7px 16px",background:inputBg,fontSize:10,fontWeight:700,color:textFaint,letterSpacing:"1px",textTransform:"uppercase"}}>{cat}</div>
-                        {services.filter(s=>s.category===cat).map(svc=>{
-                          const badge=svcBadge(svc.service_type)
-                          return(
-                            <div key={svc.id} style={{padding:"12px 16px",borderBottom:`1px solid ${border}`,opacity:svc.is_active===false?0.45:1}}>
-                              {editingId===svc.id?(
-                                <EditService svc={svc} onSave={saveService} onCancel={()=>setEditingId(null)} inp={inp} lbl={lbl} btnPrimary={btnPrimary} border={cBorder} textMuted={textMuted} text={text} inputBg={inputBg}/>
-                              ):(
-                                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                                  <span style={{fontSize:9.5,fontWeight:700,color:badge.color,background:badge.bg,border:`1px solid ${badge.border}`,borderRadius:100,padding:"1px 7px",flexShrink:0}}>
-                                    {svc.service_type==="package"?"pkg":"appt"}
-                                  </span>
-                                  <div style={{flex:1,minWidth:0}}>
-                                    <div style={{fontWeight:600,fontSize:13,color:text}}>{svc.name}</div>
-                                    {svc.description&&<div style={{fontSize:11,color:textFaint,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{svc.description}</div>}
-                                  </div>
-                                  {svc.duration&&<span style={{fontSize:11.5,color:textMuted,flexShrink:0}}>{svc.duration} min</span>}
-                                  <span style={{fontWeight:700,fontSize:13,color:accent,flexShrink:0}}>₹{parseInt(svc.price||0).toLocaleString()}</span>
-                                  <button onClick={()=>toggleService(svc.id,svc.is_active)} style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100,border:`1px solid ${svc.is_active===false?"rgba(251,113,133,0.3)":accent+"44"}`,background:svc.is_active===false?"rgba(251,113,133,0.08)":accent+"08",color:svc.is_active===false?"#fb7185":accent,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                                    {svc.is_active===false?"Off":"On"}
-                                  </button>
-                                  <button onClick={()=>setEditingId(svc.id)} style={{background:"transparent",border:"none",color:textMuted,cursor:"pointer",fontSize:11,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Edit</button>
-                                  <button onClick={()=>deleteService(svc.id)} style={{background:"transparent",border:"none",color:textFaint,cursor:"pointer",fontSize:16}}>×</button>
-                                </div>
-                              )}
+              <div className="kpi-grid">
+                {[
+                  {name:"Revenue Generated",   val:"₹"+stats.revenue.toLocaleString(),  color:acc,       icon:"₹", sub:pLabel},
+                  {name:"Leads Captured",      val:stats.leads,                          color:"#38bdf8", icon:"↗", sub:pLabel},
+                  {name:"Appointments Booked", val:stats.bookings,                       color:"#a78bfa", icon:"📅",sub:pLabel},
+                  {name:"Avg Service Value",   val:"₹"+avgServiceValue.toLocaleString(),color:"#f59e0b", icon:"₹", sub:"per booking"},
+                ].map(k=>(
+                  <div key={k.name} style={{background:card,border:`1px solid ${cbdr}`,borderRadius:11,padding:"15px 14px",position:"relative",overflow:"hidden"}}>
+                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:k.color+"55",borderRadius:"11px 11px 0 0"}}/>
+                    <div style={{position:"absolute",top:12,right:13,fontSize:13,opacity:0.3}}>{k.icon}</div>
+                    <div style={{fontSize:11,color:txm,marginBottom:8}}>{k.name}</div>
+                    <div style={{fontWeight:700,fontSize:28,letterSpacing:"-1px",lineHeight:1,color:k.color,marginBottom:5}}>{loading?"—":k.val}</div>
+                    <div style={{fontSize:10.5,color:txf}}>{k.sub}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Funnel */}
+            <div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13.5,color:tx}}>Conversion Funnel</div>
+                  <div style={{fontSize:11,color:txm,marginTop:2}}>Where are customers dropping off?</div>
+                </div>
+                {funnel.customers>0&&<div style={{fontSize:11,color:txf}}>Based on {funnel.customers} total customers</div>}
+              </div>
+              {loading?(
+                <div style={{textAlign:"center",padding:"20px 0",color:txf,fontSize:13}}>Loading funnel data...</div>
+              ):funnel.customers===0?(
+                <div style={{textAlign:"center",padding:"24px 0",color:txf,fontSize:13}}>No data yet — connect WhatsApp and start chatting</div>
+              ):(
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {fSteps.map((step,i)=>{
+                    const barPct=step.pct!==null?step.pct:null
+                    return(
+                      <div key={step.label} style={{display:"flex",alignItems:"center",gap:12}}>
+                        <div style={{width:24,height:24,borderRadius:"50%",background:step.color+"22",border:`1px solid ${step.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:step.color,flexShrink:0}}>{i+1}</div>
+                        <div style={{width:90,flexShrink:0}}>
+                          <div style={{fontSize:12,fontWeight:600,color:tx}}>{step.label}</div>
+                        </div>
+                        {barPct!==null?(
+                          <div style={{flex:1,height:28,background:dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)",borderRadius:6,overflow:"hidden",position:"relative"}}>
+                            <div style={{height:"100%",width:`${Math.max(barPct,3)}%`,background:step.color+"33",border:`1px solid ${step.color}44`,borderRadius:6,transition:"width 0.6s ease",display:"flex",alignItems:"center",paddingLeft:8}}>
+                              {barPct>=12&&<span style={{fontSize:11,fontWeight:700,color:step.color}}>{barPct}%</span>}
                             </div>
-                          )
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* ── AI BRAIN TAB ── */}
-              {tab === "ai" && (
-                <>
-                  <div className="s-card">
-                    <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:16}}>AI Brain Settings</div>
-
-                    <div style={{marginBottom:14}}>
-                      <label style={lbl}>Primary Language</label>
-                      <select value={ai.ai_language} onChange={e=>setAi(a=>({...a,ai_language:e.target.value}))} style={inp}>
-                        {LANGUAGES.map(l=><option key={l}>{l}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="tog-row">
-                      <div>
-                        <div style={{fontWeight:600,fontSize:13,color:text}}>Auto Booking</div>
-                        <div style={{fontSize:11.5,color:textMuted}}>AI books appointments automatically from WhatsApp</div>
-                      </div>
-                      <button className="tog" style={{background:ai.auto_booking?accent:"rgba(255,255,255,0.12)"}} onClick={()=>setAi(a=>({...a,auto_booking:!a.auto_booking}))}>
-                        <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:ai.auto_booking?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
-                      </button>
-                    </div>
-
-                    <div className="tog-row" style={{marginBottom:14}}>
-                      <div>
-                        <div style={{fontWeight:600,fontSize:13,color:text}}>Follow-up Messages</div>
-                        <div style={{fontSize:11.5,color:textMuted}}>AI follows up with inactive leads</div>
-                      </div>
-                      <button className="tog" style={{background:ai.follow_up_enabled?accent:"rgba(255,255,255,0.12)"}} onClick={()=>setAi(a=>({...a,follow_up_enabled:!a.follow_up_enabled}))}>
-                        <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:ai.follow_up_enabled?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
-                      </button>
-                    </div>
-
-                    <div style={{marginBottom:14}}>
-                      <label style={lbl}>Greeting Message</label>
-                      <textarea value={ai.greeting_message} onChange={e=>setAi(a=>({...a,greeting_message:e.target.value}))} rows={3} style={{...inp,resize:"vertical",lineHeight:1.6}}/>
-                    </div>
-
-                    {/* SECTOR-AWARE AI INSTRUCTIONS */}
-                    <div style={{marginBottom:14}}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
-                        <label style={{...lbl,marginBottom:0}}>
-                          AI Instructions
-                          <span style={{color:textFaint,fontWeight:400,marginLeft:6}}>(tells AI how to behave for your business)</span>
-                        </label>
-                        {business.business_type && !ai.ai_instructions && (
-                          <button
-                            onClick={()=>setAi(a=>({...a,ai_instructions:getAIPlaceholder(business.business_type)}))}
-                            style={{fontSize:11,color:accent,background:accent+"12",border:`1px solid ${accent}33`,borderRadius:6,padding:"3px 10px",cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:600,whiteSpace:"nowrap"}}>
-                            Use {business.business_type} template →
-                          </button>
-                        )}
-                      </div>
-                      <textarea
-                        value={ai.ai_instructions}
-                        onChange={e=>setAi(a=>({...a,ai_instructions:e.target.value}))}
-                        rows={6}
-                        placeholder={getAIPlaceholder(business.business_type)}
-                        style={{...inp,resize:"vertical",lineHeight:1.7}}/>
-                      <div style={{fontSize:11,color:textFaint,marginTop:5,lineHeight:1.6}}>
-                        The AI reads this for every customer conversation. Be specific — how to qualify leads, what to ask, how to handle objections.
-                      </div>
-                    </div>
-
-                    <div style={{marginBottom:14}}>
-                      <label style={lbl}>Knowledge Base <span style={{color:textFaint,fontWeight:400}}>(FAQs, policies, extra info the AI should know)</span></label>
-                      <textarea value={ai.content||ai.knowledge} onChange={e=>setAi(a=>({...a,content:e.target.value,knowledge:e.target.value}))} rows={5} style={{...inp,resize:"vertical",lineHeight:1.6}}/>
-                    </div>
-
-                    <div style={{padding:"14px 16px",background:inputBg,borderRadius:10,border:`1px solid ${accent}22`}}>
-                      <label style={{...lbl,color:accent,fontWeight:700,marginBottom:6}}>
-                        🎁 Active Offer
-                        <span style={{color:textFaint,fontWeight:400,marginLeft:6}}>(AI mentions this when customers enquire or reply to campaigns)</span>
-                      </label>
-                      <input
-                        value={activeOffer}
-                        onChange={e=>setActiveOffer(e.target.value)}
-                        placeholder="e.g. 20% off all services this week — valid till Sunday"
-                        style={inp}/>
-                      <div style={{fontSize:11,color:textMuted,marginTop:6,lineHeight:1.6}}>
-                        When a customer says "CLAIM" or asks about an offer, the AI will automatically mention this and help them book. Leave empty if no active offer.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="s-card">
-                    <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:14}}>Test AI Reply</div>
-                    <div style={{display:"flex",gap:10,marginBottom:12}}>
-                      <input value={testMsg} onChange={e=>setTestMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&testAI()} placeholder="e.g. I want to book a site visit for 2BHK in Kondapur" style={{...inp,flex:1}}/>
-                      <button onClick={testAI} disabled={testing||!testMsg.trim()} style={{...btnPrimary,opacity:testing||!testMsg.trim()?0.5:1}}>
-                        {testing?"Testing...":"Test →"}
-                      </button>
-                    </div>
-                    {testReply && (
-                      <div style={{background:inputBg,borderRadius:8,padding:14,border:`1px solid ${cBorder}`}}>
-                        <div style={{fontSize:11,color:textFaint,marginBottom:6}}>AI Reply:</div>
-                        <div style={{fontSize:13.5,color:text,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{testReply}</div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* ── WHATSAPP TAB ── */}
-              {tab === "whatsapp" && (
-                <>
-                  {waConn ? (
-                    <div className="s-card" style={{border:`1px solid ${accent}44`}}>
-                      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
-                        <div style={{width:44,height:44,borderRadius:11,background:"#25d366",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💬</div>
-                        <div>
-                          <div style={{fontWeight:800,fontSize:15,color:text}}>WhatsApp Connected ✓</div>
-                          <div style={{fontSize:12,color:textMuted}}>Your AI is live and responding to customers</div>
-                        </div>
-                      </div>
-                      {[["Phone Number ID",waConn.phone_number_id],["WABA ID",waConn.waba_id||"—"],["Status","🟢 Active"]].map(([l,v])=>(
-                        <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${border}`}}>
-                          <span style={{fontSize:12,color:textMuted}}>{l}</span>
-                          <span style={{fontSize:12,fontWeight:600,color:text,fontFamily:"monospace"}}>{v}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="s-card" style={{textAlign:"center"}}>
-                      <div style={{fontSize:36,marginBottom:12}}>💬</div>
-                      <div style={{fontWeight:800,fontSize:16,color:text,marginBottom:6}}>Connect Your WhatsApp</div>
-                      <div style={{fontSize:13,color:textMuted,marginBottom:20}}>Link your business WhatsApp to activate AI replies.</div>
-                      <button onClick={()=>{
-                        const appId=process.env.NEXT_PUBLIC_META_APP_ID||""
-                        const configId=process.env.NEXT_PUBLIC_META_CONFIG_ID||""
-                        const redirectUri=(process.env.NEXT_PUBLIC_APP_URL||window.location.origin)+"/api/meta/callback"
-                        window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}`
-                      }} style={{background:"#1877f2",color:"#fff",border:"none",padding:"11px 24px",borderRadius:9,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                        Connect WhatsApp via Meta →
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* ── BILLING TAB ── */}
-              {tab === "billing" && (
-                <>
-                  <div className="s-card" style={{border:`1px solid ${planColor}44`,marginBottom:20}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
-                      <div>
-                        <div style={{fontSize:11,color:textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"1px"}}>Current Plan</div>
-                        <div style={{fontWeight:800,fontSize:22,color:planColor}}>
-                          {currentPlan==="trial"?"Free Trial":"Fastrill "+currentPlan.charAt(0).toUpperCase()+currentPlan.slice(1)}
-                        </div>
-                        {planExpiry&&(
-                          <div style={{fontSize:12,color:textMuted,marginTop:4}}>
-                            {new Date(planExpiry)>new Date()?"Renews":"Expired"} on {formatExpiry(planExpiry)}
+                            {barPct<12&&<span style={{position:"absolute",left:`${Math.max(barPct,3)+1}%`,top:"50%",transform:"translateY(-50%)",fontSize:11,fontWeight:700,color:step.color}}>{barPct}%</span>}
+                          </div>
+                        ):(
+                          <div style={{flex:1,height:28,background:`${step.color}18`,border:`1px solid ${step.color}33`,borderRadius:6,display:"flex",alignItems:"center",paddingLeft:12}}>
+                            <span style={{fontSize:12,fontWeight:700,color:step.color}}>Revenue generated</span>
                           </div>
                         )}
-                        {currentPlan==="trial"&&(
-                          <div style={{fontSize:12,color:"#f59e0b",marginTop:4}}>Upgrade to unlock reminders, lead recovery and more</div>
-                        )}
+                        <div style={{width:70,textAlign:"right",flexShrink:0}}>
+                          <div style={{fontWeight:800,fontSize:14,color:step.color}}>{loading?"—":step.val}</div>
+                        </div>
                       </div>
-                      {currentPlan!=="trial"&&(
-                        <span style={{fontSize:12,fontWeight:700,color:planColor,background:planColor+"18",border:`1px solid ${planColor}33`,borderRadius:100,padding:"4px 14px"}}>Active</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {currentPlan!=="trial"&&(
-                    <div className="s-card" style={{marginBottom:20}}>
-                      <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:4}}>Feature Controls</div>
-                      <div style={{fontSize:12,color:textMuted,marginBottom:16}}>Turn features on or off based on your preference</div>
-                      {[
-                        {key:"reminders",label:"Appointment Reminders",desc:"Send WhatsApp reminder 24hrs before appointment",plan:"Growth+",state:remindersEnabled,set:setRemindersEnabled,field:"reminders_enabled"},
-                        {key:"lead_recovery",label:"Lead Recovery",desc:"Auto follow-up with leads who didn't book",plan:"Growth+",state:leadRecoveryEnabled,set:setLeadRecoveryEnabled,field:"lead_recovery_enabled"},
-                        {key:"campaigns",label:"Bulk Campaigns",desc:"Send bulk WhatsApp messages to customer segments",plan:"Pro only",state:campaignsEnabled,set:setCampaignsEnabled,field:"campaigns_enabled"},
-                      ].map((f,i)=>(
-                        <div key={f.key} className="tog-row" style={i===2?{borderBottom:"none"}:{}}>
-                          <div>
-                            <div style={{fontWeight:600,fontSize:13,color:planAllows(f.key)?text:textFaint}}>
-                              {f.label}
-                              {!planAllows(f.key)&&<span style={{fontSize:10,color:"#f59e0b",marginLeft:8,background:"rgba(245,158,11,0.1)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:100,padding:"1px 7px"}}>{f.plan}</span>}
-                            </div>
-                            <div style={{fontSize:11.5,color:textMuted}}>{f.desc}</div>
-                          </div>
-                          <button className="tog" disabled={!planAllows(f.key)}
-                            style={{background:f.state&&planAllows(f.key)?accent:"rgba(255,255,255,0.12)",opacity:planAllows(f.key)?1:0.4,cursor:planAllows(f.key)?"pointer":"not-allowed"}}
-                            onClick={async()=>{
-                              if(!planAllows(f.key))return
-                              const newVal=!f.state; f.set(newVal)
-                              await saveFeatureToggle(f.field,newVal)
-                            }}>
-                            <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:f.state&&planAllows(f.key)?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:14}}>
-                    {currentPlan==="trial"?"Choose a Plan":"Upgrade Plan"}
-                  </div>
-                  <div className="plans-grid" style={{display:"flex",gap:14,alignItems:"stretch",marginBottom:20}}>
-                    {PLANS.map(plan=>{
-                      const isCurrent=currentPlan===plan.id
-                      return(
-                        <div key={plan.id} className={`plan-card${isCurrent?" current":""}`} style={{borderColor:isCurrent?plan.color:cBorder}}>
-                          {plan.popular&&(
-                            <div style={{position:"absolute",top:-10,left:"50%",transform:"translateX(-50%)",fontSize:10,fontWeight:700,color:"#fff",background:"#6366f1",borderRadius:100,padding:"2px 12px",whiteSpace:"nowrap"}}>MOST POPULAR</div>
-                          )}
-                          {isCurrent&&(
-                            <div style={{position:"absolute",top:-10,right:16,fontSize:10,fontWeight:700,color:plan.color,background:plan.color+"22",border:`1px solid ${plan.color}44`,borderRadius:100,padding:"2px 10px"}}>CURRENT</div>
-                          )}
-                          <div style={{fontWeight:800,fontSize:16,color:plan.color,marginBottom:4}}>{plan.name}</div>
-                          <div style={{fontSize:11,color:textMuted,marginBottom:12}}>{plan.description}</div>
-                          <div style={{display:"flex",alignItems:"baseline",gap:2,marginBottom:16}}>
-                            <span style={{fontWeight:800,fontSize:26,color:text}}>{plan.price}</span>
-                            <span style={{fontSize:12,color:textMuted}}>{plan.period}</span>
-                          </div>
-                          {plan.features.map(f=>(
-                            <div key={f} className="plan-feat"><span style={{color:plan.color,fontSize:14}}>✓</span> {f}</div>
-                          ))}
-                          {plan.locked.map(f=>(
-                            <div key={f} className="plan-locked"><span style={{fontSize:14}}>✗</span> {f}</div>
-                          ))}
-                          <button
-                            onClick={()=>!isCurrent&&handleSubscribe(plan.id)}
-                            disabled={isCurrent||subscribing===plan.id}
-                            style={{marginTop:16,width:"100%",padding:"10px",borderRadius:9,fontWeight:700,fontSize:13,cursor:isCurrent?"default":"pointer",border:isCurrent?`1px solid ${plan.color}44`:"none",background:isCurrent?"transparent":plan.color,color:isCurrent?plan.color:"#000",fontFamily:"'Plus Jakarta Sans',sans-serif",opacity:subscribing&&subscribing!==plan.id?0.5:1}}>
-                            {subscribing===plan.id?"Opening payment...":isCurrent?"Current Plan":"Upgrade to "+plan.name+" →"}
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <div style={{fontSize:11.5,color:textFaint,textAlign:"center",lineHeight:1.8}}>
-                    All plans include GST. Cancel anytime. Payments secured by Razorpay.
-                  </div>
-                </>
+                    )
+                  })}
+                </div>
               )}
+            </div>
 
-              {/* ── ACCOUNT TAB ── */}
-              {tab === "account" && (
-                <>
-                  <div className="s-card">
-                    <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:16}}>Account Details</div>
+            {/* AI Performance + Missed Revenue */}
+            <div className="two-col">
+              <div className="card">
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                  <div>
+                    <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"2px 9px",fontSize:10,color:"#a78bfa",fontWeight:700,letterSpacing:"0.5px"}}>◈ AI PERFORMANCE</div>
+                    <div style={{fontWeight:700,fontSize:13.5,color:tx,marginTop:8}}>What your AI achieved</div>
+                  </div>
+                  <div style={{fontSize:11,color:txm}}>Gemini AI</div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+                  {[
+                    {l:"Conversations Handled",v:stats.aiHandled,    s:"real AI replies"},
+                    {l:"AI Bookings Created",  v:stats.aiBookings,   s:"auto-booked"},
+                    {l:"Revenue from AI",      v:"₹"+stats.aiRevenue.toLocaleString(), s:"ai_booked = true"},
+                    {l:"Avg Booking Value",    v:"₹"+avgServiceValue.toLocaleString(), s:"per booking"},
+                  ].map(m=>(
+                    <div key={m.l} style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:9,padding:12}}>
+                      <div style={{fontWeight:700,fontSize:22,color:tx,lineHeight:1,marginBottom:3}}>{loading?"—":m.v}</div>
+                      <div style={{fontSize:11,color:txm,lineHeight:1.4}}>{m.l}<br/><span style={{opacity:0.6,fontSize:10}}>{m.s}</span></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{background:card,border:"1px solid rgba(251,113,133,0.18)",borderRadius:13,padding:18}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                  <div style={{fontWeight:700,fontSize:13.5,color:tx}}>🔥 Missed Revenue</div>
+                  <div style={{fontSize:11,color:txm}}>Open leads unfollowed</div>
+                </div>
+                <div style={{fontWeight:800,fontSize:36,color:"#fb7185",letterSpacing:"-1.5px",lineHeight:1,marginBottom:4}}>
+                  {loading?"—":stats.missedLeads>0?stats.missedLeads+" open leads":"All caught up ✅"}
+                </div>
+                <div style={{fontSize:11.5,color:txm,marginBottom:14}}>
+                  {stats.missedLeads>0?"no booking yet this period":"No open leads right now"}
+                </div>
+                {[
+                  {l:"Open leads",       v:stats.missedLeads, c:"#fb7185"},
+                  {l:"AI replies sent",  v:stats.aiHandled,   c:acc},
+                  {l:"Bookings created", v:stats.bookings,    c:acc},
+                ].map(r=>(
+                  <div key={r.l} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 10px",background:ibg,border:`1px solid ${cbdr}`,borderRadius:7,marginBottom:5}}>
+                    <span style={{fontSize:12,color:txm}}>{r.l}</span>
+                    <span style={{fontSize:12,fontWeight:700,color:r.c}}>{loading?"—":r.v}</span>
+                  </div>
+                ))}
+                {stats.missedLeads>0&&(
+                  <button onClick={()=>router.push("/dashboard/leads")} style={{width:"100%",marginTop:10,padding:"8px",borderRadius:8,background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",color:"#fb7185",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                    Recover {stats.missedLeads} leads →
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Sources + Today + Quick Actions */}
+            <div className="three-col">
+              <div className="card">
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+                  <div style={{fontWeight:700,fontSize:13.5,color:tx}}>Lead Sources</div>
+                  <div style={{fontSize:11,color:txm}}>By channel</div>
+                </div>
+                {loading?<div style={{color:txf,fontSize:12,textAlign:"center",padding:"16px 0"}}>Loading...</div>
+                :sources.length===0?<div style={{color:txf,fontSize:12,textAlign:"center",padding:"16px 0"}}>No leads yet</div>
+                :sources.map(s=>(
+                  <div key={s.name} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 0",borderBottom:`1px solid ${bdr}`}}>
+                    <div style={{width:7,height:7,borderRadius:"50%",background:s.color,flexShrink:0}}/>
+                    <div style={{fontSize:12.5,color:tx,flex:1,fontWeight:500,textTransform:"capitalize"}}>{s.name}</div>
+                    <div style={{fontWeight:700,fontSize:12,color:acc}}>{s.count}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="card">
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+                  <div style={{fontWeight:700,fontSize:13.5,color:tx}}>Today's Bookings</div>
+                  <div style={{fontSize:11,color:txm}}>{todayBookings.length} scheduled</div>
+                </div>
+                {loading?<div style={{color:txf,fontSize:12,textAlign:"center",padding:"16px 0"}}>Loading...</div>
+                :todayBookings.length===0?(
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"22px 0",gap:6}}>
+                    <div style={{fontSize:26,opacity:0.2}}>📅</div>
+                    <div style={{fontSize:11.5,color:txf,textAlign:"center",lineHeight:1.5}}>No bookings today<br/>{connected?"Appear automatically from WhatsApp":"Connect WhatsApp to start"}</div>
+                  </div>
+                ):todayBookings.map(b=>(
+                  <div key={b.customer_name+b.booking_time} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${bdr}`}}>
                     <div>
-                      <label style={lbl}>Email Address</label>
-                      <input value={userEmail} readOnly style={{...inp,opacity:0.6}}/>
+                      <div style={{fontWeight:600,fontSize:12.5,color:tx}}>{b.customer_name}</div>
+                      <div style={{fontSize:11,color:txm}}>{b.service}</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:11.5,fontWeight:600,color:acc}}>{b.booking_time||"—"}</div>
+                      {b.amount>0&&<div style={{fontSize:10.5,color:txf}}>₹{b.amount}</div>}
                     </div>
                   </div>
-                  <div className="s-card">
-                    <div style={{fontWeight:700,fontSize:14,color:text,marginBottom:16}}>Change Password</div>
-                    <form onSubmit={handleChangePassword}>
-                      <div style={{marginBottom:12}}>
-                        <label style={lbl}>New Password</label>
-                        <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="Minimum 8 characters" style={inp}/>
-                      </div>
-                      <div style={{marginBottom:16}}>
-                        <label style={lbl}>Confirm New Password</label>
-                        <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} style={{...inp,border:confirmPassword&&confirmPassword!==newPassword?"1px solid #f87171":`1px solid ${cBorder}`}}/>
-                        {confirmPassword&&confirmPassword!==newPassword&&<p style={{color:"#f87171",fontSize:11,marginTop:4}}>Passwords do not match</p>}
-                      </div>
-                      <button type="submit" disabled={changingPass} style={{...btnPrimary,opacity:changingPass?0.7:1}}>
-                        {changingPass?"Updating...":"Update Password"}
-                      </button>
-                    </form>
-                  </div>
-                  <div className="s-card" style={{border:"1px solid rgba(239,68,68,0.2)"}}>
-                    <div style={{fontWeight:700,fontSize:14,color:"#f87171",marginBottom:4}}>Danger Zone</div>
-                    <div style={{fontSize:13,color:textMuted,marginBottom:16}}>Sign out from all devices</div>
-                    <button onClick={handleLogout} style={{...btnPrimary,background:"#dc2626"}}>Sign Out</button>
-                  </div>
-                </>
-              )}
+                ))}
+              </div>
 
-            </>)}
-          </div>
+              <div style={{background:card,border:`1px solid ${acc}1e`,borderRadius:13,padding:18}}>
+                <div style={{fontSize:10,letterSpacing:"1.2px",textTransform:"uppercase",color:txf,fontWeight:600,marginBottom:4}}>Quick Actions</div>
+                <div style={{fontWeight:800,fontSize:20,color:acc,letterSpacing:"-0.5px",lineHeight:1,marginBottom:12}}>Grow Faster</div>
+                {[
+                  {label:"Send Campaign",   sub:"Reach all customers",        icon:"📢",path:"/dashboard/campaigns",color:acc},
+                  {label:"Recover Leads",   sub:stats.missedLeads+" waiting", icon:"◉", path:"/dashboard/leads",   color:"#fb7185"},
+                  {label:"Add Booking",     sub:"Manual entry",               icon:"📅",path:"/dashboard/bookings",color:"#a78bfa"},
+                  {label:"New Sequence",    sub:"Drip automation",            icon:"⟳", path:"/dashboard/sequences",color:"#38bdf8"},
+                ].map(a=>(
+                  <div key={a.label} onClick={()=>router.push(a.path)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${bdr}`,cursor:"pointer"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:9}}>
+                      <span style={{fontSize:15}}>{a.icon}</span>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:600,color:tx}}>{a.label}</div>
+                        <div style={{fontSize:10.5,color:txm}}>{a.sub}</div>
+                      </div>
+                    </div>
+                    <span style={{color:a.color,fontSize:14}}>→</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="bottom-nav">
+      <nav className="bnav">
         {[
-          {id:"overview",icon:"⬡",label:"Home",    path:"/dashboard"},
-          {id:"inbox",   icon:"◎",label:"Chats",   path:"/dashboard/conversations"},
-          {id:"bookings",icon:"◷",label:"Bookings",path:"/dashboard/bookings"},
-          {id:"leads",   icon:"◉",label:"Leads",   path:"/dashboard/leads"},
-          {id:"settings",icon:"◌",label:"Settings",path:"/dashboard/settings"},
-        ].map(n=>(
-          <a key={n.id} href={n.path} className={`bnav${n.id==="settings"?" active":""}`}>
-            <span className="bnav-icon">{n.icon}</span>
-            <span className="bnav-label">{n.label}</span>
-          </a>
+          {id:"overview",  icon:"⬡",label:"Home",      path:"/dashboard"},
+          {id:"inbox",     icon:"◎",label:"Chats",     path:"/dashboard/conversations"},
+          {id:"bookings",  icon:"◷",label:"Bookings",  path:"/dashboard/bookings"},
+          {id:"leads",     icon:"◉",label:"Leads",     path:"/dashboard/leads"},
+          {id:"contacts",  icon:"◑",label:"Customers", path:"/dashboard/contacts"},
+        ].map(item=>(
+          <button key={item.id} className={"bni"+(item.id==="overview"?" on":"")} onClick={()=>router.push(item.path)}>
+            <span className="bnic">{item.icon}</span><span className="bnil">{item.label}</span>
+          </button>
         ))}
-      </div>
+      </nav>
     </>
-  )
-}
-
-function EditService({ svc, onSave, onCancel, inp, lbl, btnPrimary, border, textMuted, text, inputBg }) {
-  const [form, setForm] = useState({ ...svc })
-  return (
-    <div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-        <div><label style={lbl}>Name</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={inp}/></div>
-        <div><label style={lbl}>Price (₹)</label><input type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} style={inp}/></div>
-        <div><label style={lbl}>Duration (min)</label><input type="number" value={form.duration||""} onChange={e=>setForm(f=>({...f,duration:e.target.value}))} style={inp}/></div>
-        <div>
-          <label style={lbl}>Category</label>
-          <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} style={inp}>
-            {["Hair","Skin","Nails","Bridal","Massage","Body","Dental","Fitness","Ayurveda","Consultation","Membership","Property","Other"].map(c=><option key={c}>{c}</option>)}
-          </select>
-        </div>
-      </div>
-      <div style={{marginBottom:10}}><label style={lbl}>Description</label><input value={form.description||""} onChange={e=>setForm(f=>({...f,description:e.target.value}))} style={inp}/></div>
-      <div style={{display:"flex",gap:8}}>
-        <button onClick={()=>onSave(form)} style={{...btnPrimary,fontSize:12,padding:"7px 16px"}}>Save</button>
-        <button onClick={onCancel} style={{padding:"7px 16px",borderRadius:8,border:`1px solid ${border}`,background:"transparent",color:textMuted,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Cancel</button>
-      </div>
-    </div>
   )
 }
