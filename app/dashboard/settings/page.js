@@ -42,7 +42,27 @@ const BIZ_TYPES = [
   "Retail","Education","Legal","Finance","Other"
 ]
 
-const CATEGORIES = ["Hair","Skin","Nails","Bridal","Massage","Body","Dental","Fitness","Ayurveda","Consultation","Membership","Property","Other"]
+const CATEGORIES = ["Hair","Skin","Nails","Bridal","Massage","Body","Dental","Fitness","Ayurveda","Consultation","Membership","Property","Main Course","Starters","Beverages","Desserts","Other"]
+
+const SECTOR_CATEGORIES = {
+  "Real Estate":    ["Property","Consultation","Other"],
+  "Food Delivery":  ["Main Course","Starters","Beverages","Combos","Desserts","Other"],
+  "Restaurant":     ["Main Course","Starters","Beverages","Combos","Desserts","Other"],
+  "Healthcare":     ["Consultation","Procedure","Test","Therapy","Other"],
+  "Dental Clinic":  ["Consultation","Procedure","Cleaning","Other"],
+  "Clinic":         ["Consultation","Procedure","Test","Other"],
+  "Consulting":     ["Consultation","Retainer","Project","Other"],
+  "Education":      ["Consultation","Course","Batch","Other"],
+  "Legal":          ["Consultation","Retainer","Other"],
+  "Finance":        ["Consultation","Advisory","Other"],
+  "Gym":            ["Membership","Personal Training","Classes","Other"],
+  "Yoga Studio":    ["Membership","Classes","Other"],
+  "Fitness Studio": ["Membership","Classes","Personal Training","Other"],
+}
+
+function getSectorCategories(bizType) {
+  return SECTOR_CATEGORIES[bizType] || CATEGORIES
+}
 
 const PLANS = [
   {
@@ -692,7 +712,7 @@ export default function SettingsPage() {
                       <div>
                         <label style={lbl}>Category</label>
                         <select value={newSvc.category} onChange={e=>setNewSvc(s=>({...s,category:e.target.value}))} style={inp}>
-                          {CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                          {getSectorCategories(business.business_type).map(c=><option key={c}>{c}</option>)}
                         </select>
                       </div>
                     </div>
