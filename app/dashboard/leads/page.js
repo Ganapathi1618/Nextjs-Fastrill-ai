@@ -12,6 +12,7 @@ const NAV = [
   { id:"inbox",     label:"Conversations",  icon:"◎", path:"/dashboard/conversations" },
   { id:"bookings",  label:"Bookings",       icon:"◷", path:"/dashboard/bookings" },
   { id:"campaigns", label:"Campaigns",      icon:"◆", path:"/dashboard/campaigns" },
+  { id:"sequences", label:"Sequences",      icon:"⟳", path:"/dashboard/sequences" },
   { id:"leads",     label:"Lead Recovery",  icon:"◉", path:"/dashboard/leads" },
   { id:"contacts",  label:"Customers",      icon:"◑", path:"/dashboard/contacts" },
   { id:"analytics", label:"Analytics",      icon:"▦", path:"/dashboard/analytics" },
