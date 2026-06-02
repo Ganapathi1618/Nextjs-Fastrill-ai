@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/components/Toast"
 import { usePlanGuard } from "@/lib/hooks/usePlanGuard"
+
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
   { id:"inbox",     label:"Conversations",  icon:"◎", path:"/dashboard/conversations" },
   { id:"bookings",  label:"Bookings",       icon:"◷", path:"/dashboard/bookings" },
   { id:"campaigns", label:"Campaigns",      icon:"◆", path:"/dashboard/campaigns" },
+  { id:"sequences", label:"Sequences",      icon:"⟳", path:"/dashboard/sequences" },
   { id:"leads",     label:"Lead Recovery",  icon:"◉", path:"/dashboard/leads" },
   { id:"contacts",  label:"Customers",      icon:"◑", path:"/dashboard/contacts" },
   { id:"analytics", label:"Analytics",      icon:"▦", path:"/dashboard/analytics" },
@@ -38,8 +40,9 @@ export default function Dashboard() {
     const saved = localStorage.getItem("fastrill-theme")
     if (saved) setDark(saved === "dark")
     supabase.auth.getUser().then(({ data }) => {
-      if (!data?.user) router.push("/login")
-      else { setUserEmail(data.user.email || ""); setUserId(data.user.id) }
+      if (!data?.user) { router.push("/login"); return }
+      setUserEmail(data.user.email || "")
+      setUserId(data.user.id)
     })
   }, [])
 
@@ -57,42 +60,40 @@ export default function Dashboard() {
       const fromDateStr = from.toISOString().split("T")[0]
       const todayStr    = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0")
 
-      const [{ data:wa },{ data:msgs },{ data:allBks },{ data:leads },{ data:customers }] = await Promise.all([
+      const [{ data:wa },{ data:biz },{ data:msgs },{ data:allBks },{ data:leads },{ data:customers }] = await Promise.all([
         supabase.from("whatsapp_connections").select("id").eq("user_id",userId).maybeSingle(),
+        supabase.from("business_settings").select("business_name").eq("user_id",userId).maybeSingle(),
         supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id",userId).gte("created_at",fromISO),
         supabase.from("bookings").select("status,amount,ai_booked,booking_date,customer_name,service,booking_time").eq("user_id",userId),
         supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id",userId).gte("created_at",fromISO),
         supabase.from("customers").select("tag,source,created_at").eq("user_id",userId),
       ])
 
+      // ── ONBOARDING REDIRECT ──────────────────────────────────
+      // New users who haven't set up their business yet
+      if (!biz?.business_name) {
+        router.push("/onboarding")
+        return
+      }
+
       setConnected(!!wa)
       const bks = allBks || []
 
-      // Period-filtered bookings — revenue, bookings, AI stats all scoped to selected period
-      const periodBks     = period==="today"
+      const periodBks       = period==="today"
         ? bks.filter(b=>b.booking_date===todayStr&&b.status!=="cancelled")
         : bks.filter(b=>b.booking_date>=fromDateStr&&b.status!=="cancelled")
-
-      // Revenue = period bookings that are confirmed/completed ONLY
       const periodConfirmed = periodBks.filter(b=>b.status==="confirmed"||b.status==="completed")
       const revenue         = periodConfirmed.reduce((s,b)=>s+(b.amount||0),0)
-
-      // AI revenue = period bookings booked by AI
-      const aiRevenue = periodBks.filter(b=>b.ai_booked&&(b.status==="confirmed"||b.status==="completed")).reduce((s,b)=>s+(b.amount||0),0)
-
-      // Avg service value = revenue / number of confirmed bookings this period
-      const avgVal = periodConfirmed.length>0 ? Math.round(revenue/periodConfirmed.length) : 0
-
-      // AI performance = messages in period
-      const aiHandled   = (msgs||[]).filter(m=>m.is_ai&&m.direction==="outbound").length
-      const aiBookings  = periodBks.filter(b=>b.ai_booked&&b.status!=="cancelled").length
-      const missedLeads = (leads||[]).filter(l=>l.status==="open").length
-      const uniqueConvos= new Set((msgs||[]).map(m=>m.conversation_id).filter(Boolean)).size
+      const aiRevenue       = periodBks.filter(b=>b.ai_booked&&(b.status==="confirmed"||b.status==="completed")).reduce((s,b)=>s+(b.amount||0),0)
+      const avgVal          = periodConfirmed.length>0 ? Math.round(revenue/periodConfirmed.length) : 0
+      const aiHandled       = (msgs||[]).filter(m=>m.is_ai&&m.direction==="outbound").length
+      const aiBookings      = periodBks.filter(b=>b.ai_booked&&b.status!=="cancelled").length
+      const missedLeads     = (leads||[]).filter(l=>l.status==="open").length
+      const uniqueConvos    = new Set((msgs||[]).map(m=>m.conversation_id).filter(Boolean)).size
 
       setAvgServiceValue(avgVal)
       setStats({ revenue, leads:(leads||[]).length, bookings:periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue })
 
-      // Funnel — all time totals (not period filtered — shows full business picture)
       const allConfirmed = bks.filter(b=>b.status==="confirmed"||b.status==="completed")
       setFunnel({ customers:(customers||[]).length, convos:uniqueConvos, booked:periodBks.length, completed:periodConfirmed.length, revenue })
       setTodayBookings(bks.filter(b=>b.booking_date===todayStr&&b.status!=="cancelled").slice(0,4))
@@ -137,7 +138,6 @@ export default function Dashboard() {
   const circ=2*Math.PI*46
   const pLabel=period==="today"?"Today":period==="week"?"This week":"This month"
 
-  // FIXED FUNNEL: horizontal step layout avoids bar overlap issues
   const fMax=Math.max(funnel.customers,1)
   const fSteps=[
     {label:"Customers",  val:funnel.customers, pct:100,                                   color:acc,     icon:"◑"},
@@ -154,7 +154,8 @@ export default function Dashboard() {
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         html,body{background:${bg}!important;color:${tx}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
-        .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;}
+        .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:none;}
+        .sidebar::-webkit-scrollbar{display:none;}
         .logo{padding:16px 18px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:flex;flex-direction:row;align-items:center;gap:10px;border-bottom:1px solid ${bdr};line-height:1;}
         .logo span{color:${acc};}
         .nav-sec{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${txf};font-weight:600;}
@@ -213,7 +214,10 @@ export default function Dashboard() {
       <div className="wrap">
         <div className={"mob-ov"+(mobSidebarOpen?" open":"")} onClick={()=>setMobSidebarOpen(false)}/>
         <aside className={"sidebar"+(mobSidebarOpen?" open":"")}>
-          <a href="/dashboard" className="logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:acc}}>rill</span></span></a>
+          <a href="/dashboard" className="logo">
+            <img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}}/>
+            <span style={{fontWeight:800,fontSize:20,color:tx,letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:acc}}>rill</span></span>
+          </a>
           <div className="nav-sec">Platform</div>
           {NAV.map(item=>(
             <button key={item.id} className={"nav-item"+(item.id==="overview"?" active":"")} onClick={()=>router.push(item.path)}>
@@ -284,10 +288,10 @@ export default function Dashboard() {
 
               <div className="kpi-grid">
                 {[
-                  {name:"Revenue Generated",  val:"₹"+stats.revenue.toLocaleString(),   color:acc,      icon:"₹",  sub:pLabel},
-                  {name:"Leads Captured",     val:stats.leads,                            color:"#38bdf8",icon:"↗",  sub:pLabel},
-                  {name:"Appointments Booked",val:stats.bookings,                         color:"#a78bfa",icon:"📅", sub:pLabel},
-                  {name:"Avg Service Value",  val:"₹"+avgServiceValue.toLocaleString(),  color:"#f59e0b",icon:"₹",  sub:"per booking"},
+                  {name:"Revenue Generated",   val:"₹"+stats.revenue.toLocaleString(),  color:acc,       icon:"₹", sub:pLabel},
+                  {name:"Leads Captured",      val:stats.leads,                          color:"#38bdf8", icon:"↗", sub:pLabel},
+                  {name:"Appointments Booked", val:stats.bookings,                       color:"#a78bfa", icon:"📅",sub:pLabel},
+                  {name:"Avg Service Value",   val:"₹"+avgServiceValue.toLocaleString(),color:"#f59e0b", icon:"₹", sub:"per booking"},
                 ].map(k=>(
                   <div key={k.name} style={{background:card,border:`1px solid ${cbdr}`,borderRadius:11,padding:"15px 14px",position:"relative",overflow:"hidden"}}>
                     <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:k.color+"55",borderRadius:"11px 11px 0 0"}}/>
@@ -300,7 +304,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* FIXED FUNNEL — horizontal step layout, no overlapping bars */}
+            {/* Funnel */}
             <div className="card">
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
                 <div>
@@ -309,37 +313,32 @@ export default function Dashboard() {
                 </div>
                 {funnel.customers>0&&<div style={{fontSize:11,color:txf}}>Based on {funnel.customers} total customers</div>}
               </div>
-
-              {loading ? (
+              {loading?(
                 <div style={{textAlign:"center",padding:"20px 0",color:txf,fontSize:13}}>Loading funnel data...</div>
-              ) : funnel.customers===0 ? (
+              ):funnel.customers===0?(
                 <div style={{textAlign:"center",padding:"24px 0",color:txf,fontSize:13}}>No data yet — connect WhatsApp and start chatting</div>
-              ) : (
+              ):(
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
                   {fSteps.map((step,i)=>{
-                    const barPct = step.pct !== null ? step.pct : null
-                    return (
+                    const barPct=step.pct!==null?step.pct:null
+                    return(
                       <div key={step.label} style={{display:"flex",alignItems:"center",gap:12}}>
-                        {/* Step number */}
                         <div style={{width:24,height:24,borderRadius:"50%",background:step.color+"22",border:`1px solid ${step.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:step.color,flexShrink:0}}>{i+1}</div>
-                        {/* Label */}
                         <div style={{width:90,flexShrink:0}}>
                           <div style={{fontSize:12,fontWeight:600,color:tx}}>{step.label}</div>
                         </div>
-                        {/* Bar (only for non-revenue steps) */}
-                        {barPct!==null ? (
+                        {barPct!==null?(
                           <div style={{flex:1,height:28,background:dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)",borderRadius:6,overflow:"hidden",position:"relative"}}>
                             <div style={{height:"100%",width:`${Math.max(barPct,3)}%`,background:step.color+"33",border:`1px solid ${step.color}44`,borderRadius:6,transition:"width 0.6s ease",display:"flex",alignItems:"center",paddingLeft:8}}>
                               {barPct>=12&&<span style={{fontSize:11,fontWeight:700,color:step.color}}>{barPct}%</span>}
                             </div>
                             {barPct<12&&<span style={{position:"absolute",left:`${Math.max(barPct,3)+1}%`,top:"50%",transform:"translateY(-50%)",fontSize:11,fontWeight:700,color:step.color}}>{barPct}%</span>}
                           </div>
-                        ) : (
+                        ):(
                           <div style={{flex:1,height:28,background:`${step.color}18`,border:`1px solid ${step.color}33`,borderRadius:6,display:"flex",alignItems:"center",paddingLeft:12}}>
                             <span style={{fontSize:12,fontWeight:700,color:step.color}}>Revenue generated</span>
                           </div>
                         )}
-                        {/* Value */}
                         <div style={{width:70,textAlign:"right",flexShrink:0}}>
                           <div style={{fontWeight:800,fontSize:14,color:step.color}}>{loading?"—":step.val}</div>
                         </div>
@@ -358,7 +357,7 @@ export default function Dashboard() {
                     <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"2px 9px",fontSize:10,color:"#a78bfa",fontWeight:700,letterSpacing:"0.5px"}}>◈ AI PERFORMANCE</div>
                     <div style={{fontWeight:700,fontSize:13.5,color:tx,marginTop:8}}>What your AI achieved</div>
                   </div>
-                  <div style={{fontSize:11,color:txm}}>Sarvam AI</div>
+                  <div style={{fontSize:11,color:txm}}>Gemini AI</div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
                   {[
@@ -387,9 +386,9 @@ export default function Dashboard() {
                   {stats.missedLeads>0?"no booking yet this period":"No open leads right now"}
                 </div>
                 {[
-                  {l:"Open leads",       v:stats.missedLeads,  c:"#fb7185"},
-                  {l:"AI replies sent",  v:stats.aiHandled,    c:acc},
-                  {l:"Bookings created", v:stats.bookings,     c:acc},
+                  {l:"Open leads",       v:stats.missedLeads, c:"#fb7185"},
+                  {l:"AI replies sent",  v:stats.aiHandled,   c:acc},
+                  {l:"Bookings created", v:stats.bookings,    c:acc},
                 ].map(r=>(
                   <div key={r.l} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 10px",background:ibg,border:`1px solid ${cbdr}`,borderRadius:7,marginBottom:5}}>
                     <span style={{fontSize:12,color:txm}}>{r.l}</span>
@@ -451,9 +450,10 @@ export default function Dashboard() {
                 <div style={{fontSize:10,letterSpacing:"1.2px",textTransform:"uppercase",color:txf,fontWeight:600,marginBottom:4}}>Quick Actions</div>
                 <div style={{fontWeight:800,fontSize:20,color:acc,letterSpacing:"-0.5px",lineHeight:1,marginBottom:12}}>Grow Faster</div>
                 {[
-                  {label:"Send Campaign", sub:"Reach all customers",          icon:"📢",path:"/dashboard/campaigns",color:acc},
-                  {label:"Recover Leads", sub:stats.missedLeads+" waiting",   icon:"◉", path:"/dashboard/leads",   color:"#fb7185"},
-                  {label:"Add Booking",   sub:"Manual entry",                  icon:"📅",path:"/dashboard/bookings",color:"#a78bfa"},
+                  {label:"Send Campaign",   sub:"Reach all customers",        icon:"📢",path:"/dashboard/campaigns",color:acc},
+                  {label:"Recover Leads",   sub:stats.missedLeads+" waiting", icon:"◉", path:"/dashboard/leads",   color:"#fb7185"},
+                  {label:"Add Booking",     sub:"Manual entry",               icon:"📅",path:"/dashboard/bookings",color:"#a78bfa"},
+                  {label:"New Sequence",    sub:"Drip automation",            icon:"⟳", path:"/dashboard/sequences",color:"#38bdf8"},
                 ].map(a=>(
                   <div key={a.label} onClick={()=>router.push(a.path)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${bdr}`,cursor:"pointer"}}>
                     <div style={{display:"flex",alignItems:"center",gap:9}}>
@@ -474,11 +474,11 @@ export default function Dashboard() {
 
       <nav className="bnav">
         {[
-          {id:"overview",icon:"⬡",label:"Home",    path:"/dashboard"},
-          {id:"inbox",   icon:"◎",label:"Chats",   path:"/dashboard/conversations"},
-          {id:"bookings",icon:"◷",label:"Bookings",path:"/dashboard/bookings"},
-          {id:"leads",   icon:"◉",label:"Leads",   path:"/dashboard/leads"},
-          {id:"contacts",icon:"◑",label:"Customers",path:"/dashboard/contacts"},
+          {id:"overview",  icon:"⬡",label:"Home",      path:"/dashboard"},
+          {id:"inbox",     icon:"◎",label:"Chats",     path:"/dashboard/conversations"},
+          {id:"bookings",  icon:"◷",label:"Bookings",  path:"/dashboard/bookings"},
+          {id:"leads",     icon:"◉",label:"Leads",     path:"/dashboard/leads"},
+          {id:"contacts",  icon:"◑",label:"Customers", path:"/dashboard/contacts"},
         ].map(item=>(
           <button key={item.id} className={"bni"+(item.id==="overview"?" on":"")} onClick={()=>router.push(item.path)}>
             <span className="bnic">{item.icon}</span><span className="bnil">{item.label}</span>
