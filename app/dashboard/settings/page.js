@@ -716,20 +716,21 @@ export default function SettingsPage() {
                         </select>
                       </div>
                     </div>
-                    {newSvc.service_type === "appointment" && (
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}} className="two-col">
-                        <div>
-                          <label style={lbl}>{business.business_type==="Real Estate"?"Visit Duration (min)":"Duration (minutes)"}</label>
-                          <select value={newSvc.duration} onChange={e=>setNewSvc(s=>({...s,duration:e.target.value}))} style={inp}>
-                            {[15,20,30,45,60,75,90,120,150,180].map(d=><option key={d} value={d}>{d} min</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label style={lbl}>Capacity</label>
-                          <input type="number" min="1" max="20" value={newSvc.capacity} onChange={e=>setNewSvc(s=>({...s,capacity:e.target.value}))} style={inp}/>
-                        </div>
-                      </div>
-                    )}
+                    {newSvc.service_type === "appointment" && 
+ !["Real Estate","Food Delivery","Consulting","Legal","Finance","Education"].includes(business.business_type) && (
+  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}} className="two-col">
+    <div>
+      <label style={lbl}>Duration (minutes)</label>
+      <select value={newSvc.duration} onChange={e=>setNewSvc(s=>({...s,duration:e.target.value}))} style={inp}>
+        {[15,20,30,45,60,75,90,120,150,180].map(d=><option key={d} value={d}>{d} min</option>)}
+      </select>
+    </div>
+    <div>
+      <label style={lbl}>Capacity</label>
+      <input type="number" min="1" max="20" value={newSvc.capacity} onChange={e=>setNewSvc(s=>({...s,capacity:e.target.value}))} style={inp}/>
+    </div>
+  </div>
+)}
                     <button onClick={addService} disabled={saving||!newSvc.name||!newSvc.price} style={{...btnPrimary,opacity:saving||!newSvc.name||!newSvc.price?0.5:1}}>
                       {saving?"Adding...":"+ Add"}
                     </button>
