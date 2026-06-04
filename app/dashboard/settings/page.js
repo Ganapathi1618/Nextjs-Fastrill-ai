@@ -716,21 +716,20 @@ export default function SettingsPage() {
                         </select>
                       </div>
                     </div>
-                    {newSvc.service_type === "appointment" && 
- !["Real Estate","Food Delivery","Consulting","Legal","Finance","Education"].includes(business.business_type) && (
-  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}} className="two-col">
-    <div>
-      <label style={lbl}>Duration (minutes)</label>
-      <select value={newSvc.duration} onChange={e=>setNewSvc(s=>({...s,duration:e.target.value}))} style={inp}>
-        {[15,20,30,45,60,75,90,120,150,180].map(d=><option key={d} value={d}>{d} min</option>)}
-      </select>
-    </div>
-    <div>
-      <label style={lbl}>Capacity</label>
-      <input type="number" min="1" max="20" value={newSvc.capacity} onChange={e=>setNewSvc(s=>({...s,capacity:e.target.value}))} style={inp}/>
-    </div>
-  </div>
-)}
+                    {newSvc.service_type === "appointment" && (
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}} className="two-col">
+                        <div>
+                          <label style={lbl}>{business.business_type==="Real Estate"?"Visit Duration (min)":"Duration (minutes)"}</label>
+                          <select value={newSvc.duration} onChange={e=>setNewSvc(s=>({...s,duration:e.target.value}))} style={inp}>
+                            {[15,20,30,45,60,75,90,120,150,180].map(d=><option key={d} value={d}>{d} min</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={lbl}>Capacity</label>
+                          <input type="number" min="1" max="20" value={newSvc.capacity} onChange={e=>setNewSvc(s=>({...s,capacity:e.target.value}))} style={inp}/>
+                        </div>
+                      </div>
+                    )}
                     <button onClick={addService} disabled={saving||!newSvc.name||!newSvc.price} style={{...btnPrimary,opacity:saving||!newSvc.name||!newSvc.price?0.5:1}}>
                       {saving?"Adding...":"+ Add"}
                     </button>
@@ -908,9 +907,13 @@ export default function SettingsPage() {
                       <div style={{fontWeight:800,fontSize:16,color:text,marginBottom:6}}>Connect Your WhatsApp</div>
                       <div style={{fontSize:13,color:textMuted,marginBottom:20}}>Link your business WhatsApp to activate AI replies.</div>
                       <button onClick={()=>{
+                        // Guard: wait until userId is loaded from Supabase session
+                        if (!userId) { alert("Please wait a moment and try again."); return }
                         const appId=process.env.NEXT_PUBLIC_META_APP_ID||""
                         const configId=process.env.NEXT_PUBLIC_META_CONFIG_ID||""
                         const redirectUri=(process.env.NEXT_PUBLIC_APP_URL||window.location.origin)+"/api/meta/callback"
+                        // Pass userId as state — industry standard OAuth2 pattern
+                        // Meta returns this unchanged in callback, no cookie needed
                         window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}&state=${userId}`
                       }} style={{background:"#1877f2",color:"#fff",border:"none",padding:"11px 24px",borderRadius:9,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                         Connect WhatsApp via Meta →
