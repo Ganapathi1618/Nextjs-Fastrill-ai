@@ -508,7 +508,7 @@ export default function OnboardingPage() {
                       const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1090960043190718"
                       const appUrl   = process.env.NEXT_PUBLIC_APP_URL        || window.location.origin
                       const redirect = encodeURIComponent(appUrl+"/api/meta/callback")
-                      window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirect}&response_type=code&config_id=${configId}`
+                      window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirect}&response_type=code&config_id=${configId}&state=${userId}`
                     }}
                     style={{width:"100%",padding:"12px",borderRadius:"9px",border:"none",background:"#1877f2",color:"#fff",fontWeight:"700",fontSize:"14px",cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                     Connect WhatsApp via Meta →
