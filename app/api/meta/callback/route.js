@@ -1,15 +1,24 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
+// UUID validation — ensures state parameter is a real Supabase user ID
+// Prevents null/undefined/"null" string attacks
+function isValidUUID(str) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+}
+
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url)
     const code   = searchParams.get("code")
-    const userId = searchParams.get("state") // ← userId passed from connect button
+    const userId = searchParams.get("state")
 
-    if (!userId) {
-      console.error("❌ Callback: No userId in state parameter")
-      return NextResponse.redirect(new URL("/login", req.url))
+    // ── VALIDATE state parameter is a real UUID ─────────────────
+    // Industry standard: always validate state parameter in OAuth callbacks
+    // This catches: null, "null", undefined, empty string, tampered values
+    if (!userId || !isValidUUID(userId)) {
+      console.error("❌ Callback: Invalid or missing userId in state:", userId)
+      return NextResponse.redirect(new URL("/login?error=invalid_state", req.url))
     }
 
     if (!code) {
@@ -17,23 +26,24 @@ export async function GET(req) {
       return NextResponse.redirect(new URL("/dashboard/settings?error=no_code", req.url))
     }
 
-    console.log("✅ Callback: userId from state:", userId)
+    console.log("✅ Callback: Valid userId from state:", userId)
 
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    // ── PHASE 1: Verify user exists in Supabase ─────────────────
+    // ── VERIFY user exists in Supabase ──────────────────────────
+    // Prevents connecting WhatsApp to a deleted/invalid account
     const { data: { user }, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId)
     if (userError || !user) {
-      console.error("❌ Callback: User not found:", userError?.message)
-      return NextResponse.redirect(new URL("/login", req.url))
+      console.error("❌ Callback: User not found for id:", userId)
+      return NextResponse.redirect(new URL("/login?error=user_not_found", req.url))
     }
 
     console.log("✅ User verified:", user.email)
 
-    // ── PHASE 2: Exchange code for access token ─────────────────
+    // ── EXCHANGE code for access token ──────────────────────────
     const appId       = process.env.META_APP_ID
     const appSecret   = process.env.META_APP_SECRET
     const redirectUri = (process.env.NEXT_PUBLIC_APP_URL || "https://fastrill.com") + "/api/meta/callback"
@@ -48,35 +58,39 @@ export async function GET(req) {
     const tokenData = await tokenRes.json()
 
     if (tokenData.error) {
-      console.error("❌ Token exchange error:", tokenData.error)
+      console.error("❌ Token exchange failed:", tokenData.error)
       return NextResponse.redirect(new URL("/dashboard/settings?error=token_failed", req.url))
     }
 
     const accessToken = tokenData.access_token
     console.log("✅ Token received")
 
-    // ── PHASE 3: Fetch WABA and phone number ────────────────────
+    // ── FETCH WABA and phone number ─────────────────────────────
     let wabaId = null, phoneNumberId = null, displayPhoneNumber = null
 
-    // Try businesses endpoint
+    // Method 1: via businesses endpoint
     try {
       const r = await fetch(`https://graph.facebook.com/v18.0/me/businesses?access_token=${accessToken}`)
       const d = await r.json()
       wabaId = d?.data?.[0]?.id || null
       console.log("✅ WABA from businesses:", wabaId)
-    } catch(e) { console.warn("⚠️ businesses endpoint failed") }
+    } catch(e) {
+      console.warn("⚠️ businesses endpoint failed:", e.message)
+    }
 
-    // Fallback: try me endpoint
+    // Method 2: fallback via me endpoint
     if (!wabaId) {
       try {
         const r = await fetch(`https://graph.facebook.com/v18.0/me?fields=whatsapp_business_account&access_token=${accessToken}`)
         const d = await r.json()
         wabaId = d?.whatsapp_business_account?.id || null
         console.log("✅ WABA from me:", wabaId)
-      } catch(e) { console.warn("⚠️ me endpoint failed") }
+      } catch(e) {
+        console.warn("⚠️ me endpoint failed:", e.message)
+      }
     }
 
-    // Fetch phone numbers
+    // Fetch phone numbers if WABA found
     if (wabaId) {
       try {
         const r = await fetch(`https://graph.facebook.com/v18.0/${wabaId}/phone_numbers?access_token=${accessToken}`)
@@ -84,10 +98,12 @@ export async function GET(req) {
         phoneNumberId      = d?.data?.[0]?.id || null
         displayPhoneNumber = d?.data?.[0]?.display_phone_number || null
         console.log("✅ Phone:", phoneNumberId, displayPhoneNumber)
-      } catch(e) { console.warn("⚠️ phone numbers failed") }
+      } catch(e) {
+        console.warn("⚠️ Phone numbers fetch failed:", e.message)
+      }
     }
 
-    // ── PHASE 4: Save to Supabase ───────────────────────────────
+    // ── SAVE to Supabase ────────────────────────────────────────
     const { error: upsertError } = await supabaseAdmin
       .from("whatsapp_connections")
       .upsert(
@@ -109,7 +125,7 @@ export async function GET(req) {
 
     console.log("✅ WhatsApp connection saved for:", userId)
 
-    // ── PHASE 5: Register webhook subscription ──────────────────
+    // ── REGISTER webhook subscription (non-critical) ────────────
     if (phoneNumberId) {
       try {
         await fetch(
@@ -121,13 +137,16 @@ export async function GET(req) {
           }
         )
         console.log("✅ Webhook subscribed")
-      } catch(e) { console.warn("⚠️ Webhook subscription failed (non-critical)") }
+      } catch(e) {
+        console.warn("⚠️ Webhook subscription failed (non-critical):", e.message)
+      }
     }
 
+    // ── SUCCESS ─────────────────────────────────────────────────
     return NextResponse.redirect(new URL("/dashboard/settings?connected=true", req.url))
 
   } catch (err) {
-    console.error("❌ Callback fatal:", err.message)
+    console.error("❌ Callback fatal error:", err.message)
     return NextResponse.redirect(new URL("/dashboard/settings?error=unknown", req.url))
   }
 }
