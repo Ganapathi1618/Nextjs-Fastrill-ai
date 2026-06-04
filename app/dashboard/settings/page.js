@@ -911,7 +911,7 @@ export default function SettingsPage() {
                         const appId=process.env.NEXT_PUBLIC_META_APP_ID||""
                         const configId=process.env.NEXT_PUBLIC_META_CONFIG_ID||""
                         const redirectUri=(process.env.NEXT_PUBLIC_APP_URL||window.location.origin)+"/api/meta/callback"
-                        window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}`
+                        window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}&state=${userId}
                       }} style={{background:"#1877f2",color:"#fff",border:"none",padding:"11px 24px",borderRadius:9,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                         Connect WhatsApp via Meta →
                       </button>
