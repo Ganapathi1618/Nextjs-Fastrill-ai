@@ -4,36 +4,11 @@ import { createClient } from "@supabase/supabase-js"
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url)
-    const code = searchParams.get("code")
+    const code   = searchParams.get("code")
+    const userId = searchParams.get("state") // ← userId passed from connect button
 
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    )
-
-    // ── PHASE 1: Get user from cookie header directly ───────────
-    // Read the raw cookie header from the request (works in all Next.js versions)
-    let user = null
-    try {
-      const cookieHeader = req.headers.get("cookie") || ""
-      if (cookieHeader) {
-        const supabaseClient = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-          {
-            global: { headers: { cookie: cookieHeader } },
-            auth:   { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-          }
-        )
-        const { data } = await supabaseClient.auth.getUser()
-        user = data?.user || null
-      }
-    } catch(e) {
-      console.warn("⚠️ Session read failed:", e.message)
-    }
-
-    if (!user) {
-      console.error("❌ Callback: No user session")
+    if (!userId) {
+      console.error("❌ Callback: No userId in state parameter")
       return NextResponse.redirect(new URL("/login", req.url))
     }
 
@@ -42,7 +17,21 @@ export async function GET(req) {
       return NextResponse.redirect(new URL("/dashboard/settings?error=no_code", req.url))
     }
 
-    console.log("✅ Callback: User found:", user.id)
+    console.log("✅ Callback: userId from state:", userId)
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
+
+    // ── PHASE 1: Verify user exists in Supabase ─────────────────
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId)
+    if (userError || !user) {
+      console.error("❌ Callback: User not found:", userError?.message)
+      return NextResponse.redirect(new URL("/login", req.url))
+    }
+
+    console.log("✅ User verified:", user.email)
 
     // ── PHASE 2: Exchange code for access token ─────────────────
     const appId       = process.env.META_APP_ID
@@ -75,7 +64,7 @@ export async function GET(req) {
       const d = await r.json()
       wabaId = d?.data?.[0]?.id || null
       console.log("✅ WABA from businesses:", wabaId)
-    } catch(e) {}
+    } catch(e) { console.warn("⚠️ businesses endpoint failed") }
 
     // Fallback: try me endpoint
     if (!wabaId) {
@@ -84,7 +73,7 @@ export async function GET(req) {
         const d = await r.json()
         wabaId = d?.whatsapp_business_account?.id || null
         console.log("✅ WABA from me:", wabaId)
-      } catch(e) {}
+      } catch(e) { console.warn("⚠️ me endpoint failed") }
     }
 
     // Fetch phone numbers
@@ -95,7 +84,7 @@ export async function GET(req) {
         phoneNumberId      = d?.data?.[0]?.id || null
         displayPhoneNumber = d?.data?.[0]?.display_phone_number || null
         console.log("✅ Phone:", phoneNumberId, displayPhoneNumber)
-      } catch(e) {}
+      } catch(e) { console.warn("⚠️ phone numbers failed") }
     }
 
     // ── PHASE 4: Save to Supabase ───────────────────────────────
@@ -103,7 +92,7 @@ export async function GET(req) {
       .from("whatsapp_connections")
       .upsert(
         {
-          user_id:              user.id,
+          user_id:              userId,
           access_token:         accessToken,
           waba_id:              wabaId,
           phone_number_id:      phoneNumberId,
@@ -118,9 +107,9 @@ export async function GET(req) {
       return NextResponse.redirect(new URL("/dashboard/settings?error=db_failed", req.url))
     }
 
-    console.log("✅ WhatsApp connection saved for:", user.id)
+    console.log("✅ WhatsApp connection saved for:", userId)
 
-    // Register webhook subscription
+    // ── PHASE 5: Register webhook subscription ──────────────────
     if (phoneNumberId) {
       try {
         await fetch(
@@ -132,7 +121,7 @@ export async function GET(req) {
           }
         )
         console.log("✅ Webhook subscribed")
-      } catch(e) {}
+      } catch(e) { console.warn("⚠️ Webhook subscription failed (non-critical)") }
     }
 
     return NextResponse.redirect(new URL("/dashboard/settings?connected=true", req.url))
