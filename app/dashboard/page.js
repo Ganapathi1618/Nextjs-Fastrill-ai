@@ -63,10 +63,10 @@ export default function Dashboard() {
       const [{ data:wa },{ data:biz },{ data:msgs },{ data:allBks },{ data:leads },{ data:customers }] = await Promise.all([
         supabase.from("whatsapp_connections").select("id").eq("user_id",userId).maybeSingle(),
         supabase.from("business_settings").select("business_name").eq("user_id",userId).maybeSingle(),
-        supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id",userId).gte("created_at",fromISO),
-        supabase.from("bookings").select("status,amount,ai_booked,booking_date,customer_name,service,booking_time").eq("user_id",userId),
-        supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id",userId).gte("created_at",fromISO),
-        supabase.from("customers").select("tag,source,created_at").eq("user_id",userId),
+        supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id",userId).gte("created_at",fromISO).limit(5000),
+        supabase.from("bookings").select("status,amount,ai_booked,booking_date,customer_name,service,booking_time").eq("user_id",userId).limit(2000),
+        supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id",userId).gte("created_at",fromISO).limit(1000),
+        supabase.from("customers").select("tag,source,created_at").eq("user_id",userId).limit(5000),
       ])
 
       // ── ONBOARDING REDIRECT ──────────────────────────────────
@@ -119,7 +119,7 @@ export default function Dashboard() {
   const handleLogout = async()=>{ try{ await supabase.auth.signOut(); router.push("/login") } catch(e){ toast.error("Sign out failed") } }
   const handleConnect = ()=>{
     const appId="780799931531576",configId="1090960043190718",redirectUri="https://fastrill.com/api/meta/callback"
-    window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}&state=${userId}`
+    window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}`
   }
 
   const bg=dark?"#08080e":"#f0f2f5", sb=dark?"#0c0c15":"#ffffff", card=dark?"#0f0f1a":"#ffffff"
