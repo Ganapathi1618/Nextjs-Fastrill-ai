@@ -674,7 +674,13 @@ export default function SettingsPage() {
                 <>
                   <div className="s-card">
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-                      <div style={{fontWeight:700,fontSize:14,color:text}}>Add Service / Product</div>
+                      <div style={{fontWeight:700,fontSize:14,color:text}}>
+                        {["Food Delivery","Restaurant"].includes(business.business_type)?"Add Menu Item":
+                         business.business_type==="Real Estate"?"Add Property":
+                         "Add Service / Product"}
+                      </div>
+                      {/* Only show appointment/package toggle for service-based sectors */}
+                      {!["Food Delivery","Restaurant","Real Estate","Consulting","Legal","Finance","Education"].includes(business.business_type) && (
                       <div style={{display:"flex",gap:4,background:inputBg,border:`1px solid ${cBorder}`,borderRadius:8,padding:3}}>
                         {[{val:"appointment",label:"Appointment"},{val:"package",label:"Package"}].map(opt=>(
                           <button key={opt.val} onClick={()=>setNewSvc(s=>({...s,service_type:opt.val}))} style={{padding:"5px 12px",borderRadius:6,fontSize:11.5,fontWeight:600,cursor:"pointer",border:"none",fontFamily:"'Plus Jakarta Sans',sans-serif",background:newSvc.service_type===opt.val?(opt.val==="package"?"rgba(56,189,248,0.15)":accent+"22"):"transparent",color:newSvc.service_type===opt.val?(opt.val==="package"?"#38bdf8":accent):textMuted}}>
@@ -682,6 +688,7 @@ export default function SettingsPage() {
                           </button>
                         ))}
                       </div>
+                      )}
                     </div>
 
                     {/* Sector hint for services */}
