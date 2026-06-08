@@ -11,18 +11,14 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// ── Rate limiting ──────────────────────────────────────────────
 const rateLimitMap = new Map()
 const RATE_LIMIT_WINDOW_MS = 60000
-const RATE_LIMIT_MAX       = 100
+const RATE_LIMIT_MAX = 100
 
 function isRateLimited(phone) {
   const now  = Date.now()
   const data = rateLimitMap.get(phone) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS }
-  if (now > data.resetAt) {
-    rateLimitMap.set(phone, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
-    return false
-  }
+  if (now > data.resetAt) { rateLimitMap.set(phone, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS }); return false }
   if (data.count >= RATE_LIMIT_MAX) return true
   data.count++
   rateLimitMap.set(phone, data)
@@ -43,7 +39,6 @@ async function GET(req) {
 async function POST(req) {
   try {
     const body = await req.json()
-
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
     const hasMsg   = body?.entry?.[0]?.changes?.[0]?.value?.messages
     if (statuses && !hasMsg) {
@@ -51,8 +46,7 @@ async function POST(req) {
         if (s.id && ["delivered","read","failed"].includes(s.status)) {
           supabaseAdmin.from("messages")
             .update({ status: s.status, [s.status + "_at"]: new Date().toISOString() })
-            .eq("wa_message_id", s.id)
-            .then(() => {}).catch(() => {})
+            .eq("wa_message_id", s.id).then(() => {}).catch(() => {})
         }
       }
       return NextResponse.json({ status: "status_update" })
@@ -75,21 +69,17 @@ async function POST(req) {
       return NextResponse.json({ status: "no_connection" })
     }
 
-    const userId      = connection.user_id
-    const accessToken = connection.access_token
-
     for (const message of messages) {
       try {
-        await processMessage({ message, contacts, userId, accessToken, phoneNumberId })
+        await processMessage({ message, contacts, userId: connection.user_id, accessToken: connection.access_token, phoneNumberId })
       } catch(e) {
-        console.error("❌ processMessage error:", e.message, e.stack)
+        console.error("❌ processMessage error:", e.message)
       }
     }
 
     return NextResponse.json({ status: "ok" })
-
   } catch(err) {
-    console.error("❌ Webhook fatal:", err.message, err.stack)
+    console.error("❌ Webhook fatal:", err.message)
     return NextResponse.json({ status: "error" }, { status: 200 })
   }
 }
@@ -97,18 +87,10 @@ async function POST(req) {
 async function processMessage({ message, contacts, userId, accessToken, phoneNumberId }) {
   const msg = normalizeMessage(message, contacts)
 
-  // ── DEDUPLICATION ──────────────────────────────────────────
-  // Check DB first (works across serverless instances)
-  if (await isDuplicate(msg.messageId)) {
-    console.log("⚡ Duplicate skipped (DB lock):", msg.messageId)
-    return
-  }
+  // Fast path — SELECT check (catches already-processed messages)
+  if (await isDuplicate(msg.messageId)) return
 
-  // ── Rate limit check ───────────────────────────────────────
-  if (isRateLimited(msg.phone)) {
-    console.error("🚫 Rate limited:", msg.phone)
-    return
-  }
+  if (isRateLimited(msg.phone)) { console.error("🚫 Rate limited:", msg.phone); return }
 
   const { customer, isNew } = await upsertCustomer({
     userId, phone: msg.phone, name: msg.contactName, timestamp: msg.timestamp
@@ -119,45 +101,35 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     text: msg.effectiveText, timestamp: msg.timestamp
   })
 
+  // ── ATOMIC DEDUP via saveInboundMessage ────────────────────
+  // INSERT with unique wa_message_id — only ONE of the 3 simultaneous
+  // calls will succeed. Others get unique violation → return false → stop
+  const saved = await saveInboundMessage({
+    userId, phoneNumberId, from: msg.from,
+    text: msg.effectiveText || "[" + msg.type + "]",
+    type: msg.type, conversationId: conversation?.id,
+    phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
+  })
+
+  if (!saved) {
+    console.log("⚡ Atomic dedup blocked duplicate:", msg.messageId)
+    return
+  }
+
   if (msg.isText) {
-    const compliance = await handleCompliance({
-      userId, phone: msg.phone,
-      text: msg.effectiveText, conversationId: conversation?.id
-    })
+    const compliance = await handleCompliance({ userId, phone: msg.phone, text: msg.effectiveText, conversationId: conversation?.id })
     if (compliance.action) {
-      await saveInboundMessage({
-        userId, phoneNumberId, from: msg.from,
-        text: msg.effectiveText || "[" + msg.type + "]",
-        type: msg.type, conversationId: conversation?.id,
-        phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
-      })
-      await sendAndSave({
-        phoneNumberId, accessToken, to: msg.from,
-        message: compliance.reply, userId,
-        conversationId: conversation?.id, isAI: true
-      })
+      await sendAndSave({ phoneNumberId, accessToken, to: msg.from, message: compliance.reply, userId, conversationId: conversation?.id, isAI: true })
       return
     }
   }
 
-  if (conversation?.ai_enabled === false) {
-    await saveInboundMessage({
-      userId, phoneNumberId, from: msg.from,
-      text: msg.effectiveText || "[" + msg.type + "]",
-      type: msg.type, conversationId: conversation?.id,
-      phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
-    })
-    return
-  }
+  if (conversation?.ai_enabled === false) return
 
-  // Stop sequence on reply
   try {
     await stopEnrollment({ leadPhone: msg.phone, userId, reason: "replied" })
-  } catch(e) {
-    console.error("⚠️ stopEnrollment failed (non-fatal):", e.message)
-  }
+  } catch(e) {}
 
-  // Campaign context
   let campaignContext = null
   try {
     if (conversation?.campaign_sent_at && conversation?.campaign_message) {
@@ -167,21 +139,9 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
   } catch(e) {}
 
   const reply = await orchestrate({
-    userId,
-    conversationId: conversation?.id,
-    phone:          msg.phone,
-    contactName:    msg.contactName,
-    message:        msg.effectiveText || "",
-    isMediaOnly:    msg.isMediaOnly,
-    phoneNumberId,
-    campaignContext
-  })
-
-  await saveInboundMessage({
-    userId, phoneNumberId, from: msg.from,
-    text: msg.effectiveText || "[" + msg.type + "]",
-    type: msg.type, conversationId: conversation?.id,
-    phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
+    userId, conversationId: conversation?.id, phone: msg.phone,
+    contactName: msg.contactName, message: msg.effectiveText || "",
+    isMediaOnly: msg.isMediaOnly, phoneNumberId, campaignContext
   })
 
   if (msg.effectiveText) {
@@ -189,15 +149,11 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
       userId, customerId: customer?.id, phone: msg.phone,
       name: msg.contactName, text: msg.effectiveText,
       timestamp: msg.timestamp, isNew
-    }).catch(e => console.error("⚠️ upsertLead failed:", e.message))
+    }).catch(() => {})
   }
 
   if (reply) {
-    await sendAndSave({
-      phoneNumberId, accessToken, to: msg.from,
-      message: reply, userId,
-      conversationId: conversation?.id, isAI: true
-    })
+    await sendAndSave({ phoneNumberId, accessToken, to: msg.from, message: reply, userId, conversationId: conversation?.id, isAI: true })
     await supabaseAdmin.from("conversations")
       .update({ last_message: reply, last_message_at: new Date().toISOString() })
       .eq("id", conversation?.id)
