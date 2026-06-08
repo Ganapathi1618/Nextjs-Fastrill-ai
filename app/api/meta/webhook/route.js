@@ -97,32 +97,11 @@ async function POST(req) {
 async function processMessage({ message, contacts, userId, accessToken, phoneNumberId }) {
   const msg = normalizeMessage(message, contacts)
 
-  // ── DEDUPLICATION — Supabase-based (works across serverless instances) ──
-  // Uses Supabase INSERT with unique constraint — only first call wins
-  // All other simultaneous calls get a conflict error and return immediately
-  try {
-    const { error: dedupError } = await supabaseAdmin
-      .from("messages")
-      .insert({
-        wa_message_id: msg.messageId,
-        user_id:       userId,
-        direction:     "inbound",
-        message_type:  msg.type || "text",
-        message_text:  msg.effectiveText || "[media]",
-        customer_phone: msg.phone,
-        status:        "processing",
-        created_at:    new Date().toISOString()
-      })
-
-    if (dedupError) {
-      // Duplicate — another instance already processing this message
-      console.log("⚡ Duplicate skipped (DB lock):", msg.messageId)
-      return
-    }
-  } catch(e) {
-    // If messages table doesn't have unique constraint on wa_message_id
-    // fall back to old isDuplicate check
-    if (await isDuplicate(msg.messageId)) return
+  // ── DEDUPLICATION ──────────────────────────────────────────
+  // Check DB first (works across serverless instances)
+  if (await isDuplicate(msg.messageId)) {
+    console.log("⚡ Duplicate skipped (DB lock):", msg.messageId)
+    return
   }
 
   // ── Rate limit check ───────────────────────────────────────
@@ -146,13 +125,12 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
       text: msg.effectiveText, conversationId: conversation?.id
     })
     if (compliance.action) {
-      await supabaseAdmin.from("messages")
-        .update({
-          conversation_id: conversation?.id,
-          status: "received"
-        })
-        .eq("wa_message_id", msg.messageId)
-
+      await saveInboundMessage({
+        userId, phoneNumberId, from: msg.from,
+        text: msg.effectiveText || "[" + msg.type + "]",
+        type: msg.type, conversationId: conversation?.id,
+        phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
+      })
       await sendAndSave({
         phoneNumberId, accessToken, to: msg.from,
         message: compliance.reply, userId,
@@ -163,9 +141,12 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
   }
 
   if (conversation?.ai_enabled === false) {
-    await supabaseAdmin.from("messages")
-      .update({ conversation_id: conversation?.id, status: "received" })
-      .eq("wa_message_id", msg.messageId)
+    await saveInboundMessage({
+      userId, phoneNumberId, from: msg.from,
+      text: msg.effectiveText || "[" + msg.type + "]",
+      type: msg.type, conversationId: conversation?.id,
+      phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
+    })
     return
   }
 
@@ -196,13 +177,12 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     campaignContext
   })
 
-  // Update the pre-inserted message record with final data
-  await supabaseAdmin.from("messages")
-    .update({
-      conversation_id: conversation?.id,
-      status:          "received"
-    })
-    .eq("wa_message_id", msg.messageId)
+  await saveInboundMessage({
+    userId, phoneNumberId, from: msg.from,
+    text: msg.effectiveText || "[" + msg.type + "]",
+    type: msg.type, conversationId: conversation?.id,
+    phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
+  })
 
   if (msg.effectiveText) {
     await upsertLead({
