@@ -4,14 +4,12 @@ const { normalizeMessage }   = require("@/lib/messaging/normalizer")
 const { orchestrate }        = require("@/lib/ai/orchestrator")
 const { sendAndSave }        = require("@/lib/messaging/wa-send")
 const { isDuplicate, upsertCustomer, upsertConversation, saveInboundMessage, upsertLead, handleCompliance } = require("@/lib/crm/customer-engine")
-const { stopEnrollment }     = require("@/lib/sequences/sequence-engine")  // ← ADDED
+const { stopEnrollment }     = require("@/lib/sequences/sequence-engine")
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
-
-const processingLock = new Set()
 
 // ── Rate limiting ──────────────────────────────────────────────
 const rateLimitMap = new Map()
@@ -99,17 +97,39 @@ async function POST(req) {
 async function processMessage({ message, contacts, userId, accessToken, phoneNumberId }) {
   const msg = normalizeMessage(message, contacts)
 
-  if (processingLock.has(msg.messageId)) return
-  if (await isDuplicate(msg.messageId)) return
+  // ── DEDUPLICATION — Supabase-based (works across serverless instances) ──
+  // Uses Supabase INSERT with unique constraint — only first call wins
+  // All other simultaneous calls get a conflict error and return immediately
+  try {
+    const { error: dedupError } = await supabaseAdmin
+      .from("messages")
+      .insert({
+        wa_message_id: msg.messageId,
+        user_id:       userId,
+        direction:     "inbound",
+        message_type:  msg.type || "text",
+        message_text:  msg.effectiveText || "[media]",
+        customer_phone: msg.phone,
+        status:        "processing",
+        created_at:    new Date().toISOString()
+      })
+
+    if (dedupError) {
+      // Duplicate — another instance already processing this message
+      console.log("⚡ Duplicate skipped (DB lock):", msg.messageId)
+      return
+    }
+  } catch(e) {
+    // If messages table doesn't have unique constraint on wa_message_id
+    // fall back to old isDuplicate check
+    if (await isDuplicate(msg.messageId)) return
+  }
 
   // ── Rate limit check ───────────────────────────────────────
   if (isRateLimited(msg.phone)) {
     console.error("🚫 Rate limited:", msg.phone)
     return
   }
-
-  processingLock.add(msg.messageId)
-  setTimeout(() => processingLock.delete(msg.messageId), 30000)
 
   const { customer, isNew } = await upsertCustomer({
     userId, phone: msg.phone, name: msg.contactName, timestamp: msg.timestamp
@@ -126,12 +146,13 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
       text: msg.effectiveText, conversationId: conversation?.id
     })
     if (compliance.action) {
-      await saveInboundMessage({
-        userId, phoneNumberId, from: msg.from,
-        text: msg.effectiveText || "[" + msg.type + "]",
-        type: msg.type, conversationId: conversation?.id,
-        phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
-      })
+      await supabaseAdmin.from("messages")
+        .update({
+          conversation_id: conversation?.id,
+          status: "received"
+        })
+        .eq("wa_message_id", msg.messageId)
+
       await sendAndSave({
         phoneNumberId, accessToken, to: msg.from,
         message: compliance.reply, userId,
@@ -142,41 +163,27 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
   }
 
   if (conversation?.ai_enabled === false) {
-    await saveInboundMessage({
-      userId, phoneNumberId, from: msg.from,
-      text: msg.effectiveText || "[" + msg.type + "]",
-      type: msg.type, conversationId: conversation?.id,
-      phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
-    })
+    await supabaseAdmin.from("messages")
+      .update({ conversation_id: conversation?.id, status: "received" })
+      .eq("wa_message_id", msg.messageId)
     return
   }
 
-  // ── STOP SEQUENCE ON REPLY (added v1) ─────────────────────
-  // Customer replied → stop any active drip sequence for them
-  // AI takes over the conversation naturally from here
+  // Stop sequence on reply
   try {
-    await stopEnrollment({
-      leadPhone: msg.phone,
-      userId,
-      reason: "replied"
-    })
+    await stopEnrollment({ leadPhone: msg.phone, userId, reason: "replied" })
   } catch(e) {
     console.error("⚠️ stopEnrollment failed (non-fatal):", e.message)
   }
 
-  // ── CAMPAIGN CONTEXT ───────────────────────────────────────
-  // Check if conversation is in campaign mode (campaign sent within 24hrs)
+  // Campaign context
   let campaignContext = null
   try {
     if (conversation?.campaign_sent_at && conversation?.campaign_message) {
       const hoursSince = (Date.now() - new Date(conversation.campaign_sent_at).getTime()) / 3600000
-      if (hoursSince < 24) {
-        campaignContext = conversation.campaign_message
-      }
+      if (hoursSince < 24) campaignContext = conversation.campaign_message
     }
-  } catch(e) {
-    console.error("⚠️ campaignContext fetch failed:", e.message)
-  }
+  } catch(e) {}
 
   const reply = await orchestrate({
     userId,
@@ -189,19 +196,20 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     campaignContext
   })
 
-  await saveInboundMessage({
-    userId, phoneNumberId, from: msg.from,
-    text: msg.effectiveText || "[" + msg.type + "]",
-    type: msg.type, conversationId: conversation?.id,
-    phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
-  })
+  // Update the pre-inserted message record with final data
+  await supabaseAdmin.from("messages")
+    .update({
+      conversation_id: conversation?.id,
+      status:          "received"
+    })
+    .eq("wa_message_id", msg.messageId)
 
   if (msg.effectiveText) {
     await upsertLead({
       userId, customerId: customer?.id, phone: msg.phone,
       name: msg.contactName, text: msg.effectiveText,
       timestamp: msg.timestamp, isNew
-    }).catch(e => console.error("⚠️ upsertLead failed (non-fatal):", e.message))
+    }).catch(e => console.error("⚠️ upsertLead failed:", e.message))
   }
 
   if (reply) {
@@ -214,7 +222,7 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
       .update({ last_message: reply, last_message_at: new Date().toISOString() })
       .eq("id", conversation?.id)
   } else {
-    console.error("🚨 Orchestrator returned empty reply for msg:", msg.effectiveText)
+    console.error("🚨 Orchestrator returned empty reply:", msg.effectiveText)
   }
 }
 
