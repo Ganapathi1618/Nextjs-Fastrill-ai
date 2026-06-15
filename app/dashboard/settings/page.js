@@ -183,7 +183,8 @@ export default function SettingsPage() {
 
   const [business, setBusiness] = useState({
     business_name:"", business_type:"Salon", phone:"", location:"",
-    maps_link:"", description:"", working_hours:"", website:"", email:""
+    maps_link:"", description:"", working_hours:"", website:"", email:"",
+    ai_enabled:true
   })
   const [ai, setAi] = useState({
     ai_language:"English", ai_instructions:"", greeting_message:"",
@@ -402,7 +403,8 @@ export default function SettingsPage() {
   async function deleteService(id) {
     if (!confirm("Delete this service?")) return
     const supabase = getSupabase()
-    await supabase.from("services").delete().eq("id", id)
+    const { error } = await supabase.from("services").delete().eq("id", id)
+    if (error) { showToast("Delete failed: " + error.message, "error"); return }
     setServices(s => s.filter(x => x.id !== id))
     showToast("Deleted")
   }
@@ -799,6 +801,30 @@ export default function SettingsPage() {
                       </select>
                     </div>
 
+                    <div className="tog-row" style={{borderBottom:`2px solid ${business.ai_enabled===false?"#ef444433":accent+"33"}`,marginBottom:8,background:business.ai_enabled===false?"rgba(239,68,68,0.06)":"transparent",borderRadius:8,padding:"12px 10px"}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:13,color:business.ai_enabled===false?"#ef4444":text}}>
+                          {business.ai_enabled===false?"🔴 AI is PAUSED":"🟢 AI Assistant"}
+                        </div>
+                        <div style={{fontSize:11.5,color:textMuted}}>
+                          {business.ai_enabled===false
+                            ? "AI is not replying to ANY customer right now"
+                            : "Turn off to pause AI replies across ALL conversations instantly"}
+                        </div>
+                      </div>
+                      <button className="tog" style={{background:business.ai_enabled!==false?accent:"#ef4444"}}
+                        onClick={async()=>{
+                          const newVal = business.ai_enabled===false ? true : false
+                          setBusiness(b=>({...b,ai_enabled:newVal}))
+                          const supabase = getSupabase()
+                          const { error } = await supabase.from("business_settings").update({ai_enabled:newVal}).eq("user_id",userId)
+                          if (error) { showToast("Failed to update: "+error.message,"error"); setBusiness(b=>({...b,ai_enabled:!newVal})); return }
+                          showToast(newVal?"AI turned ON ✓":"AI paused — no replies will be sent")
+                        }}>
+                        <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:business.ai_enabled!==false?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
+                      </button>
+                    </div>
+
                     <div className="tog-row">
                       <div>
                         <div style={{fontWeight:600,fontSize:13,color:text}}>Auto Booking</div>
@@ -808,6 +834,7 @@ export default function SettingsPage() {
                         <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:ai.auto_booking?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
                       </button>
                     </div>
+
 
                     <div className="tog-row" style={{marginBottom:14}}>
                       <div>
