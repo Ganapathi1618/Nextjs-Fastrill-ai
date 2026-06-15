@@ -126,6 +126,22 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
 
   if (conversation?.ai_enabled === false) return
 
+  // ── GLOBAL AI MASTER SWITCH ────────────────────────────────
+  // Business-level kill switch — pauses AI for ALL conversations
+  // at once, separate from per-chat ai_enabled toggle above
+  try {
+    const { data: bizFlag } = await supabaseAdmin
+      .from("business_settings")
+      .select("ai_enabled")
+      .eq("user_id", userId)
+      .maybeSingle()
+    if (bizFlag?.ai_enabled === false) {
+      console.log("⏸️ AI globally paused for user:", userId)
+      return
+    }
+  } catch(e) {}
+
+
   try {
     await stopEnrollment({ leadPhone: msg.phone, userId, reason: "replied" })
   } catch(e) {}
