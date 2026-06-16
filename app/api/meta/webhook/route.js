@@ -70,18 +70,15 @@ async function POST(req) {
     }
 
     // ── RESPOND TO META INSTANTLY ──────────────────────────────
-    // Meta requires 200 OK within 20 seconds or it retries
-    // Process messages in background AFTER returning 200
-    // This prevents timeout errors causing rule-based fallback
-    const responsePromise = NextResponse.json({ status: "ok" })
+    for (const message of messages) {
+      try {
+        await processMessage({ message, contacts, userId: connection.user_id, accessToken: connection.access_token, phoneNumberId })
+      } catch(e) {
+        console.error("❌ processMessage error:", e.message)
+      }
+    }
 
-    // Fire-and-forget background processing
-    Promise.all(messages.map(message =>
-      processMessage({ message, contacts, userId: connection.user_id, accessToken: connection.access_token, phoneNumberId })
-        .catch(e => console.error("❌ processMessage error:", e.message))
-    )).catch(e => console.error("❌ background processing error:", e.message))
-
-    return responsePromise
+    return NextResponse.json({ status: "ok" })
   } catch(err) {
     console.error("❌ Webhook fatal:", err.message)
     return NextResponse.json({ status: "error" }, { status: 200 })
