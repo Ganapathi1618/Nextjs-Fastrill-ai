@@ -1,8 +1,8 @@
 // app/api/meta/webhook/route.js
-// FIXES IN THIS FILE:
-// 1. saveInbound uses msg.dbMessageType (button/interactive → "text") — fixes DB constraint error
-// 2. Campaign button reply context — BOOK NOW taps now trigger AI with campaign context
-// 3. replied_count incremented on campaigns table when customer replies to a campaign
+// FIX: Removed aggressive button-tap campaign detection that was
+// picking up reminder template confirmations and treating them as campaigns
+// Now only uses campaign context when conversation.campaign_sent_at is set
+// which only happens when a CAMPAIGN (not reminder) is sent
 
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
@@ -77,7 +77,12 @@ async function POST(req) {
 
     for (const message of messages) {
       try {
-        await processMessage({ message, contacts, userId: connection.user_id, accessToken: connection.access_token, phoneNumberId })
+        await processMessage({
+          message, contacts,
+          userId: connection.user_id,
+          accessToken: connection.access_token,
+          phoneNumberId
+        })
       } catch(e) {
         console.error("❌ processMessage error:", e.message)
       }
@@ -95,7 +100,10 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
 
   if (await isDuplicate(msg.messageId)) return
 
-  if (isRateLimited(msg.phone)) { console.error("🚫 Rate limited:", msg.phone); return }
+  if (isRateLimited(msg.phone)) {
+    console.error("🚫 Rate limited:", msg.phone)
+    return
+  }
 
   const { customer, isNew } = await upsertCustomer({
     userId, phone: msg.phone, name: msg.contactName, timestamp: msg.timestamp
@@ -106,8 +114,7 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     text: msg.effectiveText, timestamp: msg.timestamp
   })
 
-  // FIX 1: Use msg.dbMessageType — normalizer maps button/interactive → "text"
-  // Fixes: "messages_message_type_check" DB constraint violation on BOOK NOW taps
+  // FIX: Use dbMessageType — maps button/interactive → "text" for DB constraint
   const saved = await saveInboundMessage({
     userId, phoneNumberId, from: msg.from,
     text: msg.effectiveText || "[" + msg.type + "]",
@@ -122,9 +129,17 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
   }
 
   if (msg.isText) {
-    const compliance = await handleCompliance({ userId, phone: msg.phone, text: msg.effectiveText, conversationId: conversation?.id })
+    const compliance = await handleCompliance({
+      userId, phone: msg.phone,
+      text: msg.effectiveText,
+      conversationId: conversation?.id
+    })
     if (compliance.action) {
-      await sendAndSave({ phoneNumberId, accessToken, to: msg.from, message: compliance.reply, userId, conversationId: conversation?.id, isAI: true })
+      await sendAndSave({
+        phoneNumberId, accessToken, to: msg.from,
+        message: compliance.reply, userId,
+        conversationId: conversation?.id, isAI: true
+      })
       return
     }
   }
@@ -148,57 +163,22 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     await stopEnrollment({ leadPhone: msg.phone, userId, reason: "replied" })
   } catch(e) {}
 
-  // FIX 2 + FIX 3: Campaign context detection + replied_count increment
+  // ── CAMPAIGN CONTEXT ─────────────────────────────────────────
+  // ONLY set campaignContext when conversation.campaign_sent_at exists
+  // This field is set ONLY when a marketing campaign is sent via campaigns page
+  // It is NOT set by appointment reminders (cron/appointment-reminders/route.js)
+  // This prevents reminder CONFIRM taps from being treated as campaign replies
   let campaignContext = null
-  let activeCampaignId = null
 
   try {
-    // Check if this conversation has a recent campaign send
     if (conversation?.campaign_sent_at && conversation?.campaign_message) {
       const hoursSince = (Date.now() - new Date(conversation.campaign_sent_at).getTime()) / 3600000
       if (hoursSince < 48) {
         campaignContext = conversation.campaign_message
-      }
-    }
+        console.log("📢 Campaign context loaded — hours since send:", Math.round(hoursSince))
 
-    // FIX 2: If customer tapped a CTA button (BOOK NOW etc.) and no campaign_sent_at,
-    // detect via recent outbound template message in this conversation
-    if (!campaignContext && (msg.type === "button" || msg.type === "interactive")) {
-      const { data: recentTemplate } = await supabaseAdmin
-        .from("messages")
-        .select("message_text, created_at")
-        .eq("conversation_id", conversation?.id)
-        .eq("direction", "outbound")
-        .eq("message_type", "template")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (recentTemplate) {
-        const hoursSince = (Date.now() - new Date(recentTemplate.created_at).getTime()) / 3600000
-        if (hoursSince < 48) {
-          campaignContext = recentTemplate.message_text
-          console.log("📢 Button reply detected — campaign context loaded")
-        }
-      }
-    }
-
-    // FIX 3: Increment replied_count on the campaigns table
-    // Find the most recent campaign sent to this phone number
-    // that hasn't already counted this phone as replied
-    if (campaignContext || msg.type === "button" || msg.type === "interactive") {
-      const { data: recentCampaign } = await supabaseAdmin
-        .from("campaigns")
-        .select("id, replied_count, wa_message_ids")
-        .eq("user_id", userId)
-        .in("status", ["done", "completed", "live"])
-        .order("sent_at", { ascending: false })
-        .limit(5)
-
-      if (recentCampaign?.length) {
-        // Find which campaign this customer received — match by wa_message_ids
-        // wa_message_ids is an array of message IDs sent in that campaign
-        // Check if any recent campaign was sent within last 48 hours
+        // Increment replied_count on the campaign that was sent to this customer
+        // Only when we have confirmed campaign context (not reminders)
         const cutoff = new Date(Date.now() - 48 * 3600000).toISOString()
         const { data: matchedCampaign } = await supabaseAdmin
           .from("campaigns")
@@ -211,8 +191,6 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
           .maybeSingle()
 
         if (matchedCampaign) {
-          activeCampaignId = matchedCampaign.id
-          // Increment replied_count — use supabase increment via raw SQL update
           await supabaseAdmin
             .from("campaigns")
             .update({ replied_count: (matchedCampaign.replied_count || 0) + 1 })
@@ -221,8 +199,11 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
         }
       }
     }
+    // NOTE: Removed the aggressive button-tap detection that was here before
+    // That code picked up reminder template CONFIRM taps and treated them as campaigns
+    // causing duplicate bookings from old booking data
   } catch(e) {
-    console.warn("⚠️ Campaign context/count error:", e.message)
+    console.warn("⚠️ Campaign context error:", e.message)
   }
 
   const reply = await orchestrate({
@@ -240,7 +221,11 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
   }
 
   if (reply) {
-    await sendAndSave({ phoneNumberId, accessToken, to: msg.from, message: reply, userId, conversationId: conversation?.id, isAI: true })
+    await sendAndSave({
+      phoneNumberId, accessToken, to: msg.from,
+      message: reply, userId,
+      conversationId: conversation?.id, isAI: true
+    })
     await supabaseAdmin.from("conversations")
       .update({ last_message: reply, last_message_at: new Date().toISOString() })
       .eq("id", conversation?.id)
