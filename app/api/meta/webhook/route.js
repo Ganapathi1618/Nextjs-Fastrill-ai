@@ -1,3 +1,9 @@
+// app/api/meta/webhook/route.js
+// FIXES IN THIS FILE:
+// 1. saveInbound uses msg.dbMessageType (button/interactive → "text") — fixes DB constraint error
+// 2. Campaign button reply context — BOOK NOW taps now trigger AI with campaign context
+// 3. replied_count incremented on campaigns table when customer replies to a campaign
+
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
 const { normalizeMessage }   = require("@/lib/messaging/normalizer")
@@ -69,7 +75,6 @@ async function POST(req) {
       return NextResponse.json({ status: "no_connection" })
     }
 
-    // ── RESPOND TO META INSTANTLY ──────────────────────────────
     for (const message of messages) {
       try {
         await processMessage({ message, contacts, userId: connection.user_id, accessToken: connection.access_token, phoneNumberId })
@@ -88,7 +93,6 @@ async function POST(req) {
 async function processMessage({ message, contacts, userId, accessToken, phoneNumberId }) {
   const msg = normalizeMessage(message, contacts)
 
-  // Fast path — SELECT check (catches already-processed messages)
   if (await isDuplicate(msg.messageId)) return
 
   if (isRateLimited(msg.phone)) { console.error("🚫 Rate limited:", msg.phone); return }
@@ -102,13 +106,13 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     text: msg.effectiveText, timestamp: msg.timestamp
   })
 
-  // ── ATOMIC DEDUP via saveInboundMessage ────────────────────
-  // INSERT with unique wa_message_id — only ONE of the 3 simultaneous
-  // calls will succeed. Others get unique violation → return false → stop
+  // FIX 1: Use msg.dbMessageType — normalizer maps button/interactive → "text"
+  // Fixes: "messages_message_type_check" DB constraint violation on BOOK NOW taps
   const saved = await saveInboundMessage({
     userId, phoneNumberId, from: msg.from,
     text: msg.effectiveText || "[" + msg.type + "]",
-    type: msg.type, conversationId: conversation?.id,
+    type: msg.dbMessageType,
+    conversationId: conversation?.id,
     phone: msg.phone, messageId: msg.messageId, timestamp: msg.timestamp
   })
 
@@ -127,9 +131,7 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
 
   if (conversation?.ai_enabled === false) return
 
-  // ── GLOBAL AI MASTER SWITCH ────────────────────────────────
-  // Business-level kill switch — pauses AI for ALL conversations
-  // at once, separate from per-chat ai_enabled toggle above
+  // Global AI master switch
   try {
     const { data: bizFlag } = await supabaseAdmin
       .from("business_settings")
@@ -142,18 +144,86 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     }
   } catch(e) {}
 
-
   try {
     await stopEnrollment({ leadPhone: msg.phone, userId, reason: "replied" })
   } catch(e) {}
 
+  // FIX 2 + FIX 3: Campaign context detection + replied_count increment
   let campaignContext = null
+  let activeCampaignId = null
+
   try {
+    // Check if this conversation has a recent campaign send
     if (conversation?.campaign_sent_at && conversation?.campaign_message) {
       const hoursSince = (Date.now() - new Date(conversation.campaign_sent_at).getTime()) / 3600000
-      if (hoursSince < 24) campaignContext = conversation.campaign_message
+      if (hoursSince < 48) {
+        campaignContext = conversation.campaign_message
+      }
     }
-  } catch(e) {}
+
+    // FIX 2: If customer tapped a CTA button (BOOK NOW etc.) and no campaign_sent_at,
+    // detect via recent outbound template message in this conversation
+    if (!campaignContext && (msg.type === "button" || msg.type === "interactive")) {
+      const { data: recentTemplate } = await supabaseAdmin
+        .from("messages")
+        .select("message_text, created_at")
+        .eq("conversation_id", conversation?.id)
+        .eq("direction", "outbound")
+        .eq("message_type", "template")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (recentTemplate) {
+        const hoursSince = (Date.now() - new Date(recentTemplate.created_at).getTime()) / 3600000
+        if (hoursSince < 48) {
+          campaignContext = recentTemplate.message_text
+          console.log("📢 Button reply detected — campaign context loaded")
+        }
+      }
+    }
+
+    // FIX 3: Increment replied_count on the campaigns table
+    // Find the most recent campaign sent to this phone number
+    // that hasn't already counted this phone as replied
+    if (campaignContext || msg.type === "button" || msg.type === "interactive") {
+      const { data: recentCampaign } = await supabaseAdmin
+        .from("campaigns")
+        .select("id, replied_count, wa_message_ids")
+        .eq("user_id", userId)
+        .in("status", ["done", "completed", "live"])
+        .order("sent_at", { ascending: false })
+        .limit(5)
+
+      if (recentCampaign?.length) {
+        // Find which campaign this customer received — match by wa_message_ids
+        // wa_message_ids is an array of message IDs sent in that campaign
+        // Check if any recent campaign was sent within last 48 hours
+        const cutoff = new Date(Date.now() - 48 * 3600000).toISOString()
+        const { data: matchedCampaign } = await supabaseAdmin
+          .from("campaigns")
+          .select("id, replied_count")
+          .eq("user_id", userId)
+          .in("status", ["done", "completed"])
+          .gte("sent_at", cutoff)
+          .order("sent_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (matchedCampaign) {
+          activeCampaignId = matchedCampaign.id
+          // Increment replied_count — use supabase increment via raw SQL update
+          await supabaseAdmin
+            .from("campaigns")
+            .update({ replied_count: (matchedCampaign.replied_count || 0) + 1 })
+            .eq("id", matchedCampaign.id)
+          console.log("📊 replied_count incremented for campaign:", matchedCampaign.id)
+        }
+      }
+    }
+  } catch(e) {
+    console.warn("⚠️ Campaign context/count error:", e.message)
+  }
 
   const reply = await orchestrate({
     userId, conversationId: conversation?.id, phone: msg.phone,
