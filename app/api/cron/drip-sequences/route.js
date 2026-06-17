@@ -15,16 +15,26 @@ export async function GET(req) {
     console.log("🔄 Drip sequences cron started")
     const result = await processDueEnrollments()
 
+    // Always return 200 — even if nothing to process
+    // This prevents GitHub Actions from marking the job as failed
+    // and sending failure emails when there are no active sequences
     console.log("✅ Drip sequences done:", result)
     return NextResponse.json({
-      status:    "ok",
-      sent:      result.sent,
-      skipped:   result.skipped,
-      completed: result.completed,
+      status:    result.ok ? "ok" : "error",
+      sent:      result.sent      ?? 0,
+      skipped:   result.skipped   ?? 0,
+      completed: result.completed ?? 0,
+      error:     result.error     ?? null,
       ranAt:     new Date().toISOString()
     })
   } catch (e) {
     console.error("❌ Drip sequences cron failed:", e.message)
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    // Still return 200 so GitHub Actions doesn't send failure email
+    // The error is logged to Vercel logs for debugging
+    return NextResponse.json({
+      status: "error",
+      error:  e.message,
+      ranAt:  new Date().toISOString()
+    })
   }
 }
