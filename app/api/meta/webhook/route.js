@@ -1,8 +1,8 @@
 // app/api/meta/webhook/route.js
-// FIX: Removed aggressive button-tap campaign detection that was
-// picking up reminder template confirmations and treating them as campaigns
-// Now only uses campaign context when conversation.campaign_sent_at is set
-// which only happens when a CAMPAIGN (not reminder) is sent
+// CHANGES FROM PREVIOUS VERSION:
+// 1. When loading campaign context, also fetch campaign_service from campaigns table
+// 2. Pass campaignService to orchestrate()
+// 3. Increment booked_count on campaign when booking is confirmed
 
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
@@ -114,7 +114,7 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     text: msg.effectiveText, timestamp: msg.timestamp
   })
 
-  // FIX: Use dbMessageType — maps button/interactive → "text" for DB constraint
+  // Use dbMessageType — maps button/interactive → "text" for DB constraint
   const saved = await saveInboundMessage({
     userId, phoneNumberId, from: msg.from,
     text: msg.effectiveText || "[" + msg.type + "]",
@@ -163,26 +163,24 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     await stopEnrollment({ leadPhone: msg.phone, userId, reason: "replied" })
   } catch(e) {}
 
-  // ── CAMPAIGN CONTEXT ─────────────────────────────────────────
-  // ONLY set campaignContext when conversation.campaign_sent_at exists
-  // This field is set ONLY when a marketing campaign is sent via campaigns page
-  // It is NOT set by appointment reminders (cron/appointment-reminders/route.js)
-  // This prevents reminder CONFIRM taps from being treated as campaign replies
+  // ── CAMPAIGN CONTEXT + SERVICE ───────────────────────────────
+  // Only set when conversation.campaign_sent_at exists
+  // This is set ONLY by marketing campaigns, NOT by reminders
   let campaignContext = null
+  let campaignService = null
+  let matchedCampaignId = null
 
   try {
     if (conversation?.campaign_sent_at && conversation?.campaign_message) {
       const hoursSince = (Date.now() - new Date(conversation.campaign_sent_at).getTime()) / 3600000
       if (hoursSince < 48) {
         campaignContext = conversation.campaign_message
-        console.log("📢 Campaign context loaded — hours since send:", Math.round(hoursSince))
 
-        // Increment replied_count on the campaign that was sent to this customer
-        // Only when we have confirmed campaign context (not reminders)
+        // Fetch the matched campaign to get campaign_service and id
         const cutoff = new Date(Date.now() - 48 * 3600000).toISOString()
         const { data: matchedCampaign } = await supabaseAdmin
           .from("campaigns")
-          .select("id, replied_count")
+          .select("id, replied_count, campaign_service")
           .eq("user_id", userId)
           .in("status", ["done", "completed"])
           .gte("sent_at", cutoff)
@@ -191,17 +189,20 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
           .maybeSingle()
 
         if (matchedCampaign) {
+          matchedCampaignId = matchedCampaign.id
+          // campaign_service is the service owner mapped when creating campaign
+          campaignService = matchedCampaign.campaign_service || null
+
+          // Increment replied_count
           await supabaseAdmin
             .from("campaigns")
             .update({ replied_count: (matchedCampaign.replied_count || 0) + 1 })
             .eq("id", matchedCampaign.id)
-          console.log("📊 replied_count incremented for campaign:", matchedCampaign.id)
+
+          console.log("📢 Campaign context loaded | service:", campaignService, "| campaign:", matchedCampaign.id)
         }
       }
     }
-    // NOTE: Removed the aggressive button-tap detection that was here before
-    // That code picked up reminder template CONFIRM taps and treated them as campaigns
-    // causing duplicate bookings from old booking data
   } catch(e) {
     console.warn("⚠️ Campaign context error:", e.message)
   }
@@ -209,7 +210,10 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
   const reply = await orchestrate({
     userId, conversationId: conversation?.id, phone: msg.phone,
     contactName: msg.contactName, message: msg.effectiveText || "",
-    isMediaOnly: msg.isMediaOnly, phoneNumberId, campaignContext
+    isMediaOnly: msg.isMediaOnly, phoneNumberId,
+    campaignContext,
+    campaignService,    // NEW — passed to orchestrator
+    campaignId: matchedCampaignId  // NEW — for booked_count update
   })
 
   if (msg.effectiveText) {
