@@ -18,7 +18,7 @@ const NAV = [
 ]
 
 export default function Dashboard() {
-  usePlanGuard()  
+  usePlanGuard()
   const router = useRouter()
   const toast  = useToast()
 
@@ -69,8 +69,6 @@ export default function Dashboard() {
         supabase.from("customers").select("tag,source,created_at").eq("user_id",userId).limit(5000),
       ])
 
-      // ── ONBOARDING REDIRECT ──────────────────────────────────
-      // New users who haven't set up their business yet
       if (!biz?.business_name) {
         router.push("/onboarding")
         return
@@ -117,9 +115,14 @@ export default function Dashboard() {
 
   const toggleTheme = ()=>{ const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
   const handleLogout = async()=>{ try{ await supabase.auth.signOut(); router.push("/login") } catch(e){ toast.error("Sign out failed") } }
-  const handleConnect = ()=>{
-    const appId="780799931531576",configId="1090960043190718",redirectUri="https://fastrill.com/api/meta/callback"
-    window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}`
+
+  // FIX: handleConnect now uses env vars + passes userId as state for multi-tenant
+  const handleConnect = () => {
+    const appId      = process.env.NEXT_PUBLIC_META_APP_ID    || "780799931531576"
+    const configId   = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1090960043190718"
+    const appUrl     = process.env.NEXT_PUBLIC_APP_URL        || "https://fastrill.com"
+    const redirectUri = appUrl + "/api/meta/callback"
+    window.location.href = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}&state=${userId}`
   }
 
   const bg=dark?"#08080e":"#f0f2f5", sb=dark?"#0c0c15":"#ffffff", card=dark?"#0f0f1a":"#ffffff"
