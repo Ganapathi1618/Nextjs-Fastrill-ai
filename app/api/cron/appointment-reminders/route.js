@@ -1,4 +1,8 @@
 // app/api/cron/appointment-reminders/route.js
+// FIX: Removed setCampaignContext call after sending reminders
+// Setting campaign_sent_at on reminder sends was causing reminder CONFIRM
+// button taps to be treated as campaign replies → duplicate bookings
+
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
@@ -112,21 +116,6 @@ function buildReminderMessage(name, service, dateStr, timeStr, bizName, type) {
   ].filter(Boolean).join("\n")
 }
 
-// Set campaign context on conversation so AI handles replies correctly
-async function setCampaignContext(userId, customerPhone, message) {
-  try {
-    await supabaseAdmin.from("conversations")
-      .update({
-        campaign_sent_at: new Date().toISOString(),
-        campaign_message: message
-      })
-      .eq("user_id", userId)
-      .eq("phone", customerPhone)
-  } catch(e) {
-    console.warn("⚠️ setCampaignContext failed:", e.message)
-  }
-}
-
 export async function GET(req) {
   const authHeader = req.headers.get("authorization")
   if (authHeader !== "Bearer " + process.env.CRON_SECRET) {
@@ -191,7 +180,7 @@ export async function GET(req) {
           .eq("reminder_sent", false)
 
         if (err24) console.error("❌ bookings24 query error:", err24.message)
-        console.log("📋 bookings24 found:", bookings24?.length || 0, JSON.stringify(bookings24))
+        console.log("📋 bookings24 found:", bookings24?.length || 0)
 
         for (const booking of (bookings24 || [])) {
           const pref = booking.reminder_preference || "24hrs"
@@ -215,8 +204,13 @@ export async function GET(req) {
             await supabaseAdmin.from("bookings")
               .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
               .eq("id", booking.id)
-            // Set campaign context so AI handles replies correctly
-            await setCampaignContext(biz.user_id, booking.customer_phone, message)
+
+            // FIX: Do NOT set campaign_sent_at on conversations for reminders
+            // Previously this was calling setCampaignContext() here which caused
+            // reminder CONFIRM taps to be treated as campaign replies
+            // → creating duplicate bookings from old booking data
+            // Reminders are NOT campaigns — do not pollute campaign context
+
             totalSent++
             console.log("✅ Reminder sent to:", booking.customer_phone)
           } else {
@@ -260,8 +254,10 @@ export async function GET(req) {
           await supabaseAdmin.from("bookings")
             .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
             .eq("id", booking.id)
-          // Set campaign context so AI handles replies correctly
-          await setCampaignContext(biz.user_id, booking.customer_phone, message)
+
+          // FIX: Do NOT set campaign_sent_at for reminders
+          // Same reason as above — reminders are not campaigns
+
           totalSent++
         } else {
           totalSkipped++
