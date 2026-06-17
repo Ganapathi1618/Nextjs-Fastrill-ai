@@ -33,9 +33,8 @@ const META_COST = {
   SERVICE:        0.29,
 }
 
-// Smart variable labels by position — based on common WhatsApp template patterns
 const SMART_LABELS = {
-  "1": { label:"Customer Name",   hint:"Auto-filled per recipient — personalised per send", auto:true },
+  "1": { label:"Customer Name",   hint:"Auto-filled per recipient", auto:true },
   "2": { label:"Business Name",   hint:"e.g. Priya Beauty Salon" },
   "3": { label:"Date",            hint:"e.g. Saturday, 24 May" },
   "4": { label:"Time",            hint:"e.g. 3:00 PM" },
@@ -74,6 +73,15 @@ export default function Campaigns() {
   const [dark,      setDark]      = useState(true)
   const [mobOpen,   setMobOpen]   = useState(false)
 
+  // Plan gate
+  const [planLocked, setPlanLocked] = useState(false)
+
+  // History highlight
+  const [lastSentCampId, setLastSentCampId] = useState(null)
+
+  // Avg service value for ROI calc
+  const [avgServiceValue, setAvgServiceValue] = useState(1200)
+
   // Data
   const [customers,  setCustomers]  = useState([])
   const [optouts,    setOptouts]    = useState([])
@@ -109,7 +117,6 @@ export default function Campaigns() {
   const [sentCount, setSentCount] = useState(0)
   const [failCount, setFailCount] = useState(0)
 
-  // Pending draft to load after templates fetch
   const pendingDraftRef = useRef(null)
 
   useEffect(() => {
@@ -124,7 +131,13 @@ export default function Campaigns() {
   useEffect(() => { if (userId) init() }, [userId])
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
-  // FIX: When templates load, check if there's a pending draft to open
+  // Clear highlight after 4 seconds
+  useEffect(()=>{
+    if (!lastSentCampId) return
+    const t = setTimeout(()=>setLastSentCampId(null), 4000)
+    return ()=>clearTimeout(t)
+  }, [lastSentCampId])
+
   useEffect(() => {
     if (templates.length > 0 && pendingDraftRef.current) {
       const tmplName = pendingDraftRef.current
@@ -137,20 +150,37 @@ export default function Campaigns() {
   async function init() {
     setLoading(true)
     try {
-      const [{ data:custs }, { data:wa }, { data:biz }] = await Promise.all([
+      const [{ data:custs }, { data:wa }, { data:biz }, { data:bks }] = await Promise.all([
         supabase.from("customers").select("id,name,phone,tag,last_visit_at,created_at").eq("user_id",userId),
         supabase.from("whatsapp_connections").select("*").eq("user_id",userId).maybeSingle(),
-        supabase.from("business_settings").select("business_name").eq("user_id",userId).maybeSingle(),
+        supabase.from("business_settings").select("business_name,campaigns_enabled,plan").eq("user_id",userId).maybeSingle(),
+        supabase.from("bookings").select("amount").eq("user_id",userId).in("status",["confirmed","completed"]).limit(200),
       ])
+
       setCustomers(custs||[])
       const bn = biz?.business_name||""
       setBizName(bn)
       if (bn) setTmplVals(p=>({...p, business_name:bn}))
+
+      // Plan gate
+      if (biz && !biz.campaigns_enabled) {
+        setPlanLocked(true)
+      }
+
+      // Calculate actual avg service value for ROI
+      if (bks?.length > 0) {
+        const total = bks.reduce((s,b)=>s+(b.amount||0), 0)
+        const avg = Math.round(total / bks.length)
+        if (avg > 0) setAvgServiceValue(avg)
+      }
+
       try {
         const { data:opts } = await supabase.from("campaign_optouts").select("phone").eq("user_id",userId)
         setOptouts((opts||[]).map(o=>o.phone))
       } catch(e) {}
+
       await loadHistory()
+
       if (wa) {
         setWhatsapp(wa)
         await fetchMetaTemplates(wa)
@@ -201,13 +231,11 @@ export default function Campaigns() {
       if (usable.length===0) { setTmplError("no_templates"); setTmplLoading(false); return }
       setTemplates(usable.map(t=>parseTemplate(t)))
     } catch(e) {
-      console.error("fetchMetaTemplates error:", e.message)
       setTmplError("Failed to load templates: "+e.message)
     }
     setTmplLoading(false)
   }
 
-  // FIX: Parse template with smart labels + extract header vars separately
   function parseTemplate(t) {
     const components = t.components || []
     const bodyComp   = components.find(c=>c.type==="BODY")
@@ -217,31 +245,27 @@ export default function Campaigns() {
     const headerText = headerComp?.text || ""
     const footerText = footerComp?.text || ""
 
-    // FIX: Extract vars from BOTH header and body — deduplicated and sorted
     const allText    = headerText + " " + bodyText
     const varMatches = allText.match(/\{\{(\d+)\}\}/g) || []
     const varNums    = [...new Set(varMatches.map(m=>m.replace(/\D/g,"")))]
       .sort((a,b)=>parseInt(a)-parseInt(b))
 
-    // FIX: Use smart labels based on position
     const vars = varNums.map(num => {
-  // Extract surrounding text from template to show as context hint
-  const allTemplateText = headerText + " " + bodyText
-  const contextMatch = allTemplateText.match(
-    new RegExp('.{0,25}\\{\\{'+num+'\\}\\}.{0,25}')
-  )
-  const context = contextMatch
-    ? contextMatch[0].replace(/\{\{[0-9]+\}\}/g, "___").trim()
-    : null
-
-  return {
-    key:   "var_"+num,
-    label: num==="1" ? "Customer Name" : "Variable {{"+num+"}}",
-    hint:  context || "Value for {{"+num+"}}",
-    auto:  num==="1",
-    num,
-  }
-})
+      const allTemplateText = headerText + " " + bodyText
+      const contextMatch = allTemplateText.match(
+        new RegExp('.{0,25}\\{\\{'+num+'\\}\\}.{0,25}')
+      )
+      const context = contextMatch
+        ? contextMatch[0].replace(/\{\{[0-9]+\}\}/g, "___").trim()
+        : null
+      return {
+        key:   "var_"+num,
+        label: num==="1" ? "Customer Name" : "Variable {{"+num+"}}",
+        hint:  context || "Value for {{"+num+"}}",
+        auto:  num==="1",
+        num,
+      }
+    })
 
     const metaCost = META_COST[t.category] || 0.83
 
@@ -312,43 +336,64 @@ export default function Campaigns() {
     return pool.filter(c=>!optouts.includes(dedupe(c.phone)))
   }
 
+  // ── ANALYTICS MATH ──────────────────────────────────────────
   function getDashboardStats() {
     const completed  = history.filter(c=>c.status==="done"||c.status==="completed")
     const totalSent  = completed.reduce((a,c)=>a+(c.sent_count||0),0)
     const totalDlv   = completed.reduce((a,c)=>a+(c.delivered_count||0),0)
     const totalRead  = completed.reduce((a,c)=>a+(c.read_count||0),0)
-    const totalReply = completed.reduce((a,c)=>a+Math.min(c.replied_count||0,c.sent_count||0),0)
+    // FIX: use actual replied_count from DB (incremented by webhook)
+    const totalReply = completed.reduce((a,c)=>a+(c.replied_count||0),0)
     const totalCost  = completed.reduce((a,c)=>{
       const tmpl = templates.find(t=>t.template_name===c.template_name)
       return a+(c.sent_count||0)*(tmpl?.metaCost||0.83)
     },0)
-    const deliveryRate = totalSent>0?Math.min(100,Math.round((totalDlv/totalSent)*100)):0
-    const readRate     = totalSent>0?Math.min(100,Math.round((totalRead/totalSent)*100)):0
-    const replyRate    = totalSent>0?Math.min(100,Math.round((totalReply/totalSent)*100)):0
-    const estBookings  = Math.round(totalReply*0.6)
-    const estRevenue   = estBookings*1200
-    const costFixed    = parseFloat(totalCost.toFixed(2))
-    const roi = (costFixed>0&&totalSent>=10)
-      ? Math.min(Math.round(((estRevenue-costFixed)/costFixed)*100),9999) : 0
+
+    // Rates — safe division, capped at 100%
+    const deliveryRate = totalSent>0 ? Math.min(100,Math.round((totalDlv/totalSent)*100))  : 0
+    const readRate     = totalSent>0 ? Math.min(100,Math.round((totalRead/totalSent)*100))  : 0
+    const replyRate    = totalSent>0 ? Math.min(100,Math.round((totalReply/totalSent)*100)) : 0
+
+    // Revenue estimate using actual avg service value from business bookings
+    const estBookings = Math.round(totalReply * 0.6)  // 60% of replies convert to booking
+    const estRevenue  = estBookings * avgServiceValue
+
+    const costFixed   = parseFloat(totalCost.toFixed(2))
+
+    // ROI only meaningful when >= 10 sends and cost > 0
+    const roi = (costFixed>0 && totalSent>=10)
+      ? Math.min(Math.round(((estRevenue-costFixed)/costFixed)*100), 9999)
+      : 0
+
+    // Cost per reply — only show when replies > 0
+    const costPerReply = totalReply>0 ? parseFloat((costFixed/totalReply).toFixed(2)) : null
+
     return {
-      totalSent,totalDlv,totalRead,totalReply,
-      totalCost:costFixed,deliveryRate,readRate,replyRate,
-      estBookings,estRevenue,roi,campaignCount:completed.length
+      totalSent, totalDlv, totalRead, totalReply,
+      totalCost: costFixed,
+      deliveryRate, readRate, replyRate,
+      estBookings, estRevenue, roi,
+      costPerReply,
+      campaignCount: completed.length
     }
   }
 
+  // Per-campaign ROI calc
   function calcRoi(c) {
-    const sc   = c.sent_count||0
-    const rpl  = Math.min(c.replied_count||0,sc)
-    const tmpl = templates.find(t=>t.template_name===c.template_name)
-    const cost = parseFloat((sc*(tmpl?.metaCost||0.83)).toFixed(2))
-    const bookings = Math.round(rpl*0.6)
-    const revenue  = bookings*1200
-    const roi = (cost>0&&sc>=10)?Math.min(Math.round(((revenue-cost)/cost)*100),9999):0
-    return { cost, bookings, revenue, roi, showRoi:sc>=10 }
+    const sc      = c.sent_count||0
+    const replied = c.replied_count||0  // FIX: use actual replied_count
+    const tmpl    = templates.find(t=>t.template_name===c.template_name)
+    const cost    = parseFloat((sc*(tmpl?.metaCost||0.83)).toFixed(2))
+    const bookings = Math.round(replied*0.6)
+    const revenue  = bookings * avgServiceValue
+
+    // ROI only when >= 10 sends
+    const roi     = (cost>0 && sc>=10) ? Math.min(Math.round(((revenue-cost)/cost)*100), 9999) : 0
+    const replyRt = sc>0 ? Math.min(100, Math.round((replied/sc)*100)) : 0
+
+    return { cost, bookings, revenue, roi, showRoi:sc>=10, replyRate:replyRt, replied }
   }
 
-  // FIX: buildPayload — sends BOTH header and body components correctly
   function buildPayload(customerName, phone) {
     const tmpl = templates.find(t=>t.id===selectedTmplId)
     if (!tmpl) return null
@@ -359,19 +404,16 @@ export default function Campaigns() {
       return String(tmplVals["var_"+num]||"N/A")
     }
 
-    // Extract body variable numbers
     const bodyNums = [...new Set(
       (tmpl.bodyText.match(/\{\{(\d+)\}\}/g)||[]).map(m=>m.replace(/\D/g,""))
     )].sort((a,b)=>parseInt(a)-parseInt(b))
 
-    // Extract header variable numbers
     const headerNums = [...new Set(
       (tmpl.headerText.match(/\{\{(\d+)\}\}/g)||[]).map(m=>m.replace(/\D/g,""))
     )].sort((a,b)=>parseInt(a)-parseInt(b))
 
     const components = []
 
-    // Add header component if template has header variables
     if (headerNums.length > 0) {
       components.push({
         type: "header",
@@ -379,7 +421,6 @@ export default function Campaigns() {
       })
     }
 
-    // Add body component if template has body variables
     if (bodyNums.length > 0) {
       components.push({
         type: "body",
@@ -397,7 +438,6 @@ export default function Campaigns() {
       }
     }
 
-    // Only add components if there are any — Meta rejects empty array
     if (components.length > 0) {
       payload.template.components = components
     }
@@ -485,26 +525,25 @@ export default function Campaigns() {
           { method:"POST", headers:{"Authorization":`Bearer ${whatsapp.access_token}`,"Content-Type":"application/json"}, body:JSON.stringify(payload) }
         )
         const d = await res.json()
-       if (!d.error) {
-  sc++; setSentCount(sc)
-  const waId = d?.messages?.[0]?.id
-  if (waId) waIds.push(waId)
-  try {
-    const { data:convo } = await supabase.from("conversations").select("id").eq("user_id",userId).eq("phone",dedupe(customer.phone)).maybeSingle()
-    await supabase.from("messages").insert({
-      user_id:userId, customer_phone:dedupe(customer.phone),
-      conversation_id:convo?.id||null, direction:"outbound",
-      message_type:"template", message_text:getPreview().substring(0,500),
-      status:"sent", is_ai:false, wa_message_id:waId||null, created_at:now
-    })
-    // Mark conversation as campaign mode for 24hrs
-    if (convo?.id) {
-      await supabase.from("conversations").update({
-        campaign_sent_at: now,
-        campaign_message: getPreview().substring(0,500)
-      }).eq("id", convo.id)
-    }
-  } catch(e) {}
+        if (!d.error) {
+          sc++; setSentCount(sc)
+          const waId = d?.messages?.[0]?.id
+          if (waId) waIds.push(waId)
+          try {
+            const { data:convo } = await supabase.from("conversations").select("id").eq("user_id",userId).eq("phone",dedupe(customer.phone)).maybeSingle()
+            await supabase.from("messages").insert({
+              user_id:userId, customer_phone:dedupe(customer.phone),
+              conversation_id:convo?.id||null, direction:"outbound",
+              message_type:"template", message_text:getPreview().substring(0,500),
+              status:"sent", is_ai:false, wa_message_id:waId||null, created_at:now
+            })
+            if (convo?.id) {
+              await supabase.from("conversations").update({
+                campaign_sent_at: now,
+                campaign_message: getPreview().substring(0,500)
+              }).eq("id", convo.id)
+            }
+          } catch(e) {}
         } else {
           console.error("Send error for", phone, d.error.message)
           fc++; setFailCount(fc)
@@ -518,6 +557,7 @@ export default function Campaigns() {
         sent_count:sc, failed_count:fc, status:"done", wa_message_ids:waIds
       }).eq("id",campId)
       if (waIds.length>0) pollDelivery(campId, waIds)
+      setLastSentCampId(campId) // capture for history highlight
     }
     await loadHistory()
     setSending(false); setStep("done")
@@ -539,7 +579,6 @@ export default function Campaigns() {
     } catch(e) { console.error("saveDraft:", e.message) }
   }
 
-  // FIX: Open draft — handles case where templates not yet loaded
   function openDraft(c) {
     setCampaignName(c.name||"")
     setSegment(c.segment||"all")
@@ -550,7 +589,6 @@ export default function Campaigns() {
       if (tmpl) setSelectedTmplId(tmpl.id)
       else setSelectedTmplId("")
     } else {
-      // Store pending draft — will be resolved in useEffect when templates load
       pendingDraftRef.current = c.template_name
       if (whatsapp) fetchMetaTemplates(whatsapp)
     }
@@ -592,7 +630,6 @@ export default function Campaigns() {
   const selectedTmpl = templates.find(t=>t.id===selectedTmplId)||null
   const audience     = getAudience()
   const previewText  = getPreview()
-  // FIX: nonAutoVars excludes auto-filled vars (customer name)
   const nonAutoVars  = selectedTmpl?.vars.filter(v=>!v.auto)||[]
   const allVarsFilled = nonAutoVars.every(v=>!!tmplVals[v.key])
   const canSend = !!whatsapp&&!!campaignName.trim()&&audience.length>0&&!!selectedTmplId&&allVarsFilled
@@ -606,7 +643,7 @@ export default function Campaigns() {
         .wrap{display:flex;height:100vh;overflow:hidden;}
         .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;transition:transform 0.25s;scrollbar-width:none;}
         .sidebar::-webkit-scrollbar{display:none;}
-        .logo{padding:16px 18px;text-decoration:none;display:flex;align-items:center;gap:10px;border-bottom:1px solid ${bdr};line-height:1;}
+        .logo{padding:16px 18px;text-decoration:none;display:flex;align-items:center;gap:10px;border-bottom:1px solid ${bdr};}
         .navs{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${txf};font-weight:700;}
         .navi{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${dark?"rgba(255,255,255,0.4)":"rgba(0,0,0,0.45)"};font-weight:500;transition:all 0.12s;border:1px solid transparent;background:none;width:calc(100% - 14px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
         .navi:hover{background:${ibg};color:${tx};}
@@ -693,17 +730,19 @@ export default function Campaigns() {
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <button className="hbtn" onClick={()=>setMobOpen(s=>!s)}>☰</button>
               <span style={{fontWeight:700,fontSize:15,color:tx}}>Campaigns</span>
-              <div style={{display:"flex",background:ibg,border:"1px solid "+cbdr,borderRadius:8,padding:2,gap:1,marginLeft:8}}>
-                {[["dashboard","Overview"],["compose","Compose"],["history","History ("+history.length+")"]].map(([v,l])=>(
-                  <button key={v} className={"tb"+(view===v?" on":"")}
-                    onClick={()=>{ setView(v); if(v==="history"||v==="dashboard") loadHistory() }}>
-                    {l}
-                  </button>
-                ))}
-              </div>
+              {!planLocked && (
+                <div style={{display:"flex",background:ibg,border:"1px solid "+cbdr,borderRadius:8,padding:2,gap:1,marginLeft:8}}>
+                  {[["dashboard","Overview"],["compose","Compose"],["history","History ("+history.length+")"]].map(([v,l])=>(
+                    <button key={v} className={"tb"+(view===v?" on":"")}
+                      onClick={()=>{ setView(v); if(v==="history"||v==="dashboard") loadHistory() }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              {!whatsapp&&(
+              {!whatsapp&&!planLocked&&(
                 <div style={{fontSize:12,color:"#fb7185",background:"rgba(251,113,133,0.08)",border:"1px solid rgba(251,113,133,0.2)",borderRadius:7,padding:"5px 12px"}}>
                   ⚠ Connect WhatsApp
                 </div>
@@ -718,15 +757,33 @@ export default function Campaigns() {
             </div>
           </div>
 
+          {/* ── PLAN LOCK SCREEN ── */}
+          {planLocked && (
+            <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:40,gap:16,textAlign:"center"}}>
+              <div style={{fontSize:52,opacity:0.2}}>🔒</div>
+              <div style={{fontWeight:800,fontSize:22,color:tx}}>Campaigns — Pro Plan Only</div>
+              <div style={{fontSize:14,color:txm,maxWidth:420,lineHeight:1.8,marginTop:4}}>
+                WhatsApp bulk campaigns are available on the{" "}
+                <strong style={{color:acc}}>Pro plan (₹3,999/month)</strong>.
+                Upgrade to reach all your customers with personalised broadcasts.
+              </div>
+              <button
+                onClick={()=>router.push("/dashboard/settings")}
+                style={{padding:"13px 32px",borderRadius:10,background:acc,border:"none",color:"#000",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",marginTop:12}}>
+                Upgrade to Pro →
+              </button>
+            </div>
+          )}
+
           {/* ── DASHBOARD ── */}
-          {view==="dashboard"&&(()=>{
+          {!planLocked && view==="dashboard"&&(()=>{
             const s = getDashboardStats()
             return (
               <div style={{flex:1,overflow:"auto",padding:28}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
                   <div>
                     <div style={{fontWeight:800,fontSize:22,color:tx}}>Campaign Performance</div>
-                    <div style={{fontSize:13,color:txf,marginTop:3}}>{s.campaignCount} campaigns · Real-time delivery tracking</div>
+                    <div style={{fontSize:13,color:txf,marginTop:3}}>{s.campaignCount} campaigns · Real-time tracking</div>
                   </div>
                   <button onClick={()=>{ setView("compose"); setStep("setup") }}
                     style={{padding:"10px 24px",borderRadius:10,background:acc,border:"none",color:"#000",fontSize:13.5,fontWeight:700,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
@@ -734,6 +791,7 @@ export default function Campaigns() {
                   </button>
                 </div>
 
+                {/* 4 KPI cards including reply rate */}
                 <div className="dash-kpi">
                   {[
                     {label:"Total Sent",    val:s.totalSent.toLocaleString(), sub:"messages",              color:tx,        icon:"📤"},
@@ -749,6 +807,7 @@ export default function Campaigns() {
                   ))}
                 </div>
 
+                {/* Revenue impact */}
                 <div style={{background:card,border:"1px solid "+cbdr,borderRadius:14,padding:"24px 28px",marginBottom:24}}>
                   <div style={{fontSize:14,fontWeight:700,color:acc,marginBottom:16}}>📊 Revenue Impact</div>
                   <div className="dash-rev">
@@ -756,17 +815,17 @@ export default function Campaigns() {
                       {label:"Meta Spend",    val:"₹"+s.totalCost.toLocaleString(),  color:txm},
                       {label:"Est. Bookings", val:s.estBookings,                      color:"#a78bfa"},
                       {label:"Est. Revenue",  val:"₹"+s.estRevenue.toLocaleString(),  color:acc},
-                      {label:"ROI",           val:s.totalSent>=10?(s.roi>0?"+":"")+s.roi+"%":"N/A", color:s.totalSent>=10&&s.roi>0?acc:txm},
-                      {label:"Cost/Reply",    val:s.totalReply>0?"₹"+(s.totalCost/s.totalReply).toFixed(1):"—", color:txm},
+                      {label:"ROI",           val:s.totalSent>=10?(s.roi>0?"+":"")+s.roi+"%":"N/A (need 10+ sends)", color:s.totalSent>=10&&s.roi>0?acc:txm},
+                      {label:"Cost/Reply",    val:s.costPerReply!=null?"₹"+s.costPerReply:"—", color:txm},
                     ].map(r=>(
                       <div key={r.label} style={{background:ibg,borderRadius:10,padding:"14px 16px",textAlign:"center"}}>
                         <div style={{fontSize:11,color:txf,marginBottom:6}}>{r.label}</div>
-                        <div style={{fontSize:24,fontWeight:800,color:r.color,letterSpacing:"-0.5px"}}>{r.val}</div>
+                        <div style={{fontSize:20,fontWeight:800,color:r.color,letterSpacing:"-0.5px"}}>{r.val}</div>
                       </div>
                     ))}
                   </div>
                   <div style={{fontSize:11.5,color:txf,marginTop:12}}>
-                    Est. Revenue = replies × 60% booking rate × avg. ₹1,200. ROI shown for 10+ sends only. Actual results may vary.
+                    Est. Revenue = replies × 60% booking rate × avg ₹{avgServiceValue.toLocaleString()} (your actual avg). ROI shown for 10+ sends only.
                   </div>
                 </div>
 
@@ -777,8 +836,9 @@ export default function Campaigns() {
                       <button onClick={()=>setView("history")} style={{fontSize:12,color:acc,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>View all →</button>
                     </div>
                     {history.slice(0,5).map(c=>{
-                      const sc=c.sent_count||0, dlv=c.delivered_count||0
-                      const rpl=Math.min(c.replied_count||0,sc)
+                      const sc=c.sent_count||0
+                      const rpl=c.replied_count||0
+                      const replyRt=sc>0?Math.min(100,Math.round((rpl/sc)*100)):0
                       const isDone=c.status==="done"||c.status==="completed"
                       return(
                         <div key={c.id} style={{padding:"14px 22px",borderBottom:"1px solid "+bdr,display:"flex",alignItems:"center",gap:16}}>
@@ -791,11 +851,11 @@ export default function Campaigns() {
                                 {c.status==="live"?"Sending":isDone?"Done":c.status==="draft"?"Draft":c.status}
                               </span>
                             </div>
-                            <div style={{fontSize:11.5,color:txf}}>{sc} sent · {dlv} delivered · {rpl} replied</div>
+                            <div style={{fontSize:11.5,color:txf}}>{sc} sent · {c.delivered_count||0} delivered · {rpl} replied</div>
                           </div>
                           <div style={{textAlign:"right",flexShrink:0}}>
                             <div style={{fontSize:22,fontWeight:800,color:sc>0?acc:txf}}>
-                              {sc>0&&rpl>0?Math.round((rpl/sc)*100)+"%":"—"}
+                              {replyRt}%
                             </div>
                             <div style={{fontSize:10,color:txf}}>reply rate</div>
                           </div>
@@ -818,12 +878,12 @@ export default function Campaigns() {
           })()}
 
           {/* ── HISTORY ── */}
-          {view==="history"&&(
+          {!planLocked && view==="history"&&(
             <div style={{flex:1,overflow:"auto",padding:28}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
                 <div>
                   <div style={{fontWeight:800,fontSize:20,color:tx}}>Campaign History</div>
-                  <div style={{fontSize:12.5,color:txf,marginTop:3}}>Real Meta cost · ROI shown for 10+ sends</div>
+                  <div style={{fontSize:12.5,color:txf,marginTop:3}}>Real Meta cost · Reply rate from actual customer replies</div>
                 </div>
                 <button onClick={loadHistory} style={{padding:"8px 16px",borderRadius:9,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:12.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                   {histLoading?"Loading...":"↻ Refresh"}
@@ -842,17 +902,29 @@ export default function Campaigns() {
               ):(
                 <div style={{display:"flex",flexDirection:"column",gap:14}}>
                   {history.map(c=>{
-                    const {cost,roi,showRoi} = calcRoi(c)
-                    const sc=c.sent_count||0, dlv=c.delivered_count||0
-                    const rpl=Math.min(c.replied_count||0,sc)
+                    const {cost,roi,showRoi,replyRate:replyRt,replied} = calcRoi(c)
+                    const sc=c.sent_count||0
+                    const dlv=c.delivered_count||0
+                    const read=c.read_count||0
                     const isDone=c.status==="done"||c.status==="completed"
                     const isDraft=c.status==="draft"
                     const isLive=c.status==="live"
+                    const isHighlighted = c.id === lastSentCampId
                     const badgeBg=isDone?adim:isDraft?"rgba(245,158,11,0.1)":isLive?"rgba(56,189,248,0.1)":"rgba(245,158,11,0.1)"
                     const badgeColor=isDone?acc:isDraft?"#f59e0b":isLive?"#38bdf8":"#f59e0b"
                     const badgeLabel=isDone?"Done":isDraft?"Draft":isLive?"Sending":c.status
                     return(
-                      <div key={c.id} style={{background:card,border:"1px solid "+cbdr,borderRadius:14,padding:"20px 24px"}}>
+                      <div
+                        key={c.id}
+                        id={"camp-" + c.id}
+                        style={{
+                          background:card,
+                          border:"1px solid "+(isHighlighted?acc:cbdr),
+                          borderRadius:14,
+                          padding:"20px 24px",
+                          transition:"border-color 0.4s ease, box-shadow 0.4s ease",
+                          boxShadow:isHighlighted?"0 0 0 3px "+acc+"22":"none"
+                        }}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
                           <div>
                             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
@@ -860,24 +932,37 @@ export default function Campaigns() {
                               <span style={{fontSize:10,padding:"2px 8px",borderRadius:100,background:badgeBg,color:badgeColor,fontWeight:700}}>
                                 {badgeLabel}
                               </span>
+                              {isHighlighted && (
+                                <span style={{fontSize:10,padding:"2px 8px",borderRadius:100,background:adim,color:acc,fontWeight:700}}>
+                                  ✓ Just sent
+                                </span>
+                              )}
                             </div>
                             <div style={{fontSize:12,color:txf}}>
                               {c.sent_at?new Date(c.sent_at).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}):""}
                             </div>
                           </div>
+                          {/* Reply rate prominently shown */}
                           <div style={{textAlign:"right"}}>
-                            <div style={{fontSize:28,fontWeight:800,color:showRoi&&roi>0?acc:txf,letterSpacing:"-1px",lineHeight:1}}>
-                              {showRoi?(roi>0?"+":"")+roi+"%":"N/A"}
+                            <div style={{fontSize:28,fontWeight:800,color:sc>0?(replyRt>0?acc:txf):txf,letterSpacing:"-1px",lineHeight:1}}>
+                              {replyRt}%
                             </div>
-                            <div style={{fontSize:10,color:txf}}>ROI{!showRoi?" (need 10+ sends)":""}</div>
+                            <div style={{fontSize:10,color:txf}}>reply rate</div>
+                            {showRoi && (
+                              <div style={{fontSize:11,fontWeight:700,color:roi>0?acc:txm,marginTop:2}}>
+                                ROI {roi>0?"+":""}{roi}%
+                              </div>
+                            )}
                           </div>
                         </div>
+
+                        {/* 5 stat columns: Sent, Delivered, Read, Replied, Meta Cost */}
                         <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
                           {[
                             {label:"Sent",      val:sc,              color:tx},
                             {label:"Delivered", val:dlv,             color:"#38bdf8"},
-                            {label:"Read",      val:c.read_count||0, color:"#a78bfa"},
-                            {label:"Replied",   val:rpl,             color:acc},
+                            {label:"Read",      val:read,            color:"#a78bfa"},
+                            {label:"Replied",   val:replied,         color:acc},
                             {label:"Meta Cost", val:"₹"+cost,        color:txm},
                           ].map(stat=>(
                             <div key={stat.label} style={{background:ibg,borderRadius:9,padding:"10px 12px",textAlign:"center"}}>
@@ -886,6 +971,7 @@ export default function Campaigns() {
                             </div>
                           ))}
                         </div>
+
                         {isDraft&&(
                           <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid "+bdr}}>
                             <button
@@ -904,7 +990,7 @@ export default function Campaigns() {
           )}
 
           {/* ── COMPOSE: SENDING ── */}
-          {view==="compose"&&step==="sending"&&(
+          {!planLocked && view==="compose"&&step==="sending"&&(
             <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,padding:24}}>
               <div style={{fontSize:48}}>📤</div>
               <div style={{fontWeight:800,fontSize:24,color:tx}}>Sending Campaign...</div>
@@ -921,7 +1007,7 @@ export default function Campaigns() {
           )}
 
           {/* ── COMPOSE: DONE ── */}
-          {view==="compose"&&step==="done"&&(
+          {!planLocked && view==="compose"&&step==="done"&&(
             <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,padding:24}}>
               <div style={{fontSize:64}}>🎉</div>
               <div style={{fontWeight:800,fontSize:28,color:tx}}>Campaign Sent!</div>
@@ -937,12 +1023,26 @@ export default function Campaigns() {
                   </div>
                 )}
               </div>
+              <div style={{fontSize:13,color:txm,textAlign:"center",maxWidth:360,lineHeight:1.7}}>
+                Reply rate will update automatically as customers reply. Check History to track.
+              </div>
               <div style={{display:"flex",gap:12}}>
                 <button onClick={()=>{ setStep("setup"); setSentCount(0); setFailCount(0); setCampaignName(""); setSelectedTmplId("") }}
                   style={{padding:"12px 32px",borderRadius:11,background:acc,border:"none",color:"#000",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                   New Campaign
                 </button>
-                <button onClick={()=>{ setView("history"); setStep("setup"); loadHistory() }}
+                <button onClick={()=>{
+                  setView("history")
+                  setStep("setup")
+                  loadHistory().then(()=>{
+                    if (lastSentCampId) {
+                      setTimeout(()=>{
+                        const el = document.getElementById("camp-" + lastSentCampId)
+                        if (el) el.scrollIntoView({ behavior:"smooth", block:"center" })
+                      }, 300)
+                    }
+                  })
+                }}
                   style={{padding:"12px 32px",borderRadius:11,background:ibg,border:"1px solid "+cbdr,color:txm,fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                   View History →
                 </button>
@@ -951,7 +1051,7 @@ export default function Campaigns() {
           )}
 
           {/* ── COMPOSE: SETUP ── */}
-          {view==="compose"&&step==="setup"&&(
+          {!planLocked && view==="compose"&&step==="setup"&&(
             <div className="desktop">
               <div className="left-panel">
                 <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+bdr,position:"sticky",top:0,background:sb,zIndex:5}}>
@@ -975,7 +1075,6 @@ export default function Campaigns() {
                   <div style={{padding:24,textAlign:"center"}}>
                     <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📵</div>
                     <div style={{fontWeight:600,fontSize:13.5,color:tx,marginBottom:8}}>WhatsApp not connected</div>
-                    <div style={{fontSize:12,color:txf,marginBottom:16,lineHeight:1.5}}>Connect your WhatsApp Business account in Settings first.</div>
                     <button onClick={()=>router.push("/dashboard/settings")}
                       style={{padding:"9px 20px",borderRadius:9,background:acc,border:"none",color:"#000",fontWeight:700,fontSize:12.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                       Go to Settings →
@@ -1066,7 +1165,6 @@ export default function Campaigns() {
                             onChange={e=>setCampaignName(e.target.value)} style={{...inp,fontSize:14}}/>
                         </div>
 
-                        {/* Auto-filled var — customer name */}
                         {selectedTmpl?.vars.some(v=>v.auto)&&(
                           <div style={{marginBottom:16,padding:"12px 14px",background:ibg,borderRadius:9,border:"1px solid "+acc+"22"}}>
                             <div style={{fontSize:12,color:acc,fontWeight:700,marginBottom:3}}>👤 Customer Name — Auto-personalised</div>
@@ -1074,7 +1172,6 @@ export default function Campaigns() {
                           </div>
                         )}
 
-                        {/* Manual vars with friendly labels */}
                         {nonAutoVars.length>0&&(
                           <>
                             <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:12}}>Fill in Template Variables</div>
@@ -1174,7 +1271,7 @@ export default function Campaigns() {
                             <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:10}}>Message preview</div>
                             <div style={{background:dark?"#0d1117":"#e5ddd5",borderRadius:13,padding:"18px 16px",minHeight:120}}>
                               <div style={{background:dark?"#1c2433":"#fff",borderRadius:"4px 14px 14px 14px",padding:"13px 16px",maxWidth:"92%",display:"inline-block"}}>
-                                <div style={{fontSize:13.5,color:dark?"#e8eaf0":"#111",lineHeight:1.75,whiteSpace:"pre-wrap"}}>
+                                <div style={{fontSize:13.5,color:dark?"#e9edef":"#111",lineHeight:1.75,whiteSpace:"pre-wrap"}}>
                                   {previewText||<span style={{color:txf,fontStyle:"italic"}}>Preview here</span>}
                                 </div>
                               </div>
