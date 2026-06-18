@@ -540,7 +540,7 @@ export default function Campaigns() {
             if (convo?.id) {
               await supabase.from("conversations").update({
                 campaign_sent_at: now,
-                campaign_message: getPreview().substring(0,500)
+                campaign_message: getPreview().substring(0,500),
                 state_json: null 
               }).eq("id", convo.id)
             }
