@@ -40,6 +40,40 @@ const DEMO_META = [
   { k:"winback",   label:"Win-back",       sub:"Inactive customer" },
 ]
 
+// ── Simulator scripts ──────────────────────────────────────────
+const SIM_SCRIPTS = {
+  "Hair Salon": [
+    { s:"c", m:"Hi, I want a haircut tomorrow around 3pm" },
+    { s:"a", m:"Hey! 👋 Tomorrow's great — 3 PM is available.\n\nShall I confirm *Haircut* for *tomorrow at 3:00 PM*? ✅" },
+    { s:"c", m:"Yes please!" },
+    { s:"a", m:"✅ *Booking Confirmed!*\n\n📋 Haircut\n📅 Tomorrow\n⏰ 3:00 PM\n\nSee you then! 😊" },
+  ],
+  "Dental Clinic": [
+    { s:"c", m:"I need a dental checkup, any slots this week?" },
+    { s:"a", m:"Hello! 😊 Yes, slots are available.\n\n*Dental Consultation* — ₹300 (30 min)\n\nWhich day works for you?" },
+    { s:"c", m:"Thursday afternoon" },
+    { s:"a", m:"Thursday 3 PM is open! Confirm *Dental Consultation* for *Thursday at 3:00 PM*? ✅" },
+    { s:"c", m:"Yes confirm" },
+    { s:"a", m:"✅ *Appointment Confirmed!*\n\n📋 Dental Consultation · ₹300\n📅 Thursday · 3:00 PM\n\nPlease arrive 5 mins early 😊" },
+  ],
+  "Gym Studio": [
+    { s:"c", m:"Do you have personal training sessions available?" },
+    { s:"a", m:"Hey! 💪 Yes!\n\n*PT Session* — ₹800 (60 min)\n\nWant to book a trial?" },
+    { s:"c", m:"Yes, tomorrow morning" },
+    { s:"a", m:"Tomorrow 7 AM is open! Confirm *PT Session* for *tomorrow at 7:00 AM*? ✅" },
+    { s:"c", m:"Done!" },
+    { s:"a", m:"✅ *Session Confirmed!*\n\n📋 Personal Training · ₹800\n📅 Tomorrow · 7:00 AM\n\nCome ready to crush it! 💪" },
+  ],
+  "Consulting": [
+    { s:"c", m:"I need a business consultation, how does it work?" },
+    { s:"a", m:"Hi! 😊 Our *Free Discovery Call* is 30 mins — we understand your challenge and suggest the right plan.\n\nWant to book one?" },
+    { s:"c", m:"Yes, this week if possible" },
+    { s:"a", m:"Friday 11 AM is available. Confirm *Discovery Call* for *Friday at 11:00 AM*? ✅" },
+    { s:"c", m:"Perfect" },
+    { s:"a", m:"✅ *Call Confirmed!*\n\n📋 Free Discovery Call\n📅 Friday · 11:00 AM\n\nYou'll get a calendar invite shortly 😊" },
+  ],
+}
+
 const FAQS = [
   { q:"Do I need to change my WhatsApp number?", a:"No. You keep your existing WhatsApp Business number. Fastrill connects via Meta's official Business API — your customers message the same number they always have. Nothing changes on their end." },
   { q:"How long does setup actually take?", a:"About 10 minutes from account creation to your first AI reply. Connect WhatsApp (one click via Meta), add your services and hours, go live. No developer required." },
@@ -60,6 +94,141 @@ const TESTIMONIALS = [
   { init:"V", grad:"135deg,#0ea5e9,#10b981", name:"Vikram Naidu",   biz:"Skin Clinic · Guntur",             result:"3x lead-to-booking rate",          quote:"Before, I'd run ads and manually reply to every WhatsApp message at midnight. Now Fastrill replies in 2 seconds, qualifies the lead, and books them — I just confirm in the morning." },
 ]
 
+// ── WhatsApp Simulator Component ───────────────────────────────
+function WhatsAppSimulator() {
+  const [bizName,  setBizName]  = useState("Glow Studio")
+  const [bizType,  setBizType]  = useState("Hair Salon")
+  const [messages, setMessages] = useState([])
+  const [isTyping, setIsTyping] = useState(false)
+  const [started,  setStarted]  = useState(false)
+  const [done,     setDone]     = useState(false)
+  const chatRef  = useRef(null)
+  const timers   = useRef([])
+
+  useEffect(() => {
+    chatRef.current?.scrollTo({ top: 9999, behavior:"smooth" })
+  }, [messages, isTyping])
+
+  function clear() { timers.current.forEach(clearTimeout); timers.current = [] }
+  useEffect(() => () => clear(), [])
+
+  function run(e) {
+    e.preventDefault()
+    clear()
+    setMessages([])
+    setIsTyping(false)
+    setDone(false)
+    setStarted(true)
+    const script = SIM_SCRIPTS[bizType] || SIM_SCRIPTS["Hair Salon"]
+    let delay = 400
+    script.forEach((msg, i) => {
+      if (msg.s === "c") {
+        timers.current.push(setTimeout(() => setMessages(p => [...p, msg]), delay))
+        delay += 900
+      } else {
+        timers.current.push(setTimeout(() => setIsTyping(true), delay))
+        delay += 1300
+        timers.current.push(setTimeout(() => {
+          setIsTyping(false)
+          setMessages(p => [...p, msg])
+          if (i === script.length - 1) setDone(true)
+        }, delay))
+        delay += 500
+      }
+    })
+  }
+
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"clamp(28px,5vw,56px)",alignItems:"center",marginTop:56}} className="sim-grid">
+      {/* Left */}
+      <div>
+        <span style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(0,201,177,0.1)",border:"1px solid rgba(0,201,177,0.2)",borderRadius:100,padding:"4px 12px",fontSize:11,fontWeight:700,color:"#00C9B1",letterSpacing:1,textTransform:"uppercase",marginBottom:16}}>
+          ⚡ Interactive Playground
+        </span>
+        <h2 style={{fontSize:"clamp(22px,2.8vw,34px)",fontWeight:800,color:"#f1f5f9",lineHeight:1.15,letterSpacing:"-0.03em",marginBottom:10}}>
+          See it work for your exact business in 10 seconds.
+        </h2>
+        <p style={{fontSize:14,color:"#94a3b8",lineHeight:1.7,marginBottom:24}}>
+          Enter your business details and watch the AI handle a real booking — automatically.
+        </p>
+        <form onSubmit={run} style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:"#94a3b8",marginBottom:5}}>Business Name</label>
+            <input className="sim-inp" value={bizName} onChange={e=>setBizName(e.target.value)} placeholder="e.g. Priya Salon, Apex Dental" required/>
+          </div>
+          <div>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:"#94a3b8",marginBottom:5}}>Business Type</label>
+            <select className="sim-inp" value={bizType} onChange={e=>setBizType(e.target.value)}>
+              <option>Hair Salon</option>
+              <option>Dental Clinic</option>
+              <option>Gym Studio</option>
+              <option>Consulting</option>
+            </select>
+          </div>
+          <button type="submit" style={{background:"#00C9B1",color:"#000",border:"none",padding:"13px",borderRadius:10,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all .2s",boxShadow:"0 4px 14px rgba(0,201,177,.25)"}}>
+            {started ? "▶ Run Again" : "▶ Show Me How It Works"}
+          </button>
+        </form>
+        {done && (
+          <div style={{marginTop:16,padding:"12px 16px",background:"rgba(0,201,177,0.08)",border:"1px solid rgba(0,201,177,0.2)",borderRadius:10,fontSize:13,color:"#94a3b8",lineHeight:1.6}}>
+            🎉 <strong style={{color:"#f1f5f9"}}>That just happened automatically.</strong><br/>
+            Your customers get this 24/7 — no staff needed.
+            <a href="/signup" style={{display:"block",marginTop:10,textAlign:"center",background:"#00C9B1",color:"#000",padding:"10px",borderRadius:8,fontWeight:700,fontSize:13,textDecoration:"none"}}>
+              Start Free — No Card Needed →
+            </a>
+          </div>
+        )}
+      </div>
+      {/* Right — Phone */}
+      <div style={{display:"flex",justifyContent:"center"}}>
+        <div style={{width:300,background:"#0b141a",borderRadius:22,border:"1px solid rgba(255,255,255,0.07)",overflow:"hidden",boxShadow:"0 32px 80px rgba(0,0,0,0.6)"}}>
+          <div style={{background:"#1f2c34",padding:"11px 14px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+            <div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:"linear-gradient(135deg,#00C9B1,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,color:"#000"}}>
+              {bizName.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div style={{fontSize:12.5,fontWeight:700,color:"#e9edef",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{bizName || "Your Business"}</div>
+              <div style={{fontSize:10,color:"#25d366",display:"flex",alignItems:"center",gap:4,marginTop:1}}>
+                <span style={{width:5,height:5,borderRadius:"50%",background:"#25d366",display:"inline-block"}}/>
+                Fastrill AI · Online
+              </div>
+            </div>
+          </div>
+          <div ref={chatRef} style={{padding:12,minHeight:280,maxHeight:340,overflowY:"auto",display:"flex",flexDirection:"column",gap:7,scrollbarWidth:"none"}}>
+            {!started && (
+              <div style={{margin:"auto",textAlign:"center",padding:14,background:"rgba(255,255,255,0.04)",borderRadius:10,fontSize:12,color:"rgba(255,255,255,0.3)",lineHeight:1.6}}>
+                👈 Enter your details<br/>and click the button
+              </div>
+            )}
+            {messages.map((msg,i)=>(
+              <div key={i} style={{
+                maxWidth:"82%",padding:"9px 12px",borderRadius:11,fontSize:12.5,lineHeight:1.55,whiteSpace:"pre-wrap",animation:"msgIn .2s ease both",
+                ...(msg.s==="c"
+                  ? {background:"#005c4b",color:"#e9edef",alignSelf:"flex-end",borderRadius:"11px 3px 11px 11px"}
+                  : {background:"#1a2d22",border:"1px solid rgba(37,211,102,0.1)",color:"#e9edef",alignSelf:"flex-start",borderRadius:"3px 11px 11px 11px"})
+              }}>
+                {msg.s==="a"&&<span style={{display:"block",fontSize:9,color:"#25d366",fontWeight:700,marginBottom:4}}>◈ Fastrill AI</span>}
+                {msg.m}
+              </div>
+            ))}
+            {isTyping && (
+              <div style={{alignSelf:"flex-start",background:"#1a2d22",border:"1px solid rgba(37,211,102,0.1)",padding:"10px 13px",borderRadius:"3px 11px 11px 11px",display:"flex",gap:4,alignItems:"center"}}>
+                {[0,0.2,0.4].map((d,i)=>(
+                  <span key={i} style={{width:6,height:6,borderRadius:"50%",background:"#25d366",display:"inline-block",animation:`blink 1s ${d}s infinite`}}/>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{background:"#1f2c34",padding:"9px 12px",display:"flex",alignItems:"center",gap:8,borderTop:"1px solid rgba(255,255,255,0.05)"}}>
+            <div style={{flex:1,background:"rgba(255,255,255,0.05)",borderRadius:20,padding:"7px 12px",fontSize:11.5,color:"rgba(255,255,255,0.2)"}}>Type a message...</div>
+            <div style={{width:30,height:30,borderRadius:"50%",background:"#00C9B1",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#000",flexShrink:0}}>▶</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function MarketingPage() {
   const [demoKey,  setDemoKey]  = useState("booking")
   const [demoMsgs, setDemoMsgs] = useState([])
@@ -76,7 +245,6 @@ export default function MarketingPage() {
   const timerRef   = useRef(null)
   const exitRef    = useRef(null)
 
-  // Demo playback
   useEffect(() => {
     setDemoMsgs([])
     clearTimeout(timerRef.current)
@@ -90,21 +258,18 @@ export default function MarketingPage() {
     return () => clearTimeout(timerRef.current)
   }, [demoKey])
 
-  // Scroll listener
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 40)
     window.addEventListener("scroll", fn, { passive:true })
     return () => window.removeEventListener("scroll", fn)
   }, [])
 
-  // Exit bar — after 28s
   useEffect(() => {
     if (exitGone) return
     exitRef.current = setTimeout(() => setExitShow(true), 28000)
     return () => clearTimeout(exitRef.current)
   }, [exitGone])
 
-  // Stats counter
   useEffect(() => {
     if (!statsRef.current || countedRef.current) return
     const io = new IntersectionObserver(entries => {
@@ -128,7 +293,6 @@ export default function MarketingPage() {
     return () => io.disconnect()
   }, [])
 
-  // Reveal animations
   useEffect(() => {
     const io = new IntersectionObserver(entries => {
       entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add("vis"); io.unobserve(e.target) } })
@@ -147,218 +311,77 @@ export default function MarketingPage() {
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{
-  background:#050811;color:#94a3b8;
-  font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.6;
-  overflow-x:hidden;-webkit-font-smoothing:antialiased;
-}
+body{background:#050811;color:#94a3b8;font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
 :root{
   --ink:#f1f5f9;--ink2:#94a3b8;--ink3:#475569;--ink4:#1e293b;
   --base:#050811;--s1:#080d1a;--s2:#0c1221;--s3:#101828;--s4:#162033;
   --line:rgba(255,255,255,.06);--line2:rgba(255,255,255,.1);--line3:rgba(255,255,255,.16);
   --teal:#00C9B1;--teal2:rgba(0,201,177,.12);--teal3:rgba(0,201,177,.22);--teal4:rgba(0,201,177,.06);
-  --wa:#25d366;--red:#f43f5e;--amber:#f59e0b;
-  --sans:'DM Sans',sans-serif;
+  --wa:#25d366;--red:#f43f5e;--amber:#f59e0b;--sans:'DM Sans',sans-serif;
 }
-
-/* ambient */
-body::before{
-  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
-  background:
-    radial-gradient(ellipse 90% 55% at 50% -10%,rgba(0,201,177,.07) 0%,transparent 60%),
-    radial-gradient(ellipse 50% 40% at 85% 75%,rgba(0,80,200,.04) 0%,transparent 50%);
-}
-
-/* ── NAV — PREMIUM ── */
-.nav{
-  position:fixed;top:0;left:0;right:0;z-index:200;
-  height:72px;padding:0 clamp(16px,4vw,56px);
-  display:flex;align-items:center;justify-content:space-between;transition:all .3s;
-  border-bottom:1px solid rgba(255,255,255,.03);
-}
-.nav.sc{
-  background:rgba(5,8,17,.95);backdrop-filter:blur(24px);
-  -webkit-backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.06);
-  box-shadow:0 2px 12px rgba(0,0,0,.3);
-}
-
-/* ── NAV LOGO ── */
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 90% 55% at 50% -10%,rgba(0,201,177,.07) 0%,transparent 60%),radial-gradient(ellipse 50% 40% at 85% 75%,rgba(0,80,200,.04) 0%,transparent 50%);}
+.nav{position:fixed;top:0;left:0;right:0;z-index:200;height:72px;padding:0 clamp(16px,4vw,56px);display:flex;align-items:center;justify-content:space-between;transition:all .3s;border-bottom:1px solid rgba(255,255,255,.03);}
+.nav.sc{background:rgba(5,8,17,.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.06);box-shadow:0 2px 12px rgba(0,0,0,.3);}
 .nav-logo{display:flex;align-items:center;gap:12px;text-decoration:none;}
 .nav-logo img{width:38px;height:38px;object-fit:contain;flex-shrink:0;display:block;}
-.nav-logo-text{font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;
-  color:var(--ink);letter-spacing:-.4px;line-height:1;}
+.nav-logo-text{font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.4px;line-height:1;}
 .nav-logo-text em{color:var(--teal);font-style:normal;}
-
 .nmid{display:flex;align-items:center;gap:6px;list-style:none;}
-.nmid a{
-  font-size:14px;font-weight:500;color:var(--ink2);
-  text-decoration:none;padding:8px 14px;border-radius:8px;transition:all .18s;
-}
+.nmid a{font-size:14px;font-weight:500;color:var(--ink2);text-decoration:none;padding:8px 14px;border-radius:8px;transition:all .18s;}
 .nmid a:hover{color:var(--ink);background:rgba(255,255,255,.06)}
 .nr{display:flex;align-items:center;gap:8px;}
 .nav-login{font-size:13px;font-weight:500;color:var(--ink2);text-decoration:none;padding:7px 14px;border-radius:7px;transition:color .15s;}
 .nav-login:hover{color:var(--ink);}
-.nav-cta{
-  display:inline-flex;align-items:center;gap:6px;
-  background:var(--teal);color:#000;padding:10px 22px;
-  border-radius:9px;font-weight:700;font-size:13.5px;
-  text-decoration:none;transition:all .22s;letter-spacing:-.1px;
-  box-shadow:0 4px 12px rgba(0,201,177,.2);
-}
+.nav-cta{display:inline-flex;align-items:center;gap:6px;background:var(--teal);color:#000;padding:10px 22px;border-radius:9px;font-weight:700;font-size:13.5px;text-decoration:none;transition:all .22s;letter-spacing:-.1px;box-shadow:0 4px 12px rgba(0,201,177,.2);}
 .nav-cta:hover{background:#00e5cc;transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,201,177,.3);}
-.hbg{
-  display:none;background:none;border:1px solid var(--line2);
-  border-radius:7px;padding:6px 10px;cursor:pointer;color:var(--ink2);font-size:15px;line-height:1;
-}
-.mdraw{
-  position:fixed;top:72px;left:0;right:0;z-index:190;
-  background:rgba(5,8,17,.97);backdrop-filter:blur(24px);
-  border-bottom:1px solid var(--line);padding:10px 14px 18px;
-  display:flex;flex-direction:column;gap:2px;
-  transform:translateY(-110%);transition:transform .22s ease;
-}
+.hbg{display:none;background:none;border:1px solid var(--line2);border-radius:7px;padding:6px 10px;cursor:pointer;color:var(--ink2);font-size:15px;line-height:1;}
+.mdraw{position:fixed;top:72px;left:0;right:0;z-index:190;background:rgba(5,8,17,.97);backdrop-filter:blur(24px);border-bottom:1px solid var(--line);padding:10px 14px 18px;display:flex;flex-direction:column;gap:2px;transform:translateY(-110%);transition:transform .22s ease;}
 .mdraw.open{transform:none;}
 .mdraw a{color:var(--ink2);text-decoration:none;font-size:14px;font-weight:500;padding:10px 12px;border-radius:8px;transition:all .15s;}
 .mdraw a:hover{color:var(--ink);background:rgba(255,255,255,.04)}
 .mdraw hr{border:none;border-top:1px solid var(--line);margin:6px 0;}
-
-/* ── HERO ── */
-.hero{
-  min-height:100vh;
-  padding:clamp(120px,14vw,160px) clamp(16px,5vw,56px) clamp(80px,10vw,120px);
-  background:var(--base);position:relative;overflow:hidden;
-}
-.hero-grid-bg{
-  position:absolute;inset:0;pointer-events:none;
-  background-image:
-    linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
-  background-size:80px 80px;
-  mask-image:radial-gradient(ellipse 70% 55% at 50% 0%,black,transparent 75%);
-}
-.hero-in{
-  max-width:1200px;margin:0 auto;
-  display:grid;grid-template-columns:1fr 420px;
-  gap:clamp(40px,5vw,80px);align-items:center;position:relative;z-index:1;
-}
-.hero-eyebrow{
-  display:inline-flex;align-items:center;gap:7px;
-  border:1px solid var(--teal3);border-radius:100px;
-  padding:5px 14px 5px 7px;margin-bottom:32px;
-  font-size:11.5px;font-weight:600;color:var(--teal);letter-spacing:.3px;
-}
-.eyebrow-dot{
-  width:20px;height:20px;border-radius:50%;
-  background:var(--teal2);border:1px solid var(--teal3);
-  display:flex;align-items:center;justify-content:center;
-}
-.eyebrow-dot::after{
-  content:'';width:6px;height:6px;border-radius:50%;
-  background:var(--teal);animation:pulse 2s infinite;
-}
+.hero{min-height:100vh;padding:clamp(120px,14vw,160px) clamp(16px,5vw,56px) clamp(80px,10vw,120px);background:var(--base);position:relative;overflow:hidden;}
+.hero-grid-bg{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse 70% 55% at 50% 0%,black,transparent 75%);}
+.hero-in{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 420px;gap:clamp(40px,5vw,80px);align-items:center;position:relative;z-index:1;}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--teal3);border-radius:100px;padding:5px 14px 5px 7px;margin-bottom:32px;font-size:11.5px;font-weight:600;color:var(--teal);letter-spacing:.3px;}
+.eyebrow-dot{width:20px;height:20px;border-radius:50%;background:var(--teal2);border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;}
+.eyebrow-dot::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite;}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.6)}}
-
-/* ── HERO HEADLINE — LARGER, BETTER SPACING ── */
-.h1{
-  font-size:clamp(42px,5.2vw,72px);font-weight:800;
-  line-height:1.04;letter-spacing:-.05em;color:var(--ink);
-  margin-bottom:12px;
-}
-.h1-line2{
-  display:block;
-  font-size:clamp(26px,3.2vw,46px);font-weight:700;
-  line-height:1.12;letter-spacing:-.035em;
-  color:rgba(241,245,249,.5);margin-top:8px;margin-bottom:36px;
-}
+@keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
+@keyframes msgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.h1{font-size:clamp(42px,5.2vw,72px);font-weight:800;line-height:1.04;letter-spacing:-.05em;color:var(--ink);margin-bottom:12px;}
+.h1-line2{display:block;font-size:clamp(26px,3.2vw,46px);font-weight:700;line-height:1.12;letter-spacing:-.035em;color:rgba(241,245,249,.5);margin-top:8px;margin-bottom:36px;}
 .h1-line2 em{color:var(--teal);font-style:normal;opacity:1;}
-
-/* ── HERO SUBTEXT — SHORT LINES ── */
 .hero-sub{display:flex;flex-direction:column;gap:7px;margin-bottom:40px;max-width:560px;}
-.hero-sub-line{
-  font-size:clamp(15px,1.6vw,17px);
-  color:var(--ink2);line-height:1.7;font-weight:400;letter-spacing:-.01em;
-}
-.hero-sub-line strong{
-  color:var(--ink);font-weight:700;background:rgba(0,201,177,.08);
-  padding:1px 6px;border-radius:5px;
-}
-
+.hero-sub-line{font-size:clamp(15px,1.6vw,17px);color:var(--ink2);line-height:1.7;font-weight:400;letter-spacing:-.01em;}
+.hero-sub-line strong{color:var(--ink);font-weight:700;background:rgba(0,201,177,.08);padding:1px 6px;border-radius:5px;}
 .hero-btns{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:40px;}
-.btn-primary{
-  display:inline-flex;align-items:center;gap:8px;
-  background:var(--teal);color:#000;padding:16px 32px;
-  border-radius:10px;font-weight:700;font-size:15px;
-  text-decoration:none;transition:all .24s;letter-spacing:-.15px;
-  box-shadow:0 8px 20px rgba(0,201,177,.25);
-}
+.btn-primary{display:inline-flex;align-items:center;gap:8px;background:var(--teal);color:#000;padding:16px 32px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;transition:all .24s;letter-spacing:-.15px;box-shadow:0 8px 20px rgba(0,201,177,.25);}
 .btn-primary:hover{background:#00e5cc;transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,201,177,.35);}
-.btn-ghost{
-  display:inline-flex;align-items:center;gap:8px;
-  background:rgba(255,255,255,.05);color:var(--ink);
-  padding:16px 24px;border-radius:10px;font-weight:600;font-size:15px;
-  text-decoration:none;border:1px solid var(--line2);transition:all .22s;
-}
+.btn-ghost{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);color:var(--ink);padding:16px 24px;border-radius:10px;font-weight:600;font-size:15px;text-decoration:none;border:1px solid var(--line2);transition:all .22s;}
 .btn-ghost:hover{background:rgba(255,255,255,.09);border-color:var(--teal);color:var(--teal);}
-.hero-proof{
-  display:flex;align-items:center;gap:14px;
-  padding:12px 16px;background:var(--teal4);
-  border:1px solid var(--teal3);border-radius:11px;max-width:420px;
-}
+.hero-proof{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--teal4);border:1px solid var(--teal3);border-radius:11px;max-width:420px;}
 .proof-avs{display:flex;}
-.proof-av{
-  width:26px;height:26px;border-radius:50%;border:2px solid var(--base);
-  margin-left:-6px;font-size:9.5px;font-weight:800;color:#fff;
-  display:flex;align-items:center;justify-content:center;flex-shrink:0;
-}
+.proof-av{width:26px;height:26px;border-radius:50%;border:2px solid var(--base);margin-left:-6px;font-size:9.5px;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .proof-av:first-child{margin-left:0;}
 .proof-text{font-size:12.5px;color:var(--ink2);}
 .proof-text strong{color:var(--teal);font-weight:700;}
-
-/* ── PHONE MOCKUP ── */
-.phone{
-  background:var(--s2);border:1px solid var(--line2);
-  border-radius:22px;overflow:hidden;
-  box-shadow:0 40px 100px rgba(0,0,0,.65),0 0 0 1px rgba(0,201,177,.04);
-}
+.phone{background:var(--s2);border:1px solid var(--line2);border-radius:22px;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.65),0 0 0 1px rgba(0,201,177,.04);}
 .phone-top{background:var(--s3);border-bottom:1px solid var(--line);padding:13px 16px;display:flex;align-items:center;gap:10px;}
-.phone-av{
-  width:34px;height:34px;border-radius:50%;flex-shrink:0;
-  background:linear-gradient(135deg,var(--teal),#0ea5e9);
-  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#000;
-}
+.phone-av{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--teal),#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#000;}
 .phone-name{font-size:13px;font-weight:700;color:var(--ink);}
 .phone-status{font-size:10.5px;color:var(--teal);display:flex;align-items:center;gap:4px;margin-top:1px;}
 .phone-status::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite;}
-.ai-live-badge{
-  margin-left:6px;font-size:9px;font-weight:800;
-  background:var(--teal2);color:var(--teal);
-  border:1px solid var(--teal3);border-radius:4px;padding:1px 6px;letter-spacing:.5px;
-}
-.phone-body{
-  padding:14px;min-height:240px;max-height:300px;
-  overflow-y:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:none;
-}
+.ai-live-badge{margin-left:6px;font-size:9px;font-weight:800;background:var(--teal2);color:var(--teal);border:1px solid var(--teal3);border-radius:4px;padding:1px 6px;letter-spacing:.5px;}
+.phone-body{padding:14px;min-height:240px;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:none;}
 .phone-body::-webkit-scrollbar{display:none;}
-.pm{
-  max-width:82%;padding:9px 13px;border-radius:12px;
-  font-size:13px;line-height:1.55;white-space:pre-wrap;animation:msgIn .22s ease both;
-}
+.pm{max-width:82%;padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.55;white-space:pre-wrap;animation:msgIn .22s ease both;}
 .pm.c{background:#005c4b;color:#e9edef;align-self:flex-end;border-radius:12px 4px 12px 12px;}
 .pm.a{background:var(--s4);border:1px solid var(--line);color:var(--ink);align-self:flex-start;border-radius:4px 12px 12px 12px;}
 .pm.a .ai-label{font-size:9.5px;color:var(--teal);font-weight:700;margin-bottom:4px;display:block;}
-@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-
-/* ── TRUST BAR ── */
-.trust{
-  border-bottom:1px solid var(--line);
-  padding:13px clamp(14px,3vw,36px);
-  display:flex;align-items:center;justify-content:center;
-  gap:clamp(14px,3vw,36px);flex-wrap:wrap;background:var(--s1);
-}
+.trust{border-bottom:1px solid var(--line);padding:13px clamp(14px,3vw,36px);display:flex;align-items:center;justify-content:center;gap:clamp(14px,3vw,36px);flex-wrap:wrap;background:var(--s1);}
 .tbadge{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--ink3);white-space:nowrap;}
 .tdiv{width:1px;height:16px;background:var(--line2);}
-
-/* ── MARQUEE ── */
 .mq{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--s1);padding:12px 0;overflow:hidden;position:relative;}
 .mq::before,.mq::after{content:'';position:absolute;top:0;bottom:0;width:60px;z-index:2;}
 .mq::before{left:0;background:linear-gradient(90deg,var(--s1),transparent);}
@@ -366,8 +389,6 @@ body::before{
 .mq-track{display:flex;animation:mq 30s linear infinite;width:max-content;}
 @keyframes mq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 .mq-item{display:flex;align-items:center;gap:6px;padding:0 20px;font-size:13px;font-weight:500;color:var(--ink3);white-space:nowrap;border-right:1px solid var(--line);}
-
-/* ── STATS ── */
 .stats{background:var(--s1);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
 .stats-row{display:grid;grid-template-columns:repeat(3,1fr);max-width:1200px;margin:0 auto;}
 .stat-cell{padding:clamp(36px,4.5vw,56px) clamp(20px,3vw,44px);border-right:1px solid var(--line);text-align:center;}
@@ -376,102 +397,45 @@ body::before{
 .stat-n em{color:var(--teal);font-style:normal;}
 .stat-l{font-size:14px;font-weight:600;color:var(--ink2);}
 .stat-s{font-size:12px;color:var(--ink3);margin-top:4px;}
-
-/* ── REAL LOSS SECTION (NEW) ── */
 .real-loss-sec{background:var(--base);}
-.loss-timeline{
-  display:flex;flex-direction:column;gap:0;border-left:2px solid var(--line);
-  position:relative;max-width:800px;margin:56px auto 0;
-}
-.loss-item{
-  display:grid;grid-template-columns:100px 1fr;gap:20px;
-  padding:24px 0 24px 32px;border-bottom:1px solid var(--line);
-  position:relative;
-}
+.loss-timeline{display:flex;flex-direction:column;gap:0;border-left:2px solid var(--line);position:relative;max-width:800px;margin:56px auto 0;}
+.loss-item{display:grid;grid-template-columns:100px 1fr;gap:20px;padding:24px 0 24px 32px;border-bottom:1px solid var(--line);position:relative;}
 .loss-item:last-child{border-bottom:none;}
-.loss-item::before{
-  content:'';position:absolute;left:-8px;top:32px;
-  width:14px;height:14px;border-radius:50%;
-  background:var(--line);border:2px solid var(--base);
-}
-.loss-item-highlight{
-  background:rgba(244,63,94,.04);padding:24px 28px 24px 32px;
-  margin:0 -12px;border-radius:12px;
-}
+.loss-item::before{content:'';position:absolute;left:-8px;top:32px;width:14px;height:14px;border-radius:50%;background:var(--line);border:2px solid var(--base);}
+.loss-item-highlight{background:rgba(244,63,94,.04);padding:24px 28px 24px 32px;margin:0 -12px;border-radius:12px;}
 .loss-item-highlight::before{background:var(--red);border-color:var(--base);}
-.loss-time{
-  font-size:13px;font-weight:700;color:var(--ink2);
-  text-align:right;padding-top:2px;
-}
-.loss-content{
-  display:flex;align-items:flex-start;gap:12px;
-}
+.loss-time{font-size:13px;font-weight:700;color:var(--ink2);text-align:right;padding-top:2px;}
+.loss-content{display:flex;align-items:flex-start;gap:12px;}
 .loss-icon{font-size:24px;}
-.loss-event{
-  font-size:14.5px;font-weight:700;color:var(--ink);
-  margin-bottom:3px;letter-spacing:-.01em;
-}
-.loss-desc{
-  font-size:13px;color:var(--ink2);line-height:1.6;
-}
+.loss-event{font-size:14.5px;font-weight:700;color:var(--ink);margin-bottom:3px;letter-spacing:-.01em;}
+.loss-desc{font-size:13px;color:var(--ink2);line-height:1.6;}
 .loss-item-highlight .loss-event{color:var(--red);}
 .loss-item-highlight .loss-desc{color:rgba(244,63,94,.8);font-weight:600;}
 .loss-cta{max-width:680px;margin:56px auto 0;text-align:center;}
-
-/* ── SECTION BASE ── */
 .sec{padding:clamp(100px,12vw,140px) 0;position:relative;}
 .sec:nth-child(even){background:var(--s1);}
 .sec:nth-child(odd){background:var(--base);}
 .w{max-width:1200px;margin:0 auto;padding:0 clamp(16px,4vw,56px);}
-.label{
-  display:inline-flex;align-items:center;gap:8px;
-  font-size:11px;font-weight:700;letter-spacing:3.2px;
-  text-transform:uppercase;color:var(--teal);margin-bottom:18px;
-}
+.label{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:3.2px;text-transform:uppercase;color:var(--teal);margin-bottom:18px;}
 .label::before{content:'';width:18px;height:1.5px;background:var(--teal);}
-.sh{
-  font-weight:800;font-size:clamp(32px,4.5vw,56px);
-  color:var(--ink);margin-bottom:18px;line-height:1.08;letter-spacing:-.04em;
-}
+.sh{font-weight:800;font-size:clamp(32px,4.5vw,56px);color:var(--ink);margin-bottom:18px;line-height:1.08;letter-spacing:-.04em;}
 .sh em{font-style:italic;color:var(--teal);}
-.sp{
-  font-size:clamp(14.5px,1.6vw,16px);color:var(--ink2);
-  line-height:1.88;font-weight:400;letter-spacing:-.01em;
-}
-
-/* ── PAIN — emotional cards ── */
-.pain-grid{
-  display:grid;grid-template-columns:repeat(3,1fr);
-  gap:1px;background:var(--line);
-  border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:56px;
-}
+.sp{font-size:clamp(14.5px,1.6vw,16px);color:var(--ink2);line-height:1.88;font-weight:400;letter-spacing:-.01em;}
+.pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:56px;}
 .pain-card{background:var(--s1);padding:clamp(28px,3vw,44px);position:relative;overflow:hidden;transition:background .2s;}
 .pain-card:hover{background:var(--s2);}
-.pain-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,transparent,rgba(0,201,177,.3),transparent);opacity:0;transition:.3s;
-}
+.pain-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,201,177,.3),transparent);opacity:0;transition:.3s;}
 .pain-card:hover::before{opacity:1;}
 .pain-num{font-size:clamp(56px,8vw,88px);font-weight:900;line-height:1;color:rgba(0,201,177,.06);margin-bottom:16px;letter-spacing:-.05em;}
 .pain-ico{font-size:28px;display:block;margin-bottom:14px;}
 .pain-title{font-size:18px;font-weight:800;color:var(--ink);margin-bottom:5px;letter-spacing:-.03em;line-height:1.2;}
 .pain-punch{font-size:12.5px;font-weight:700;color:var(--red);margin-bottom:10px;letter-spacing:.15px;}
 .pain-desc{font-size:13.5px;color:var(--ink2);line-height:1.8;font-weight:400;}
-.pain-tag{
-  display:inline-block;margin-top:16px;font-size:11px;font-weight:700;
-  color:var(--red);border:1px solid rgba(244,63,94,.22);border-radius:6px;padding:3px 9px;letter-spacing:.3px;
-}
-
-/* ── HOW ── */
+.pain-tag{display:inline-block;margin-top:16px;font-size:11px;font-weight:700;color:var(--red);border:1px solid rgba(244,63,94,.22);border-radius:6px;padding:3px 9px;letter-spacing:.3px;}
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px;}
 .step{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:28px 24px;position:relative;transition:all .22s;}
 .step:hover{border-color:var(--teal3);background:var(--s2);transform:translateY(-3px);}
-.step-n{
-  width:36px;height:36px;border-radius:9px;
-  background:var(--teal2);border:1px solid var(--teal3);
-  display:flex;align-items:center;justify-content:center;
-  font-size:14px;font-weight:900;color:var(--teal);margin-bottom:18px;
-}
+.step-n{width:36px;height:36px;border-radius:9px;background:var(--teal2);border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:var(--teal);margin-bottom:18px;}
 .step h3{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:8px;letter-spacing:-.02em;}
 .step p{font-size:13.5px;color:var(--ink2);line-height:1.75;}
 .step-ui{margin-top:16px;background:var(--s3);border:1px solid var(--line);border-radius:10px;padding:10px;}
@@ -480,9 +444,7 @@ body::before{
 .step-row.on{background:var(--teal2);color:var(--teal);font-weight:600;}
 .step-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
 .step:not(:last-child)::after{content:'→';position:absolute;right:-14px;top:44px;font-size:18px;color:var(--teal);opacity:.3;z-index:2;}
-
-/* ── DEMO ── */
-.demo-layout{display:grid;grid-template-columns:170px 1fr;gap:18px;margin-top:56px;align-items:start;}
+.demo-layout{display:grid;grid-template-columns:170px 1fr;gap:18px;margin-top:32px;align-items:start;}
 .demo-tabs{display:flex;flex-direction:column;gap:7px;}
 .demo-tab{background:var(--s1);border:1px solid var(--line);border-radius:11px;padding:12px 14px;cursor:pointer;transition:all .18s;}
 .demo-tab.on{border-color:var(--teal);background:var(--teal4);}
@@ -491,11 +453,7 @@ body::before{
 .dt-sub{font-size:11px;color:var(--ink2);}
 .wa-mock{background:#0b141a;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.06);box-shadow:0 28px 72px rgba(0,0,0,.55);}
 .wa-head{background:#1f2c34;padding:13px 17px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.05);}
-.wa-av{
-  width:34px;height:34px;border-radius:50%;flex-shrink:0;
-  background:linear-gradient(135deg,var(--teal),#0ea5e9);
-  display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#000;
-}
+.wa-av{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--teal),#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#000;}
 .wa-name{font-size:13.5px;font-weight:700;color:#e9edef;}
 .wa-st{font-size:10.5px;color:var(--wa);}
 .wa-body{padding:14px;min-height:280px;max-height:340px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;scrollbar-width:none;}
@@ -504,52 +462,26 @@ body::before{
 .wm.c{background:#005c4b;color:#e9edef;align-self:flex-end;border-radius:12px 4px 12px 12px;}
 .wm.a{background:#1a2d22;border:1px solid rgba(37,211,102,.1);color:#e9edef;align-self:flex-start;border-radius:4px 12px 12px 12px;}
 .wm.a .al{font-size:9.5px;color:var(--wa);font-weight:700;margin-bottom:4px;display:block;}
-
-/* ── FEATURES ── */
 .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:56px;}
-.fc{
-  background:var(--s1);border:1px solid var(--line);border-radius:16px;
-  padding:28px 24px;transition:all .24s;position:relative;overflow:hidden;
-}
-.fc::after{
-  content:'';position:absolute;top:0;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,transparent,var(--teal2),transparent);opacity:0;transition:.3s;
-}
-.fc:hover{
-  border-color:var(--teal2);background:var(--s2);
-  transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.2);
-}
+.fc{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:28px 24px;transition:all .24s;position:relative;overflow:hidden;}
+.fc::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--teal2),transparent);opacity:0;transition:.3s;}
+.fc:hover{border-color:var(--teal2);background:var(--s2);transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.2);}
 .fc:hover::after{opacity:1;}
-.fc-ico{
-  width:44px;height:44px;border-radius:10px;background:var(--teal2);
-  border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;
-  font-size:20px;margin-bottom:16px;
-}
+.fc-ico{width:44px;height:44px;border-radius:10px;background:var(--teal2);border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:16px;}
 .fc-badge{float:right;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--teal);background:var(--teal2);border:1px solid var(--teal3);padding:2px 7px;border-radius:4px;margin-top:2px;}
 .fc-title{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:7px;clear:both;letter-spacing:-.02em;}
 .fc-desc{font-size:13px;color:var(--ink2);line-height:1.75;}
-
-/* ── REVENUE VISUALIZATION ── */
 .rev-sec{padding:clamp(100px,12vw,140px) 0;background:var(--base);}
 .rev-viz{display:grid;grid-template-columns:1fr 48px 1fr;gap:20px;align-items:center;margin-top:56px;}
 .rev-col{background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:28px 24px;position:relative;}
 .rev-col.after{border-color:var(--teal3);background:var(--s2);}
-.rev-col.after::before{
-  content:'';position:absolute;top:0;left:12%;right:12%;height:1px;
-  background:linear-gradient(90deg,transparent,var(--teal),transparent);
-}
-.rev-col-label{
-  font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;
-  margin-bottom:18px;display:flex;align-items:center;gap:7px;
-}
+.rev-col.after::before{content:'';position:absolute;top:0;left:12%;right:12%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),transparent);}
+.rev-col-label{font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:7px;}
 .rev-col-label.bad{color:var(--red);}
 .rev-col-label.good{color:var(--teal);}
 .rev-item{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-bottom:1px solid var(--line);}
 .rev-item:last-child{border-bottom:none;}
-.rev-ico{
-  width:32px;height:32px;border-radius:8px;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;font-size:14px;
-}
+.rev-ico{width:32px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;}
 .rev-ico.bad{background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.18);}
 .rev-ico.good{background:var(--teal2);border:1px solid var(--teal3);}
 .rev-item-t{font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:2px;}
@@ -558,21 +490,13 @@ body::before{
 .rev-item-s.good-s{color:var(--teal);}
 .rev-arrow{display:flex;flex-direction:column;align-items:center;gap:6px;}
 .rev-arrow-line{width:1px;height:32px;background:linear-gradient(to bottom,transparent,var(--teal),transparent);}
-.rev-arrow-icon{
-  width:36px;height:36px;border-radius:50%;
-  background:var(--teal2);border:1px solid var(--teal3);
-  display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--teal);
-}
-
-/* ── WHO ── */
+.rev-arrow-icon{width:36px;height:36px;border-radius:50%;background:var(--teal2);border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--teal);}
 .who-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:56px;}
 .who-card{background:var(--s1);border:1px solid var(--line);border-radius:13px;padding:18px 16px;transition:all .18s;}
 .who-card:hover{border-color:var(--teal3);transform:translateY(-2px);background:var(--s2);}
 .who-e{font-size:24px;display:block;margin-bottom:8px;}
 .who-n{font-size:13.5px;font-weight:700;color:var(--ink);margin-bottom:3px;}
 .who-d{font-size:12px;color:var(--ink2);line-height:1.5;}
-
-/* ── VS ── */
 .vs-layout{display:grid;grid-template-columns:1fr 1fr;gap:52px;align-items:start;margin-top:56px;}
 .vs-pts{display:flex;flex-direction:column;gap:12px;margin-top:20px;}
 .vs-pt{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--ink2);line-height:1.7;}
@@ -588,31 +512,18 @@ body::before{
 .vs-c.tm::before{content:'✕';color:var(--red);font-size:10px;}
 .vs-c.us{color:var(--ink);font-weight:500;}
 .vs-c.us::before{content:'✓';color:var(--teal);font-size:11px;}
-
-/* ── TESTIMONIALS ── */
 .t-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:56px;}
 .tc{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:26px;transition:all .2s;}
 .tc:hover{border-color:var(--teal3);transform:translateY(-2px);box-shadow:0 16px 40px rgba(0,0,0,.3);}
-.tc-result{
-  display:inline-block;background:var(--teal2);border:1px solid var(--teal3);
-  color:var(--teal);font-size:14px;font-weight:800;
-  padding:8px 14px;border-radius:9px;margin-bottom:16px;letter-spacing:-.01em;line-height:1.2;
-}
+.tc-result{display:inline-block;background:var(--teal2);border:1px solid var(--teal3);color:var(--teal);font-size:14px;font-weight:800;padding:8px 14px;border-radius:9px;margin-bottom:16px;letter-spacing:-.01em;line-height:1.2;}
 .tc-stars{color:var(--amber);font-size:12px;letter-spacing:2px;margin-bottom:14px;}
 .tc-quote{font-size:14px;color:var(--ink2);line-height:1.9;margin-bottom:20px;font-style:italic;font-weight:400;}
-.tc-auth{
-  display:flex;align-items:center;gap:12px;padding-top:16px;border-top:1px solid var(--line);
-}
+.tc-auth{display:flex;align-items:center;gap:12px;padding-top:16px;border-top:1px solid var(--line);}
 .tc-av{width:40px;height:40px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;}
 .tc-name{font-size:14px;font-weight:700;color:var(--ink);}
 .tc-biz{font-size:12px;color:var(--ink2);}
 .tc-ver{font-size:11px;color:var(--teal);font-weight:600;margin-top:3px;}
-
-/* ── FOUNDER ── */
-.founder-sec{
-  padding:clamp(72px,9vw,116px) 0;background:var(--s1);
-  border-top:1px solid var(--line);border-bottom:1px solid var(--line);position:relative;overflow:hidden;
-}
+.founder-sec{padding:clamp(72px,9vw,116px) 0;background:var(--s1);border-top:1px solid var(--line);border-bottom:1px solid var(--line);position:relative;overflow:hidden;}
 .founder-card{background:var(--s2);border:1px solid var(--line2);border-radius:22px;padding:clamp(32px,5vw,56px);position:relative;overflow:hidden;max-width:860px;margin:0 auto;}
 .founder-card::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),transparent);}
 .founder-qmark{font-size:80px;line-height:.8;color:rgba(0,201,177,.08);margin-bottom:10px;display:block;}
@@ -625,18 +536,10 @@ body::before{
 .founder-name{font-size:15px;font-weight:700;color:var(--ink);}
 .founder-role{font-size:12.5px;color:var(--ink2);margin-top:1px;}
 .founder-co{font-size:11.5px;color:var(--teal);font-weight:600;margin-top:2px;}
-
-/* ── PRICING ── */
-.pricing-context{
-  max-width:680px;margin:0 auto 48px;
-  background:linear-gradient(135deg,rgba(0,201,177,.08),rgba(0,201,177,.03));
-  border:1px solid var(--teal2);border-radius:16px;padding:20px 28px;
-  display:flex;align-items:center;gap:16px;backdrop-filter:blur(8px);
-}
+.pricing-context{max-width:680px;margin:0 auto 48px;background:linear-gradient(135deg,rgba(0,201,177,.08),rgba(0,201,177,.03));border:1px solid var(--teal2);border-radius:16px;padding:20px 28px;display:flex;align-items:center;gap:16px;backdrop-filter:blur(8px);}
 .pricing-context-ico{font-size:28px;flex-shrink:0;}
 .pricing-context-body{font-size:15px;color:var(--ink2);line-height:1.7;font-weight:400;}
 .pricing-context-body strong{color:var(--teal);font-weight:700;}
-
 .p-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start;}
 .plan{background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:clamp(22px,3vw,36px) clamp(18px,3vw,28px);position:relative;transition:all .2s;}
 .plan:hover:not(.pop){border-color:var(--teal3);}
@@ -666,60 +569,26 @@ body::before{
 .p-btn.out{background:transparent;color:var(--ink);border:1px solid var(--line2);}
 .p-btn.out:hover{border-color:var(--teal);color:var(--teal);}
 .p-foot{text-align:center;margin-top:24px;font-size:13px;color:var(--ink2);}
-
-/* ── FAQ ── */
 .faq-box{max-width:680px;margin:56px auto 0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--s1);}
 .fi{border-bottom:1px solid var(--line);}
 .fi:last-child{border-bottom:none;}
-.fb{
-  width:100%;background:none;border:none;padding:20px 24px;text-align:left;
-  font-size:14.5px;font-weight:600;color:var(--ink);cursor:pointer;
-  display:flex;justify-content:space-between;align-items:center;gap:12px;
-  font-family:'DM Sans',sans-serif;transition:background .15s;letter-spacing:-.02em;
-}
+.fb{width:100%;background:none;border:none;padding:20px 24px;text-align:left;font-size:14.5px;font-weight:600;color:var(--ink);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;font-family:'DM Sans',sans-serif;transition:background .15s;letter-spacing:-.02em;}
 .fb:hover{background:rgba(255,255,255,.02);}
 .fp{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--ink2);flex-shrink:0;transition:all .2s;line-height:1;}
 .fa{padding:0 24px;font-size:14px;color:var(--ink2);line-height:1.85;max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s ease;}
 .fi.op .fa{max-height:220px;padding:0 24px 20px;}
 .fi.op .fp{background:var(--teal2);color:var(--teal);transform:rotate(45deg);}
-
-/* ── CTA ── */
-.cta-sec{
-  padding:clamp(80px,10vw,128px) clamp(16px,4vw,56px);
-  text-align:center;background:var(--base);position:relative;overflow:hidden;
-}
-.cta-sec::before{
-  content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:min(800px,100vw);height:600px;
-  background:radial-gradient(ellipse,rgba(0,201,177,.05),transparent 60%);pointer-events:none;
-}
-.cta-card{
-  max-width:740px;margin:0 auto;position:relative;z-index:1;
-  background:var(--s1);border:1px solid var(--teal3);
-  border-radius:24px;padding:clamp(48px,6vw,84px) clamp(28px,5vw,64px);overflow:hidden;
-}
+.cta-sec{padding:clamp(80px,10vw,128px) clamp(16px,4vw,56px);text-align:center;background:var(--base);position:relative;overflow:hidden;}
+.cta-sec::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(800px,100vw);height:600px;background:radial-gradient(ellipse,rgba(0,201,177,.05),transparent 60%);pointer-events:none;}
+.cta-card{max-width:740px;margin:0 auto;position:relative;z-index:1;background:var(--s1);border:1px solid var(--teal3);border-radius:24px;padding:clamp(48px,6vw,84px) clamp(28px,5vw,64px);overflow:hidden;}
 .cta-card::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),transparent);}
-.cta-h-stop{
-  display:block;font-size:clamp(28px,4vw,50px);font-weight:800;
-  color:var(--red);line-height:1.1;letter-spacing:-.04em;margin-bottom:4px;
-}
-.cta-h-start{
-  display:block;font-size:clamp(28px,4vw,50px);font-weight:800;
-  color:var(--ink);line-height:1.1;letter-spacing:-.04em;margin-bottom:20px;
-}
+.cta-h-stop{display:block;font-size:clamp(28px,4vw,50px);font-weight:800;color:var(--red);line-height:1.1;letter-spacing:-.04em;margin-bottom:4px;}
+.cta-h-start{display:block;font-size:clamp(28px,4vw,50px);font-weight:800;color:var(--ink);line-height:1.1;letter-spacing:-.04em;margin-bottom:20px;}
 .cta-h-start em{font-style:italic;color:var(--teal);}
 .cta-p{font-size:clamp(14px,1.5vw,16px);color:var(--ink2);margin-bottom:36px;line-height:1.85;}
 .cta-btns{display:flex;align-items:center;justify-content:center;gap:11px;flex-wrap:wrap;}
 .cta-note{margin-top:18px;font-size:12px;color:var(--ink3);}
-
-/* ── EXIT BAR ── */
-.exit-bar{
-  position:fixed;bottom:0;left:0;right:0;z-index:300;
-  background:var(--s2);border-top:1px solid var(--teal3);
-  padding:13px clamp(16px,4vw,56px);
-  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
-  transform:translateY(100%);transition:transform .4s cubic-bezier(.22,1,.36,1);
-}
+.exit-bar{position:fixed;bottom:0;left:0;right:0;z-index:300;background:var(--s2);border-top:1px solid var(--teal3);padding:13px clamp(16px,4vw,56px);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;transform:translateY(100%);transition:transform .4s cubic-bezier(.22,1,.36,1);}
 .exit-bar.show{transform:none;}
 .exit-txt{font-size:14px;color:var(--ink2);}
 .exit-txt strong{color:var(--ink);}
@@ -728,8 +597,6 @@ body::before{
 .exit-cta:hover{background:#00e5cc;}
 .exit-close{background:none;border:1px solid var(--line2);color:var(--ink3);padding:8px 13px;border-radius:8px;cursor:pointer;font-size:13px;transition:all .15s;font-family:'DM Sans',sans-serif;}
 .exit-close:hover{color:var(--ink);border-color:var(--line3);}
-
-/* ── FOOTER ── */
 footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,6vw,68px) clamp(16px,4vw,56px) clamp(28px,4vw,38px);}
 .ft{max-width:1200px;margin:0 auto;}
 .ft-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:clamp(24px,4vw,52px);margin-bottom:clamp(32px,4vw,44px);}
@@ -745,12 +612,11 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
 .ft-lks a{font-size:13.5px;color:var(--ink2);text-decoration:none;transition:color .14s;}
 .ft-lks a:hover{color:var(--teal);}
 .ft-bot{padding-top:22px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink3);flex-wrap:wrap;gap:7px;}
-
-/* ── REVEAL ── */
 .fade{opacity:0;transform:translateY(20px);transition:opacity .65s ease,transform .65s ease;}
 .fade.vis{opacity:1;transform:none;}
-
-/* ── RESPONSIVE ── */
+/* Simulator input */
+.sim-inp{width:100%;background:#0c1221;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:11px 14px;font-size:13.5px;color:#f1f5f9;outline:none;font-family:inherit;transition:border-color .2s;}
+.sim-inp:focus{border-color:#00C9B1;}
 @media(max-width:768px){
   .nav{height:68px;padding:0 14px;}
   .nmid,.nav-login{display:none;}
@@ -761,8 +627,6 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
   .h1-line2{font-size:clamp(20px,7vw,32px);}
   .hero-btns{flex-direction:column;align-items:stretch;gap:10px;}
   .btn-primary,.btn-ghost{justify-content:center;width:100%;}
-  .hero-sub{gap:6px;margin-bottom:32px;}
-  .hero-sub-line{font-size:clamp(14px,4vw,15px);}
   .stats-row{grid-template-columns:1fr;}
   .stat-cell{border-right:none;border-bottom:1px solid var(--line);}
   .stat-cell:last-child{border-bottom:none;}
@@ -773,6 +637,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
   .loss-timeline{border-left-width:1.5px;}
   .loss-item{grid-template-columns:1fr;gap:12px;padding:20px 0 20px 24px;}
   .loss-time{text-align:left;font-size:12px;}
+  .sim-grid{grid-template-columns:1fr!important;gap:28px!important;}
   .demo-layout{grid-template-columns:1fr;gap:12px;}
   .demo-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
   .feat-grid{grid-template-columns:1fr;gap:10px;}
@@ -818,7 +683,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     )}
 
-    {/* ── NAV ── */}
+    {/* NAV */}
     <nav className={`nav${scrolled?" sc":""}`}>
       <a href="/" className="nav-logo">
         <img src="/logo.png" width="38" height="38" alt="Fastrill" />
@@ -844,28 +709,20 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       <a href="/signup" onClick={()=>setMobOpen(false)} style={{color:"var(--teal)",fontWeight:700}}>Start Free Trial →</a>
     </div>
 
-    {/* ── HERO ── */}
+    {/* HERO */}
     <section className="hero">
       <div className="hero-grid-bg"/>
       <div className="hero-in">
         <div>
-          <div className="hero-eyebrow">
-            <div className="eyebrow-dot"/>
-            🇮🇳 Built for Indian businesses
-          </div>
-
+          <div className="hero-eyebrow"><div className="eyebrow-dot"/>🇮🇳 Built for Indian businesses</div>
           <h1 className="h1">You're not losing leads.</h1>
-          <span className="h1-line2">
-            You're losing them <em>after they message you.</em>
-          </span>
-
+          <span className="h1-line2">You're losing them <em>after they message you.</em></span>
           <div className="hero-sub">
             <span className="hero-sub-line">Every lead on WhatsApp = real money.</span>
             <span className="hero-sub-line">Most businesses reply in <strong>hours</strong> — or never.</span>
             <span className="hero-sub-line">That's where your revenue walks out.</span>
             <span className="hero-sub-line">Fastrill replies in <strong>2 seconds.</strong> Books the appointment. Confirmed.</span>
           </div>
-
           <div className="hero-btns">
             <a href="/signup" className="btn-primary">Start converting leads instantly →</a>
             <a href="#demo" className="btn-ghost">
@@ -879,12 +736,9 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
                 <div key={idx} className="proof-av" style={{background:`linear-gradient(135deg,${c},${c}88)`}}>{i}</div>
               ))}
             </div>
-            <div className="proof-text">
-              <strong>80+ businesses</strong> already converting more leads on WhatsApp ★★★★★
-            </div>
+            <div className="proof-text"><strong>80+ businesses</strong> already converting more leads on WhatsApp ★★★★★</div>
           </div>
         </div>
-
         <div className="fade">
           <div className="phone">
             <div className="phone-top">
@@ -945,17 +799,14 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </div>
 
-    {/* ── REAL LOSS SECTION (NEW) ── */}
+    {/* REAL LOSS */}
     <section className="sec real-loss-sec" style={{background:"var(--base)"}}>
       <div className="w">
         <div className="fade" style={{maxWidth:720,margin:"0 auto"}}>
           <div className="label" style={{justifyContent:"center"}}>The silent cost</div>
           <h2 className="sh" style={{textAlign:"center"}}>What happens when you don't reply instantly?</h2>
-          <p className="sp" style={{textAlign:"center",maxWidth:480,margin:"0 auto"}}>
-            A real scenario. A real loss.
-          </p>
+          <p className="sp" style={{textAlign:"center",maxWidth:480,margin:"0 auto"}}>A real scenario. A real loss.</p>
         </div>
-
         <div className="loss-timeline fade">
           {[
             {time:"9:02 PM",event:"Customer messages you",desc:"Ready to book. Service: Keratin treatment. Budget: ₹2,800",icon:"💬"},
@@ -975,7 +826,6 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
             </div>
           ))}
         </div>
-
         <div className="loss-cta fade">
           <p style={{fontSize:"15px",color:"var(--ink2)",marginBottom:20}}>
             This happens <strong style={{color:"var(--red)"}}>thousands of times every month</strong> across Indian businesses.
@@ -985,40 +835,19 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── PAIN ── */}
+    {/* PAIN */}
     <section className="sec" id="pain" style={{background:"var(--base)"}}>
       <div className="w">
         <div className="fade" style={{maxWidth:600}}>
           <div className="label">The real problem</div>
           <h2 className="sh">Your ads are working.<br /><em>Your follow-up isn't.</em></h2>
-          <p className="sp" style={{maxWidth:480}}>
-            Most businesses spend thousands getting leads to message them.<br/>
-            The money walks out in the WhatsApp inbox.
-          </p>
+          <p className="sp" style={{maxWidth:480}}>Most businesses spend thousands getting leads to message them.<br/>The money walks out in the WhatsApp inbox.</p>
         </div>
         <div className="pain-grid">
           {[
-            {
-              n:"01", ico:"🌙",
-              title:"Leads die after hours.",
-              punch:"₹8,500 gone — from a 10-hour silence.",
-              desc:"A customer messages at 10 PM about your bridal package. You see it at 9 AM. She's already booked someone who replied in 2 minutes.",
-              tag:"Revenue lost every night"
-            },
-            {
-              n:"02", ico:"⚡",
-              title:"Speed wins the booking.",
-              punch:"After 5 minutes, conversion drops 80%.",
-              desc:"Your competitor replies in 2 seconds. You reply in 2 hours. Same service, same price — they win the appointment every time.",
-              tag:"Competitive loss"
-            },
-            {
-              n:"03", ico:"😤",
-              title:"Silence turns into a bad review.",
-              punch:"One ignored message = one public complaint.",
-              desc:"An upset customer messages at peak hour. Your staff is busy. Fastrill responds in 2 seconds with genuine empathy — before it reaches Google.",
-              tag:"Reputation at risk"
-            },
+            {n:"01",ico:"🌙",title:"Leads die after hours.",punch:"₹8,500 gone — from a 10-hour silence.",desc:"A customer messages at 10 PM about your bridal package. You see it at 9 AM. She's already booked someone who replied in 2 minutes.",tag:"Revenue lost every night"},
+            {n:"02",ico:"⚡",title:"Speed wins the booking.",punch:"After 5 minutes, conversion drops 80%.",desc:"Your competitor replies in 2 seconds. You reply in 2 hours. Same service, same price — they win the appointment every time.",tag:"Competitive loss"},
+            {n:"03",ico:"😤",title:"Silence turns into a bad review.",punch:"One ignored message = one public complaint.",desc:"An upset customer messages at peak hour. Your staff is busy. Fastrill responds in 2 seconds with genuine empathy — before it reaches Google.",tag:"Reputation at risk"},
           ].map(p=>(
             <div key={p.n} className="pain-card fade">
               <div className="pain-num">{p.n}</div>
@@ -1065,38 +894,46 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── DEMO ── */}
+    {/* ── DEMO — Simulator + Tabs ── */}
     <section className="sec" id="demo" style={{background:"var(--base)"}}>
       <div className="w">
         <div className="fade">
           <div className="label">Live demo</div>
           <h2 className="sh">See how a real customer gets<br /><em>converted in seconds.</em></h2>
-          <p className="sp" style={{maxWidth:500}}>No scripts. Real conversations. Click any scenario — instant replies, any language, any context.</p>
+          <p className="sp" style={{maxWidth:500}}>Enter your business details or pick a scenario below — watch the AI handle it instantly.</p>
         </div>
-        <div className="demo-layout">
-          <div className="demo-tabs fade">
-            {DEMO_META.map(s=>(
-              <div key={s.k} className={`demo-tab${demoKey===s.k?" on":""}`} onClick={()=>setDemoKey(s.k)}>
-                <div className="dt-label">{s.label}</div>
-                <div className="dt-sub">{s.sub}</div>
-              </div>
-            ))}
-          </div>
-          <div className="wa-mock fade">
-            <div className="wa-head">
-              <div className="wa-av">R</div>
-              <div>
-                <div className="wa-name">Riya Salon</div>
-                <div className="wa-st">◈ Fastrill AI · Online</div>
-              </div>
-            </div>
-            <div className="wa-body" ref={demoRef}>
-              {demoMsgs.map((m,i)=>(
-                <div key={i} className={`wm ${m.r}`}>
-                  {m.r==="a"&&<span className="al">◈ Fastrill AI</span>}
-                  {m.m.split("\n").map((l,j,arr)=><span key={j}>{l}{j<arr.length-1&&<br/>}</span>)}
+
+        {/* ── INTERACTIVE SIMULATOR ── */}
+        <WhatsAppSimulator />
+
+        {/* Divider */}
+        <div style={{margin:"56px 0 0",borderTop:"1px solid var(--line)",paddingTop:48}}>
+          <p style={{fontSize:13,color:"var(--ink3)",textAlign:"center",marginBottom:28,letterSpacing:1,textTransform:"uppercase",fontWeight:600}}>More scenarios</p>
+          <div className="demo-layout">
+            <div className="demo-tabs fade">
+              {DEMO_META.map(s=>(
+                <div key={s.k} className={`demo-tab${demoKey===s.k?" on":""}`} onClick={()=>setDemoKey(s.k)}>
+                  <div className="dt-label">{s.label}</div>
+                  <div className="dt-sub">{s.sub}</div>
                 </div>
               ))}
+            </div>
+            <div className="wa-mock fade">
+              <div className="wa-head">
+                <div className="wa-av">R</div>
+                <div>
+                  <div className="wa-name">Riya Salon</div>
+                  <div className="wa-st">◈ Fastrill AI · Online</div>
+                </div>
+              </div>
+              <div className="wa-body" ref={demoRef}>
+                {demoMsgs.map((m,i)=>(
+                  <div key={i} className={`wm ${m.r}`}>
+                    {m.r==="a"&&<span className="al">◈ Fastrill AI</span>}
+                    {m.m.split("\n").map((l,j,arr)=><span key={j}>{l}{j<arr.length-1&&<br/>}</span>)}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1134,60 +971,45 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── REVENUE VISUALIZATION ── */}
+    {/* REVENUE VIZ */}
     <section className="rev-sec">
       <div className="w">
         <div className="fade" style={{textAlign:"center"}}>
           <div className="label" style={{justifyContent:"center"}}>The difference</div>
           <h2 className="sh" style={{textAlign:"center"}}>Before Fastrill.<br /><em>After Fastrill.</em></h2>
-          <p className="sp" style={{textAlign:"center",maxWidth:420,margin:"0 auto"}}>
-            Two businesses. Same ads. Same leads.<br/>Different results.
-          </p>
+          <p className="sp" style={{textAlign:"center",maxWidth:420,margin:"0 auto"}}>Two businesses. Same ads. Same leads.<br/>Different results.</p>
         </div>
         <div className="rev-viz fade">
-          {/* BEFORE */}
           <div className="rev-col">
             <div className="rev-col-label bad">✕ &nbsp;Without Fastrill</div>
             {[
-              {ico:"🌙",t:"Reply in 8 hours",     s:"Lead already booked elsewhere",     cls:"bad-s"},
-              {ico:"🔇",t:"No reply after hours",  s:"₹300 ad spend — zero return",       cls:"bad-s"},
-              {ico:"😤",t:"Complaint ignored",      s:"Google Review: 2 stars",            cls:"bad-s"},
-              {ico:"📊",t:"No visibility",          s:"No idea which leads converted",     cls:"bad-s"},
-              {ico:"😰",t:"Staff overwhelmed",      s:"Checking WhatsApp all day",         cls:"bad-s"},
+              {ico:"🌙",t:"Reply in 8 hours",s:"Lead already booked elsewhere",cls:"bad-s"},
+              {ico:"🔇",t:"No reply after hours",s:"₹300 ad spend — zero return",cls:"bad-s"},
+              {ico:"😤",t:"Complaint ignored",s:"Google Review: 2 stars",cls:"bad-s"},
+              {ico:"📊",t:"No visibility",s:"No idea which leads converted",cls:"bad-s"},
+              {ico:"😰",t:"Staff overwhelmed",s:"Checking WhatsApp all day",cls:"bad-s"},
             ].map((item,i)=>(
               <div key={i} className="rev-item">
                 <div className="rev-ico bad">{item.ico}</div>
-                <div>
-                  <div className="rev-item-t">{item.t}</div>
-                  <div className={`rev-item-s ${item.cls}`}>{item.s}</div>
-                </div>
+                <div><div className="rev-item-t">{item.t}</div><div className={`rev-item-s ${item.cls}`}>{item.s}</div></div>
               </div>
             ))}
           </div>
-
-          {/* ARROW */}
           <div className="rev-arrow">
-            <div className="rev-arrow-line"/>
-            <div className="rev-arrow-icon">→</div>
-            <div className="rev-arrow-line"/>
+            <div className="rev-arrow-line"/><div className="rev-arrow-icon">→</div><div className="rev-arrow-line"/>
           </div>
-
-          {/* AFTER */}
           <div className="rev-col after">
             <div className="rev-col-label good">✓ &nbsp;With Fastrill</div>
             {[
-              {ico:"⚡",t:"Reply in 2 seconds",     s:"Lead booked before competitor opens", cls:"good-s"},
-              {ico:"🌙",t:"Books at 2 AM",           s:"You wake up to confirmed appointments",cls:"good-s"},
-              {ico:"🤝",t:"Complaint resolved in 2s",s:"Customer retained, crisis avoided",   cls:"good-s"},
-              {ico:"📈",t:"Full revenue dashboard",  s:"Every booking tracked to source",     cls:"good-s"},
-              {ico:"😌",t:"Staff focused on service",s:"Zero time spent on WhatsApp",         cls:"good-s"},
+              {ico:"⚡",t:"Reply in 2 seconds",s:"Lead booked before competitor opens",cls:"good-s"},
+              {ico:"🌙",t:"Books at 2 AM",s:"You wake up to confirmed appointments",cls:"good-s"},
+              {ico:"🤝",t:"Complaint resolved in 2s",s:"Customer retained, crisis avoided",cls:"good-s"},
+              {ico:"📈",t:"Full revenue dashboard",s:"Every booking tracked to source",cls:"good-s"},
+              {ico:"😌",t:"Staff focused on service",s:"Zero time spent on WhatsApp",cls:"good-s"},
             ].map((item,i)=>(
               <div key={i} className="rev-item">
                 <div className="rev-ico good">{item.ico}</div>
-                <div>
-                  <div className="rev-item-t">{item.t}</div>
-                  <div className={`rev-item-s ${item.cls}`}>{item.s}</div>
-                </div>
+                <div><div className="rev-item-t">{item.t}</div><div className={`rev-item-s ${item.cls}`}>{item.s}</div></div>
               </div>
             ))}
           </div>
@@ -1237,15 +1059,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
             <h2 className="sh">Not just another<br /><em>WhatsApp tool</em></h2>
             <p className="sp">Most tools give you rigid button menus that break the moment a customer says anything unexpected. Fastrill actually understands — in any language, in any context.</p>
             <div className="vs-pts">
-              {[
-                "Natural conversation — not preset button menus",
-                "Remembers every customer across all conversations",
-                "Handles any message, not just expected inputs",
-                "Detects emotion and adapts tone in real time",
-                "Never guesses on pricing, policy, or availability",
-                "Knows exactly when to hand off to a human",
-                "Built specifically for Indian languages and context",
-              ].map(p=>(
+              {["Natural conversation — not preset button menus","Remembers every customer across all conversations","Handles any message, not just expected inputs","Detects emotion and adapts tone in real time","Never guesses on pricing, policy, or availability","Knows exactly when to hand off to a human","Built specifically for Indian languages and context"].map(p=>(
                 <div key={p} className="vs-pt"><div className="vs-ck">✓</div>{p}</div>
               ))}
             </div>
@@ -1255,16 +1069,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
               <div className="vs-th tm">Other tools</div>
               <div className="vs-th us">Fastrill</div>
             </div>
-            {[
-              ["Fixed button menus","Natural conversation"],
-              ["English only","10+ Indian languages"],
-              ["Breaks on unexpected","Handles anything"],
-              ["No customer memory","Remembers everything"],
-              ["No emotion awareness","Adapts to mood"],
-              ["Per-message billing","Flat monthly unlimited"],
-              ["Needs a developer","10-min self-setup"],
-              ["Generic bot replies","Business-specific AI"],
-            ].map(([t,u])=>(
+            {[["Fixed button menus","Natural conversation"],["English only","10+ Indian languages"],["Breaks on unexpected","Handles anything"],["No customer memory","Remembers everything"],["No emotion awareness","Adapts to mood"],["Per-message billing","Flat monthly unlimited"],["Needs a developer","10-min self-setup"],["Generic bot replies","Business-specific AI"]].map(([t,u])=>(
               <div key={t} className="vs-row">
                 <div className="vs-c tm">{t}</div>
                 <div className="vs-c us">{u}</div>
@@ -1275,7 +1080,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── TESTIMONIALS ── */}
+    {/* TESTIMONIALS */}
     <section className="sec" style={{background:"var(--s1)"}}>
       <div className="w">
         <div className="fade" style={{textAlign:"center"}}>
@@ -1333,7 +1138,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── PRICING ── */}
+    {/* PRICING */}
     <section className="sec" id="pricing" style={{background:"var(--base)"}}>
       <div className="w">
         <div className="fade" style={{textAlign:"center"}}>
@@ -1341,26 +1146,15 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
           <h2 className="sh" style={{textAlign:"center"}}>Simple pricing.<br /><em>Pays for itself.</em></h2>
           <p className="sp" style={{textAlign:"center",maxWidth:420,margin:"0 auto 40px"}}>No per-message fees. Flat monthly.</p>
         </div>
-
         <div className="pricing-context fade">
           <div className="pricing-context-ico">💡</div>
-          <div className="pricing-context-body">
-            <strong>One missed lead can cost ₹500–₹5,000.</strong><br/>
-            Fastrill pays for itself in days — not months. A single extra booking per week covers the entire plan.
-          </div>
+          <div className="pricing-context-body"><strong>One missed lead can cost ₹500–₹5,000.</strong><br/>Fastrill pays for itself in days — not months. A single extra booking per week covers the entire plan.</div>
         </div>
-
         <div className="p-grid">
           {[
-            { tier:"Starter", price:"999",   tag:"Solo operators & new businesses", cta:"Get Started",       cs:"out", pop:false,
-              value:"💡 1 extra booking/week = plan fully paid off",
-              feats:[{c:"inc",t:"1 WhatsApp number"},{c:"inc",t:"300 AI conversations/month"},{c:"inc",t:"Appointment booking automation"},{c:"inc",t:"10+ Indian languages"},{c:"exc",t:"Customer memory"},{c:"exc",t:"Lead recovery automation"},{c:"exc",t:"WhatsApp campaigns"},{c:"exc",t:"Priority support"}] },
-            { tier:"Growth", price:"1,999", tag:"For growing businesses",           cta:"Start Free Trial →",cs:"go",  pop:true, badge:"Most Popular",
-              value:"💡 Unlimited conversations — no per-message fees ever",
-              feats:[{c:"inc",t:"1 WhatsApp number"},{c:"inc",t:"Unlimited AI conversations"},{c:"inc",t:"Customer memory & history"},{c:"inc",t:"Lead recovery automation"},{c:"inc",t:"Emotion detection & handoff"},{c:"inc",t:"WhatsApp campaigns"},{c:"hi",t:"Advanced analytics"},{c:"hi",t:"Priority support"}] },
-            { tier:"Pro",     price:"4,999", tag:"Multi-branch & growing teams",    cta:"Contact Sales",     cs:"out", pop:false,
-              value:"💡 Up to 5 WhatsApp numbers — one dashboard",
-              feats:[{c:"inc",t:"Up to 5 WhatsApp numbers"},{c:"inc",t:"Everything in Growth"},{c:"inc",t:"Multi-branch management"},{c:"inc",t:"Staff availability routing"},{c:"hi",t:"Custom AI playbook"},{c:"hi",t:"API access"},{c:"hi",t:"Dedicated onboarding call"},{c:"hi",t:"SLA support"}] },
+            {tier:"Starter",price:"999",tag:"Solo operators & new businesses",cta:"Get Started",cs:"out",pop:false,value:"💡 1 extra booking/week = plan fully paid off",feats:[{c:"inc",t:"1 WhatsApp number"},{c:"inc",t:"300 AI conversations/month"},{c:"inc",t:"Appointment booking automation"},{c:"inc",t:"10+ Indian languages"},{c:"exc",t:"Customer memory"},{c:"exc",t:"Lead recovery automation"},{c:"exc",t:"WhatsApp campaigns"},{c:"exc",t:"Priority support"}]},
+            {tier:"Growth",price:"1,999",tag:"For growing businesses",cta:"Start Free Trial →",cs:"go",pop:true,badge:"Most Popular",value:"💡 Unlimited conversations — no per-message fees ever",feats:[{c:"inc",t:"1 WhatsApp number"},{c:"inc",t:"Unlimited AI conversations"},{c:"inc",t:"Customer memory & history"},{c:"inc",t:"Lead recovery automation"},{c:"inc",t:"Emotion detection & handoff"},{c:"inc",t:"WhatsApp campaigns"},{c:"hi",t:"Advanced analytics"},{c:"hi",t:"Priority support"}]},
+            {tier:"Pro",price:"4,999",tag:"Multi-branch & growing teams",cta:"Contact Sales",cs:"out",pop:false,value:"💡 Up to 5 WhatsApp numbers — one dashboard",feats:[{c:"inc",t:"Up to 5 WhatsApp numbers"},{c:"inc",t:"Everything in Growth"},{c:"inc",t:"Multi-branch management"},{c:"inc",t:"Staff availability routing"},{c:"hi",t:"Custom AI playbook"},{c:"hi",t:"API access"},{c:"hi",t:"Dedicated onboarding call"},{c:"hi",t:"SLA support"}]},
           ].map(plan=>(
             <div key={plan.tier} className={`plan fade${plan.pop?" pop":""}`}>
               {plan.badge&&<div className="p-badge">{plan.badge}</div>}
@@ -1390,9 +1184,7 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
         <div className="faq-box">
           {FAQS.map((q,i)=>(
             <div key={i} className={`fi${openFaq===i?" op":""}`}>
-              <button className="fb" onClick={()=>setOpenFaq(openFaq===i?null:i)}>
-                {q.q}<span className="fp">+</span>
-              </button>
+              <button className="fb" onClick={()=>setOpenFaq(openFaq===i?null:i)}>{q.q}<span className="fp">+</span></button>
               <div className="fa">{q.a}</div>
             </div>
           ))}
@@ -1400,16 +1192,13 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       </div>
     </section>
 
-    {/* ── FINAL CTA ── */}
+    {/* CTA */}
     <section className="cta-sec">
       <div className="w">
         <div className="cta-card fade">
           <span className="cta-h-stop">Stop losing customers</span>
           <span className="cta-h-start">who already want to <em>buy.</em></span>
-          <p className="cta-p">
-            Don't make them wait. Don't lose them to whoever replies faster.<br/>
-            Fastrill answers in 2 seconds — in their language, every time, 24/7.
-          </p>
+          <p className="cta-p">Don't make them wait. Don't lose them to whoever replies faster.<br/>Fastrill answers in 2 seconds — in their language, every time, 24/7.</p>
           <div className="cta-btns">
             <a href="/signup" className="btn-primary">Start Free — No Card Needed →</a>
             <a href="https://wa.me/919346079265" className="btn-ghost">💬 Message us on WhatsApp</a>
@@ -1424,16 +1213,9 @@ footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,
       <div className="ft">
         <div className="ft-top">
           <div>
-            <a href="/" className="ft-logo">
-              <img src="/logo.png" width="34" height="34" alt="Fastrill" />
-              <span className="ft-logo-text">fast<em>rill</em></span>
-            </a>
+            <a href="/" className="ft-logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" /><span className="ft-logo-text">fast<em>rill</em></span></a>
             <p className="ft-tagline">AI-powered WhatsApp automation for Indian businesses. Turns every lead into a booked customer — 24/7, in any language.</p>
-            <div className="ft-badges">
-              {["🔒 SSL Encrypted","🇮🇳 Indian Servers","🛡️ Zero Data Sharing"].map(b=>(
-                <div key={b} className="ft-badge">{b}</div>
-              ))}
-            </div>
+            <div className="ft-badges">{["🔒 SSL Encrypted","🇮🇳 Indian Servers","🛡️ Zero Data Sharing"].map(b=><div key={b} className="ft-badge">{b}</div>)}</div>
           </div>
           {[
             {h:"Product",lks:[["Features","#features"],["Pricing","#pricing"],["Demo","#demo"],["How it works","#how"]]},
