@@ -3,6 +3,9 @@
 // 1. When loading campaign context, also fetch campaign_service from campaigns table
 // 2. Pass campaignService to orchestrate()
 // 3. Increment booked_count on campaign when booking is confirmed
+// 4. RE-ADDED: isDuplicateContent() — Meta sometimes resends the same message
+//    with a DIFFERENT wa_message_id during retries. ID-based dedup alone misses
+//    this. Content-based dedup (phone + text, 10s window) catches it.
 
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
@@ -28,6 +31,21 @@ function isRateLimited(phone) {
   if (data.count >= RATE_LIMIT_MAX) return true
   data.count++
   rateLimitMap.set(phone, data)
+  return false
+}
+
+// ── CONTENT-BASED DEDUP ──────────────────────────────────────
+// Meta can resend the same message content with a NEW wa_message_id
+// during network retries. messageId-based dedup (isDuplicate) misses
+// this because each retry looks like a "new" message. This catches
+// same phone + same text arriving within a 10-second window.
+const recentMessages = new Map()
+function isDuplicateContent(phone, text) {
+  const key  = phone + "|" + (text || "").toLowerCase().trim()
+  const last = recentMessages.get(key)
+  if (last && Date.now() - last < 10000) return true  // same content within 10s
+  recentMessages.set(key, Date.now())
+  setTimeout(() => recentMessages.delete(key), 15000)  // clean up after 15s
   return false
 }
 
@@ -99,6 +117,14 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
   const msg = normalizeMessage(message, contacts)
 
   if (await isDuplicate(msg.messageId)) return
+
+  // ── NEW: content-based dedup check ──────────────────────────
+  // Runs BEFORE any DB calls — catches duplicate retries with new
+  // messageIds before they ever reach the database or AI.
+  if (msg.effectiveText && isDuplicateContent(msg.phone, msg.effectiveText)) {
+    console.log("⚠️ Duplicate content within 10s, skipping:", msg.phone, JSON.stringify(msg.effectiveText))
+    return
+  }
 
   if (isRateLimited(msg.phone)) {
     console.error("🚫 Rate limited:", msg.phone)
