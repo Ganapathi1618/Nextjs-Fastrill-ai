@@ -43,6 +43,11 @@ const SMART_LABELS = {
   "7": { label:"Extra Info",      hint:"Any additional detail" },
 }
 
+// ── PHONE NORMALIZATION ──────────────────────────────────────
+// toPhone()  → ALWAYS returns 12-digit, 91-prefixed format (matches conversations.phone)
+// dedupe()   → ALWAYS returns last-10-digit format (matches messages.customer_phone / optouts)
+// These two are inverses of each other and must round-trip correctly:
+//   dedupe(toPhone(x)) === dedupe(x)  for any valid input x
 function toPhone(p) {
   const d = (p||"").replace(/[^0-9]/g,"")
   if (d.length===10) return "91"+d
@@ -51,8 +56,10 @@ function toPhone(p) {
   return d
 }
 function dedupe(p) {
+  // Always returns the LAST 10 digits, regardless of input length/format.
+  // This makes it idempotent: dedupe(toPhone(x)) === dedupe(x) always.
   const d = (p||"").replace(/[^0-9]/g,"")
-  return d.length>=12 ? d.slice(-10) : d
+  return d.slice(-10)
 }
 function getCategoryIcon(cat) {
   if (cat==="UTILITY") return "🔧"
@@ -495,6 +502,17 @@ export default function Campaigns() {
     },10000)
   }
 
+  // ── sendCampaign() — FIXED ──────────────────────────────────
+  // Bug fixed: was using dedupe(customer.phone) (10-digit, raw input) to look up
+  // conversations.phone (which is ALWAYS stored 12-digit with 91 prefix). This
+  // mismatch meant the conversation lookup silently failed for any customer whose
+  // raw phone field wasn't already 12-digit — so campaign_sent_at never got set,
+  // the messages insert error was swallowed by an empty catch block, and the
+  // dashboard still showed "Sent" because the Meta API call itself succeeded.
+  //
+  // Fix: derive both lookups from the SAME normalized `phone` (toPhone result),
+  // use toPhone() format for conversations.phone lookup, dedupe() format for
+  // messages.customer_phone, and log every failure instead of swallowing it.
   async function sendCampaign() {
     const aud  = getAudience()
     const tmpl = templates.find(t=>t.id===selectedTmplId)
@@ -516,7 +534,7 @@ export default function Campaigns() {
     } catch(e) { console.error("Campaign insert:", e.message) }
 
     for (const customer of aud) {
-      const phone   = toPhone(customer.phone)
+      const phone = toPhone(customer.phone)  // 12-digit, 91-prefixed — matches conversations.phone format
       const payload = buildPayload(customer.name||"Customer", phone)
       if (!payload) { fc++; setFailCount(fc); continue }
       try {
@@ -530,21 +548,34 @@ export default function Campaigns() {
           const waId = d?.messages?.[0]?.id
           if (waId) waIds.push(waId)
           try {
-            const { data:convo } = await supabase.from("conversations").select("id").eq("user_id",userId).eq("phone",dedupe(customer.phone)).maybeSingle()
-            await supabase.from("messages").insert({
-              user_id:userId, customer_phone:dedupe(customer.phone),
+            // conversations.phone is ALWAYS stored 12-digit (91-prefixed) — use `phone` (toPhone result) directly
+            const { data:convo, error:convoErr } = await supabase
+              .from("conversations").select("id")
+              .eq("user_id",userId).eq("phone",phone).maybeSingle()
+
+            if (convoErr) console.error("⚠️ conversation lookup failed for", phone, convoErr.message)
+
+            // messages.customer_phone uses 10-digit format (matches webhook's saveInboundMessage)
+            const { error:msgErr } = await supabase.from("messages").insert({
+              user_id:userId, customer_phone:dedupe(phone),
               conversation_id:convo?.id||null, direction:"outbound",
               message_type:"template", message_text:getPreview().substring(0,500),
               status:"sent", is_ai:false, wa_message_id:waId||null, created_at:now
             })
+            if (msgErr) console.error("⚠️ messages insert failed for", phone, msgErr.message)
+
             if (convo?.id) {
               await supabase.from("conversations").update({
                 campaign_sent_at: now,
                 campaign_message: getPreview().substring(0,500),
-                state_json: null 
+                state_json: null
               }).eq("id", convo.id)
+            } else {
+              console.warn("⚠️ No existing conversation for", phone, "— first-time contact, campaign context won't attach to their reply until upsertConversation creates one")
             }
-          } catch(e) {}
+          } catch(e) {
+            console.error("⚠️ Post-send tracking failed for", phone, e.message)
+          }
         } else {
           console.error("Send error for", phone, d.error.message)
           fc++; setFailCount(fc)
