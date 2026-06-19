@@ -1,14 +1,20 @@
 // app/api/meta/webhook/route.js
-// CHANGES FROM PREVIOUS VERSION:
-// 1. When loading campaign context, also fetch campaign_service from campaigns table
-// 2. Pass campaignService to orchestrate()
-// 3. Increment booked_count on campaign when booking is confirmed
-// 4. RE-ADDED: isDuplicateContent() — Meta sometimes resends the same message
-//    with a DIFFERENT wa_message_id during retries. ID-based dedup alone misses
-//    this. Content-based dedup (phone + text, 10s window) catches it.
+// v9.2 — SECURITY: Meta POST signature verification added
+//
+// CHANGES FROM v9.1:
+// 1. NEW: verifySignature() — validates X-Hub-Signature-256 header against
+//    raw request body using META_APP_SECRET, before any JSON parsing or
+//    DB calls happen. Requests that fail verification are rejected with
+//    401 and never reach processMessage/orchestrate.
+// 2. POST handler now reads req.text() FIRST (raw body needed for HMAC),
+//    then JSON.parse()s it manually — req.json() can't be used here because
+//    it consumes the body stream before we can read it raw.
+// Everything else — campaign flow, hard-confirm guard, dedup, rate limiting —
+// is byte-for-byte unchanged from the version you're running now.
 
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
+const crypto = require("crypto")
 const { normalizeMessage }   = require("@/lib/messaging/normalizer")
 const { orchestrate }        = require("@/lib/ai/orchestrator")
 const { sendAndSave }        = require("@/lib/messaging/wa-send")
@@ -35,18 +41,45 @@ function isRateLimited(phone) {
 }
 
 // ── CONTENT-BASED DEDUP ──────────────────────────────────────
-// Meta can resend the same message content with a NEW wa_message_id
-// during network retries. messageId-based dedup (isDuplicate) misses
-// this because each retry looks like a "new" message. This catches
-// same phone + same text arriving within a 10-second window.
 const recentMessages = new Map()
 function isDuplicateContent(phone, text) {
   const key  = phone + "|" + (text || "").toLowerCase().trim()
   const last = recentMessages.get(key)
-  if (last && Date.now() - last < 10000) return true  // same content within 10s
+  if (last && Date.now() - last < 10000) return true
   recentMessages.set(key, Date.now())
-  setTimeout(() => recentMessages.delete(key), 15000)  // clean up after 15s
+  setTimeout(() => recentMessages.delete(key), 15000)
   return false
+}
+
+// ── NEW: META SIGNATURE VERIFICATION ─────────────────────────
+// Meta signs every webhook POST with HMAC-SHA256 of the raw body,
+// using your app secret as the key, sent as the X-Hub-Signature-256
+// header in the form "sha256=<hex digest>". We recompute it and
+// compare using a timing-safe check. If it doesn't match, or the
+// header/secret is missing, we reject the request before any
+// parsing, DB writes, or AI calls happen.
+function verifySignature(rawBody, signatureHeader) {
+  const appSecret = process.env.META_APP_SECRET
+  if (!appSecret) {
+    console.error("❌ META_APP_SECRET not set — rejecting all webhook POSTs for safety")
+    return false
+  }
+  if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
+    console.error("❌ Missing or malformed X-Hub-Signature-256 header")
+    return false
+  }
+  const receivedSig = signatureHeader.slice(7) // strip "sha256="
+  const expectedSig = crypto
+    .createHmac("sha256", appSecret)
+    .update(rawBody, "utf8")
+    .digest("hex")
+
+  const receivedBuf = Buffer.from(receivedSig, "hex")
+  const expectedBuf = Buffer.from(expectedSig, "hex")
+
+  // timingSafeEqual throws if buffers are different lengths — guard that
+  if (receivedBuf.length !== expectedBuf.length) return false
+  return crypto.timingSafeEqual(receivedBuf, expectedBuf)
 }
 
 async function GET(req) {
@@ -62,7 +95,18 @@ async function GET(req) {
 
 async function POST(req) {
   try {
-    const body = await req.json()
+    // ── Read RAW body first — required for signature verification.
+    // req.json() would consume the stream before we can hash it raw.
+    const rawBody = await req.text()
+    const signatureHeader = req.headers.get("x-hub-signature-256")
+
+    if (!verifySignature(rawBody, signatureHeader)) {
+      console.error("🚫 Webhook signature verification FAILED — rejecting request")
+      return NextResponse.json({ status: "invalid_signature" }, { status: 401 })
+    }
+
+    const body = JSON.parse(rawBody)
+
     const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
     const hasMsg   = body?.entry?.[0]?.changes?.[0]?.value?.messages
     if (statuses && !hasMsg) {
@@ -118,9 +162,6 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
 
   if (await isDuplicate(msg.messageId)) return
 
-  // ── NEW: content-based dedup check ──────────────────────────
-  // Runs BEFORE any DB calls — catches duplicate retries with new
-  // messageIds before they ever reach the database or AI.
   if (msg.effectiveText && isDuplicateContent(msg.phone, msg.effectiveText)) {
     console.log("⚠️ Duplicate content within 10s, skipping:", msg.phone, JSON.stringify(msg.effectiveText))
     return
@@ -140,7 +181,6 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     text: msg.effectiveText, timestamp: msg.timestamp
   })
 
-  // Use dbMessageType — maps button/interactive → "text" for DB constraint
   const saved = await saveInboundMessage({
     userId, phoneNumberId, from: msg.from,
     text: msg.effectiveText || "[" + msg.type + "]",
@@ -172,7 +212,6 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
 
   if (conversation?.ai_enabled === false) return
 
-  // Global AI master switch
   try {
     const { data: bizFlag } = await supabaseAdmin
       .from("business_settings")
@@ -189,9 +228,6 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     await stopEnrollment({ leadPhone: msg.phone, userId, reason: "replied" })
   } catch(e) {}
 
-  // ── CAMPAIGN CONTEXT + SERVICE ───────────────────────────────
-  // Only set when conversation.campaign_sent_at exists
-  // This is set ONLY by marketing campaigns, NOT by reminders
   let campaignContext = null
   let campaignService = null
   let matchedCampaignId = null
@@ -202,7 +238,6 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
       if (hoursSince < 48) {
         campaignContext = conversation.campaign_message
 
-        // Fetch the matched campaign to get campaign_service and id
         const cutoff = new Date(Date.now() - 48 * 3600000).toISOString()
         const { data: matchedCampaign } = await supabaseAdmin
           .from("campaigns")
@@ -216,10 +251,8 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
 
         if (matchedCampaign) {
           matchedCampaignId = matchedCampaign.id
-          // campaign_service is the service owner mapped when creating campaign
           campaignService = matchedCampaign.campaign_service || null
 
-          // Increment replied_count
           await supabaseAdmin
             .from("campaigns")
             .update({ replied_count: (matchedCampaign.replied_count || 0) + 1 })
@@ -238,8 +271,8 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     contactName: msg.contactName, message: msg.effectiveText || "",
     isMediaOnly: msg.isMediaOnly, phoneNumberId,
     campaignContext,
-    campaignService,    // NEW — passed to orchestrator
-    campaignId: matchedCampaignId  // NEW — for booked_count update
+    campaignService,
+    campaignId: matchedCampaignId
   })
 
   if (msg.effectiveText) {
