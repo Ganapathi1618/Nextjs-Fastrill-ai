@@ -256,8 +256,7 @@ body {
 }
 .v2-nav.sc { border-bottom-color: var(--line); box-shadow: 0 1px 0 rgba(11,13,18,0.02); }
 .v2-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.v2-logo-mark { width: 28px; height: 28px; border-radius: 7px; background: var(--ink); display: flex; align-items: center; justify-content: center; }
-.v2-logo-mark svg { width: 14px; height: 14px; stroke: white; }
+.v2-logo-img { width: 30px; height: 30px; object-fit: contain; flex-shrink: 0; display: block; }
 .v2-logo-text { font-family: var(--display); font-weight: 600; font-size: 18px; color: var(--ink); letter-spacing: -0.02em; }
 .v2-nmid { display: flex; align-items: center; gap: 4px; list-style: none; }
 .v2-nmid a { font-size: 14px; font-weight: 500; color: var(--ink-soft); text-decoration: none; padding: 8px 14px; border-radius: 7px; transition: all 0.15s; }
@@ -275,7 +274,7 @@ body {
 .v2-hbg { display: none; background: none; border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; cursor: pointer; font-size: 16px; }
 
 /* ── HERO ── */
-.v2-hero { padding: clamp(140px,16vw,180px) clamp(20px,4vw,48px) clamp(60px,8vw,96px); background: var(--paper); position: relative; overflow: hidden; }
+.v2-hero { padding: clamp(110px,12vw,140px) clamp(20px,4vw,48px) clamp(50px,7vw,80px); background: var(--paper); position: relative; overflow: hidden; }
 .v2-hero-grid {
   position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
   background-image: linear-gradient(rgba(11,13,18,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(11,13,18,0.025) 1px, transparent 1px);
@@ -286,7 +285,7 @@ body {
 .v2-eyebrow {
   display: inline-flex; align-items: center; gap: 7px;
   border: 1px solid var(--line); border-radius: 100px;
-  padding: 6px 14px; margin-bottom: 28px;
+  padding: 6px 14px; margin-bottom: 20px;
   font-size: 13px; font-weight: 500; color: var(--ink-soft);
   background: var(--canvas);
 }
@@ -400,13 +399,69 @@ body {
   .v2-rail-line { display: none; }
 }
 
-/* ── FEATURES ── */
+/* ── FEATURES (legacy, unused after module redesign) ── */
 .v2-feat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 48px; }
 .v2-feat-card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 26px 24px; transition: all 0.2s; }
 .v2-feat-card:hover { border-color: rgba(20,110,245,0.25); box-shadow: var(--shadow-card); transform: translateY(-2px); }
 .v2-feat-ico { width: 38px; height: 38px; border-radius: 10px; background: var(--signal-tint); color: var(--signal-deep); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
 .v2-feat-title { font-weight: 600; font-size: 15.5px; color: var(--ink); margin-bottom: 8px; }
 .v2-feat-desc { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; }
+
+/* ── MODULES — real screenshot rows, alternating ── */
+.v2-module { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(32px,5vw,64px); align-items: center; margin-top: 80px; }
+.v2-module.reverse .v2-module-text { order: 2; }
+.v2-module.reverse .v2-module-visual { order: 1; }
+.v2-module-tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--signal-deep); background: var(--signal-tint); padding: 4px 12px; border-radius: 100px; margin-bottom: 16px; }
+.v2-module-title { font-family: var(--display); font-weight: 600; font-size: clamp(22px,2.6vw,28px); color: var(--ink); letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 12px; }
+.v2-module-desc { font-size: 14.5px; color: var(--ink-soft); line-height: 1.65; margin-bottom: 20px; }
+.v2-module-list { list-style: none; display: flex; flex-direction: column; gap: 11px; }
+.v2-module-list li { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; color: var(--ink-soft); }
+.v2-module-list li svg { color: var(--signal); flex-shrink: 0; margin-top: 2px; }
+
+/* WhatsApp-style mockup (module 1) */
+.v2-mockup-wa { background: #0b141a; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-lift); border: 1px solid var(--line); max-width: 380px; margin: 0 auto; }
+.v2-mockup-wa-head { background: #1f2c34; padding: 13px 16px; display: flex; align-items: center; gap: 10px; }
+.v2-mockup-av { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,var(--signal),#0b4fc4); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; color: white; flex-shrink: 0; }
+.v2-mockup-name { font-size: 13px; font-weight: 600; color: #e9edef; }
+.v2-mockup-status { font-size: 10.5px; color: #25d366; }
+.v2-mockup-wa-body { padding: 16px; min-height: 220px; display: flex; flex-direction: column; gap: 9px; }
+.v2-mockup-wa .v2-msg { max-width: 80%; padding: 9px 13px; border-radius: 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+.v2-mockup-wa .v2-msg.c { background: #005c4b; color: #e9edef; align-self: flex-end; border-radius: 12px 3px 12px 12px; }
+.v2-mockup-wa .v2-msg.a { background: #1a2d22; border: 1px solid rgba(37,211,102,0.1); color: #e9edef; align-self: flex-start; border-radius: 3px 12px 12px 12px; }
+
+/* Mini dashboard mockup (module 2) */
+.v2-mockup-dash-mini { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-lift); max-width: 380px; margin: 0 auto; }
+.v2-mockup-dash-mini-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.v2-mockup-dash-mini-title { font-weight: 600; font-size: 14.5px; color: var(--ink); }
+.v2-mockup-badge { font-size: 11px; font-weight: 600; color: var(--signal-deep); background: var(--signal-tint); padding: 3px 10px; border-radius: 100px; }
+.v2-mockup-stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 18px; }
+.v2-mockup-stat-label { font-size: 11px; color: var(--ink-faint); margin-bottom: 6px; }
+.v2-mockup-stat-val { font-family: var(--mono); font-weight: 500; font-size: 18px; color: var(--ink); }
+.v2-mockup-stat-val.signal { color: var(--signal); }
+.v2-mockup-roi { background: var(--canvas); border-radius: 10px; padding: 14px 16px; }
+.v2-mockup-roi-label { font-size: 11.5px; font-weight: 600; color: var(--ink-faint); margin-bottom: 10px; }
+.v2-mockup-roi-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-soft); padding: 5px 0; }
+.v2-mockup-roi-row strong { font-family: var(--mono); font-weight: 500; color: var(--ink); }
+.v2-mockup-roi-row strong.signal { color: var(--signal); }
+
+/* Inbox mockup (module 3) */
+.v2-mockup-inbox { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-lift); max-width: 420px; margin: 0 auto; }
+.v2-mockup-inbox-row { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.v2-mockup-inbox-row:last-child { border-bottom: none; }
+.v2-mockup-inbox-av { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex-shrink: 0; }
+.v2-mockup-inbox-mid { flex: 1; min-width: 0; }
+.v2-mockup-inbox-name { font-size: 13.5px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+.v2-mockup-inbox-msg { font-size: 12.5px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v2-mockup-inbox-right { text-align: right; flex-shrink: 0; }
+.v2-mockup-inbox-time { font-size: 11px; color: var(--ink-faint); margin-bottom: 5px; }
+.v2-mockup-ai-pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 100px; background: var(--canvas); color: var(--ink-faint); }
+.v2-mockup-ai-pill.on { background: var(--signal-tint); color: var(--signal-deep); }
+
+@media(max-width: 860px) {
+  .v2-module, .v2-module.reverse { grid-template-columns: 1fr; gap: 28px; }
+  .v2-module.reverse .v2-module-text { order: 1; }
+  .v2-module.reverse .v2-module-visual { order: 2; }
+}
 
 /* ── COMPARISON TABLE ── */
 .v2-cmp { margin-top: 48px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--paper); }
@@ -512,9 +567,7 @@ body {
       {/* ── NAV ── */}
       <nav className={`v2-nav${scrolled ? " sc" : ""}`}>
         <a href="/" className="v2-logo">
-          <span className="v2-logo-mark">
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M13 2L3 14h8l-1 8 11-13h-8l1-7z" /></svg>
-          </span>
+          <img src="/logo.png" alt="Fastrill" className="v2-logo-img" />
           <span className="v2-logo-text">Fastrill</span>
         </a>
         <ul className="v2-nmid">
@@ -682,22 +735,118 @@ body {
         </div>
       </section>
 
-      {/* ── FEATURES ── */}
+      {/* ── MODULES — real product screenshots, alternating layout ── */}
       <section className="v2-sec alt">
         <div className="v2-w">
           <div className="v2-fade">
             <div className="v2-label">What's inside</div>
             <h2 className="v2-h2">Not a chatbot. A revenue system.</h2>
-            <p className="v2-p">Everything a trained receptionist does — conversation, qualification, booking, follow-up — running at unlimited scale.</p>
+            <p className="v2-p">Three modules working together — conversation, campaigns and bookings, all in one dashboard.</p>
           </div>
-          <div className="v2-feat-grid">
-            {FEATURES.map((f) => (
-              <div key={f.title} className="v2-feat-card v2-fade">
-                <div className="v2-feat-ico"><Icon name={f.icon} size={19} /></div>
-                <div className="v2-feat-title">{f.title}</div>
-                <div className="v2-feat-desc">{f.desc}</div>
+
+          {/* Module 1 — Booking conversation */}
+          <div className="v2-module">
+            <div className="v2-module-text v2-fade">
+              <div className="v2-module-tag">Booking</div>
+              <h3 className="v2-module-title">Books the appointment, start to finish.</h3>
+              <p className="v2-module-desc">Service, date, time, confirmation — collected in order, checked against real availability, and confirmed without a human touching it.</p>
+              <ul className="v2-module-list">
+                <li><Icon name="check" size={15} />Understands casual, mixed-language messages</li>
+                <li><Icon name="check" size={15} />Checks real slot availability before confirming</li>
+                <li><Icon name="check" size={15} />Notifies the owner the moment it's booked</li>
+              </ul>
+            </div>
+            <div className="v2-module-visual v2-fade">
+              <div className="v2-mockup-wa">
+                <div className="v2-mockup-wa-head">
+                  <div className="v2-mockup-av">R</div>
+                  <div>
+                    <div className="v2-mockup-name">Riya Salon</div>
+                    <div className="v2-mockup-status">Fastrill AI · Online</div>
+                  </div>
+                </div>
+                <div className="v2-mockup-wa-body">
+                  <div className="v2-msg c">Hi, I want a haircut tomorrow around 3pm</div>
+                  <div className="v2-msg a">Tomorrow's great — 3 PM is available.{"\n\n"}Shall I confirm Haircut for tomorrow at 3:00 PM?</div>
+                  <div className="v2-msg c">Yes please!</div>
+                  <div className="v2-msg a">Booking confirmed.{"\n\n"}Haircut · Tomorrow · 3:00 PM</div>
+                </div>
               </div>
-            ))}
+            </div>
+          </div>
+
+          {/* Module 2 — Campaign dashboard */}
+          <div className="v2-module reverse">
+            <div className="v2-module-text v2-fade">
+              <div className="v2-module-tag">Campaigns</div>
+              <h3 className="v2-module-title">See exactly what each campaign earned.</h3>
+              <p className="v2-module-desc">Send approved WhatsApp templates to customer segments, and track delivery, replies and revenue attributed to that exact send.</p>
+              <ul className="v2-module-list">
+                <li><Icon name="check" size={15} />Segment by tag — new, returning, VIP, inactive</li>
+                <li><Icon name="check" size={15} />Real Meta delivery and read tracking</li>
+                <li><Icon name="check" size={15} />Revenue and ROI per campaign, not just opens</li>
+              </ul>
+            </div>
+            <div className="v2-module-visual v2-fade">
+              <div className="v2-mockup-dash-mini">
+                <div className="v2-mockup-dash-mini-head">
+                  <div className="v2-mockup-dash-mini-title">Winter offer — January</div>
+                  <span className="v2-mockup-badge">Done</span>
+                </div>
+                <div className="v2-mockup-stat-row">
+                  <div><div className="v2-mockup-stat-label">Sent</div><div className="v2-mockup-stat-val">412</div></div>
+                  <div><div className="v2-mockup-stat-label">Delivered</div><div className="v2-mockup-stat-val">404</div></div>
+                  <div><div className="v2-mockup-stat-label">Replied</div><div className="v2-mockup-stat-val signal">138</div></div>
+                </div>
+                <div className="v2-mockup-roi">
+                  <div className="v2-mockup-roi-label">Revenue impact</div>
+                  <div className="v2-mockup-roi-row">
+                    <span>Est. bookings</span><strong>82</strong>
+                  </div>
+                  <div className="v2-mockup-roi-row">
+                    <span>Est. revenue</span><strong>₹98,400</strong>
+                  </div>
+                  <div className="v2-mockup-roi-row">
+                    <span>ROI</span><strong className="signal">+612%</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Module 3 — Conversations inbox */}
+          <div className="v2-module">
+            <div className="v2-module-text v2-fade">
+              <div className="v2-module-tag">Inbox</div>
+              <h3 className="v2-module-title">One inbox. Every conversation, every customer.</h3>
+              <p className="v2-module-desc">See every conversation live, take over manually whenever you want, and let the AI pick back up the moment you're done.</p>
+              <ul className="v2-module-list">
+                <li><Icon name="check" size={15} />Toggle AI off for any single conversation</li>
+                <li><Icon name="check" size={15} />Full customer history and tags in one view</li>
+                <li><Icon name="check" size={15} />Works across 10+ Indian languages</li>
+              </ul>
+            </div>
+            <div className="v2-module-visual v2-fade">
+              <div className="v2-mockup-inbox">
+                {[
+                  { n: "Priya Nair", m: "Yes please, book me for 3 PM", t: "now", on: true },
+                  { n: "Arjun Mehta", m: "Do you have dermatology also", t: "2m", on: true },
+                  { n: "Sneha Reddy", m: "Thank you so much!", t: "14m", on: false },
+                ].map((c) => (
+                  <div key={c.n} className="v2-mockup-inbox-row">
+                    <div className="v2-mockup-inbox-av">{c.n.charAt(0)}</div>
+                    <div className="v2-mockup-inbox-mid">
+                      <div className="v2-mockup-inbox-name">{c.n}</div>
+                      <div className="v2-mockup-inbox-msg">{c.m}</div>
+                    </div>
+                    <div className="v2-mockup-inbox-right">
+                      <div className="v2-mockup-inbox-time">{c.t}</div>
+                      <div className={`v2-mockup-ai-pill${c.on ? " on" : ""}`}>{c.on ? "AI on" : "Manual"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -808,7 +957,7 @@ body {
         <p className="v2-fcta-p">Start automating replies, recovering leads, and booking customers today.</p>
         <div className="v2-fcta-btns">
           <a href="/signup" className="v2-btn-primary">Start free trial <Icon name="arrow" size={16} /></a>
-          <a href="https://wa.me/916309279265" className="v2-btn-secondary">Talk to us on WhatsApp</a>
+          <a href="https://wa.me/919346079265" className="v2-btn-secondary">Talk to us on WhatsApp</a>
         </div>
       </section>
 
@@ -818,16 +967,14 @@ body {
           <div className="v2-footer-top">
             <div>
               <div className="v2-logo">
-                <span className="v2-logo-mark">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M13 2L3 14h8l-1 8 11-13h-8l1-7z" /></svg>
-                </span>
+                <img src="/logo.png" alt="Fastrill" className="v2-logo-img" />
                 <span className="v2-logo-text">Fastrill</span>
               </div>
               <p className="v2-footer-tag">AI-powered WhatsApp automation for Indian service businesses. Built by Solvabil Pvt. Ltd.</p>
             </div>
             {[
               { h: "Product", links: [["Features", "#product"], ["Pricing", "#pricing"], ["Demo", "#demo"]] },
-              { h: "Company", links: [["About", "#"], ["Contact", "team@fastrill.com"]] },
+              { h: "Company", links: [["About", "#"], ["Contact", "mailto:hello@fastrill.com"]] },
               { h: "Legal", links: [["Privacy", "/privacy"], ["Terms", "/terms"]] },
             ].map((col) => (
               <div key={col.h}>
