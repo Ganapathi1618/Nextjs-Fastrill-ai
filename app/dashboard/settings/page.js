@@ -253,11 +253,15 @@ export default function SettingsPage() {
       setUserEmail(user.email || "")
       setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "")
 
+      // SECURITY FIX: whatsapp_connections query no longer selects "*" —
+      // access_token never enters browser state. This page only displays
+      // connection status (phone_number_id, waba_id) — it never needed
+      // the token in the first place.
       const [{ data: biz }, { data: kn }, { data: svcs }, { data: wa }] = await Promise.all([
         supabase.from("business_settings").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("business_knowledge").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("services").select("*").eq("user_id", user.id).order("category"),
-        supabase.from("whatsapp_connections").select("*").eq("user_id", user.id).maybeSingle(),
+        supabase.from("whatsapp_connections").select("id,phone_number_id,waba_id,connected_at").eq("user_id", user.id).maybeSingle(),
       ])
 
       if (biz) {
