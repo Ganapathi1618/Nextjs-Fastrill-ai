@@ -93,33 +93,44 @@ export default function SequencesPage() {
 
   useEffect(() => { if (userId) init() }, [userId])
 
+  // SECURITY FIX: whatsapp_connections query no longer selects "*" —
+  // access_token never enters browser state. Only safe metadata fetched.
   async function init() {
     setLoading(true)
     try {
       const [{ data: seqs }, { data: enrs }, { data: wa }] = await Promise.all([
         supabase.from("sequences").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
         supabase.from("sequence_enrollments").select("sequence_id, status").eq("user_id", userId),
-        supabase.from("whatsapp_connections").select("*").eq("user_id", userId).maybeSingle(),
+        supabase.from("whatsapp_connections").select("id,phone_number_id,waba_id,connected_at").eq("user_id", userId).maybeSingle(),
       ])
       setSequences(seqs || [])
       setEnrollments(enrs || [])
       setWaConn(wa)
 
       // Fetch approved Meta templates if WhatsApp connected
-      if (wa?.access_token && wa?.waba_id) {
-        fetchTemplates(wa)
+      if (wa?.waba_id) {
+        fetchTemplates()
       }
     } catch(e) { console.error("init failed:", e.message) }
     setLoading(false)
   }
 
-  async function fetchTemplates(wa) {
+  // SECURITY FIX: templates now fetched via server route — access_token
+  // never enters the browser. Server reads the token from Supabase itself,
+  // using the same /api/meta/templates route as the campaigns page.
+  async function fetchTemplates() {
     try {
-      const r = await fetch(
-        `https://graph.facebook.com/v18.0/${wa.waba_id}/message_templates?limit=100&fields=name,status&access_token=${wa.access_token}`
-      )
+      const { data: { session } } = await supabase.auth.getSession()
+      const authToken = session?.access_token
+      if (!authToken) return
+
+      const r = await fetch("/api/meta/templates", {
+        headers: { "Authorization": "Bearer " + authToken }
+      })
       const data = await r.json()
-      const approved = (data.data || []).filter(t => t.status === "APPROVED" || t.status === "ACTIVE")
+      if (data.error) return // non-critical, dropdown falls back to manual text input
+
+      const approved = (data.templates || []).filter(t => t.status === "APPROVED" || t.status === "ACTIVE")
       setTemplates(approved.map(t => t.name))
     } catch(e) { /* non-critical */ }
   }
