@@ -159,7 +159,7 @@ export default function Campaigns() {
     try {
       const [{ data:custs }, { data:wa }, { data:biz }, { data:bks }] = await Promise.all([
         supabase.from("customers").select("id,name,phone,tag,last_visit_at,created_at").eq("user_id",userId),
-        supabase.from("whatsapp_connections").select("*").eq("user_id",userId).maybeSingle(),
+        supabase.from("whatsapp_connections").select("id,phone_number_id,waba_id,connected_at").eq("user_id",userId).maybeSingle(),
         supabase.from("business_settings").select("business_name,campaigns_enabled,plan").eq("user_id",userId).maybeSingle(),
         supabase.from("bookings").select("amount").eq("user_id",userId).in("status",["confirmed","completed"]).limit(200),
       ])
@@ -200,39 +200,28 @@ export default function Campaigns() {
     setLoading(false)
   }
 
+  // SECURITY FIX: templates now fetched via server route — access_token
+  // never enters the browser. Server reads the token from Supabase itself.
   async function fetchMetaTemplates(wa) {
-    if (!wa?.access_token) { setTmplError("no_whatsapp"); return }
+    if (!wa) { setTmplError("no_whatsapp"); return }
     setTmplLoading(true)
     setTmplError("")
     setTemplates([])
 
     try {
-      let wabaId = wa.waba_id
-      if (!wabaId) {
-        const r = await fetch(
-          `https://graph.facebook.com/v18.0/${wa.phone_number_id}?fields=whatsapp_business_account&access_token=${wa.access_token}`
-        )
-        const d = await r.json()
-        if (d.error) { setTmplError("Meta API error: "+d.error.message); setTmplLoading(false); return }
-        wabaId = d?.whatsapp_business_account?.id
-        if (wabaId) {
-          await supabase.from("whatsapp_connections").update({ waba_id: wabaId }).eq("user_id", userId)
-          setWhatsapp(prev=>({...prev, waba_id: wabaId}))
-          wa = {...wa, waba_id: wabaId}
-        }
-      }
-      if (!wabaId) {
-        setTmplError("Could not find WhatsApp Business Account ID. Please reconnect WhatsApp in Settings.")
-        setTmplLoading(false)
-        return
-      }
-      const r2 = await fetch(
-        `https://graph.facebook.com/v18.0/${wabaId}/message_templates?limit=100&fields=id,name,category,language,components,status&access_token=${wa.access_token}`
-      )
-      const data = await r2.json()
-      if (data.error) { setTmplError("Meta API error: "+data.error.message); setTmplLoading(false); return }
+      const { data: { session } } = await supabase.auth.getSession()
+      const authToken = session?.access_token
+      if (!authToken) { setTmplError("Not authenticated"); setTmplLoading(false); return }
 
-      const usable = (data.data||[]).filter(t=>
+      const res = await fetch("/api/meta/templates", {
+        headers: { "Authorization": "Bearer " + authToken }
+      })
+      const data = await res.json()
+
+      if (data.error === "no_whatsapp") { setTmplError("no_whatsapp"); setTmplLoading(false); return }
+      if (data.error) { setTmplError(data.error); setTmplLoading(false); return }
+
+      const usable = (data.templates||[]).filter(t=>
         t.status==="APPROVED" || t.status==="ACTIVE" || (t.status||"").startsWith("ACTIVE")
       )
       if (usable.length===0) { setTmplError("no_templates"); setTmplLoading(false); return }
@@ -458,20 +447,35 @@ export default function Campaigns() {
     return tmpl.preview({ ...tmplVals, var_1: tmplVals.var_1||"Priya" })
   }
 
+  // SECURITY FIX: test send now routed through server — access_token
+  // never enters the browser. buildPayload() output is reshaped into the
+  // server route's expected body, but the Meta payload construction logic
+  // itself (buildPayload) is completely unchanged.
   async function sendTest() {
     if (!testPhone.trim()||!whatsapp||!selectedTmplId||testState==="sending") return
     setTestState("sending")
     try {
       const payload = buildPayload("Test User", toPhone(testPhone))
       if (!payload) { setTestState("fail"); setTimeout(()=>setTestState("idle"),3000); return }
-      const res = await fetch(
-        `https://graph.facebook.com/v18.0/${whatsapp.phone_number_id}/messages`,
-        { method:"POST", headers:{"Authorization":`Bearer ${whatsapp.access_token}`,"Content-Type":"application/json"}, body:JSON.stringify(payload) }
-      )
+
+      const { data: { session } } = await supabase.auth.getSession()
+      const authToken = session?.access_token
+      if (!authToken) { alert("Not authenticated"); setTestState("fail"); setTimeout(()=>setTestState("idle"),3000); return }
+
+      const res = await fetch("/api/meta/send-message", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + authToken, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: payload.to,
+          templateName: payload.template.name,
+          language: payload.template.language.code,
+          components: payload.template.components || []
+        })
+      })
       const d = await res.json()
       if (d.error) {
         console.error("Test send error:", d.error)
-        alert("Test failed: "+d.error.message)
+        alert("Test failed: "+d.error)
         setTestState("fail")
       } else {
         setTestState("done")
@@ -538,14 +542,25 @@ export default function Campaigns() {
       const payload = buildPayload(customer.name||"Customer", phone)
       if (!payload) { fc++; setFailCount(fc); continue }
       try {
-        const res = await fetch(
-          `https://graph.facebook.com/v18.0/${whatsapp.phone_number_id}/messages`,
-          { method:"POST", headers:{"Authorization":`Bearer ${whatsapp.access_token}`,"Content-Type":"application/json"}, body:JSON.stringify(payload) }
-        )
+        // SECURITY FIX: routed through server — access_token never enters
+        // the browser. authToken cached outside the loop would be better,
+        // but kept inline here to avoid touching the loop's control flow.
+        const { data: { session } } = await supabase.auth.getSession()
+        const authToken = session?.access_token
+        const res = await fetch("/api/meta/send-message", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + authToken, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: payload.to,
+            templateName: payload.template.name,
+            language: payload.template.language.code,
+            components: payload.template.components || []
+          })
+        })
         const d = await res.json()
         if (!d.error) {
           sc++; setSentCount(sc)
-          const waId = d?.messages?.[0]?.id
+          const waId = d?.waMessageId
           if (waId) waIds.push(waId)
           try {
             // conversations.phone is ALWAYS stored 12-digit (91-prefixed) — use `phone` (toPhone result) directly
