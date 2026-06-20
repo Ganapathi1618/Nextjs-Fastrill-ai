@@ -2,1237 +2,848 @@
 
 import { useState, useEffect, useRef } from "react"
 
-// ── Demo conversations ─────────────────────────────────────────
-const DEMOS = {
-  booking: [
-    { r:"c", m:"Hi, I want a haircut tomorrow around 3pm" },
-    { r:"a", m:"Hey! 👋 Tomorrow's Saturday — 3 PM works great.\n\nShall I confirm *Haircut* for *Saturday, 29th March at 3:00 PM*? ✅" },
-    { r:"c", m:"Yes please!" },
-    { r:"a", m:"✅ *Booking Confirmed!*\n\n📋 Haircut\n📅 Saturday, 29 March\n⏰ 3:00 PM\n\nSee you then! 😊" },
-  ],
-  hindi: [
-    { r:"c", m:"Bhai facial karwa sakte hai kal?" },
-    { r:"a", m:"Haan bilkul! 😊\n\nFacial ₹1,200 mein available hai (60 min).\n\nKis time aana chahenge?" },
-    { r:"c", m:"Shaam 6 baje" },
-    { r:"a", m:"Confirm karu *Facial* kal *shaam 6:00 PM* ke liye? ✅" },
-    { r:"c", m:"Haan kar do" },
-    { r:"a", m:"✅ *Booking ho gayi!*\n\n📋 Facial · ₹1,200\n📅 Kal, 29 March\n⏰ 6:00 PM\n\nMilenge! 😊" },
-  ],
-  complaint: [
-    { r:"c", m:"Your staff was really rude to me last time. Very disappointed." },
-    { r:"a", m:"I'm truly sorry to hear this 😔\n\nThat's not how we treat our customers at all. Could you tell me what happened?" },
-    { r:"c", m:"The receptionist dismissed me when I asked about pricing" },
-    { r:"a", m:"I sincerely apologise — this has been flagged to our manager immediately.\n\nSomeone will call you within the hour. We'd genuinely like to make this right 🙏" },
-  ],
-  winback: [
-    { r:"a", m:"Hi Anita! 👋 It's been a while since your last visit at Riya Salon.\n\nWe've missed you! Your favourite keratin treatment is available this week — want to book?" },
-    { r:"c", m:"Oh yes actually! What's the price?" },
-    { r:"a", m:"Keratin Treatment is ₹2,800 (90 min). Your last visit was in December so we're offering you 10% off — ₹2,520 this week only 🎁" },
-    { r:"c", m:"That's great, book me Saturday morning" },
-    { r:"a", m:"✅ *Booking Confirmed!*\n\n📋 Keratin Treatment · ₹2,520\n📅 Saturday, 29 March · 10:00 AM\n\nCan't wait to see you! 😊" },
-  ],
-}
-
-const DEMO_META = [
-  { k:"booking",   label:"Booking flow",   sub:"End-to-end in 4 msgs" },
-  { k:"hindi",     label:"Hindi support",  sub:"Auto-detected" },
-  { k:"complaint", label:"Complaint",      sub:"Empathy mode" },
-  { k:"winback",   label:"Win-back",       sub:"Inactive customer" },
+// ── Demo conversation data (unchanged content, reused for live chat sim) ──
+const DEMO_THREAD = [
+  { r: "c", m: "Hi, I want a haircut tomorrow around 3pm", t: "11:42 PM" },
+  { r: "a", m: "Hey! Tomorrow's Saturday — 3 PM works great.\n\nShall I confirm Haircut for Saturday, 29th March at 3:00 PM?", t: "11:42 PM" },
+  { r: "c", m: "Yes please!", t: "11:43 PM" },
+  { r: "a", m: "Booking confirmed.\n\nHaircut · Saturday, 29 March · 3:00 PM\n\nSee you then!", t: "11:43 PM" },
 ]
 
-// ── Simulator scripts ──────────────────────────────────────────
-const SIM_SCRIPTS = {
-  "Hair Salon": [
-    { s:"c", m:"Hi, I want a haircut tomorrow around 3pm" },
-    { s:"a", m:"Hey! 👋 Tomorrow's great — 3 PM is available.\n\nShall I confirm *Haircut* for *tomorrow at 3:00 PM*? ✅" },
-    { s:"c", m:"Yes please!" },
-    { s:"a", m:"✅ *Booking Confirmed!*\n\n📋 Haircut\n📅 Tomorrow\n⏰ 3:00 PM\n\nSee you then! 😊" },
-  ],
-  "Dental Clinic": [
-    { s:"c", m:"I need a dental checkup, any slots this week?" },
-    { s:"a", m:"Hello! 😊 Yes, slots are available.\n\n*Dental Consultation* — ₹300 (30 min)\n\nWhich day works for you?" },
-    { s:"c", m:"Thursday afternoon" },
-    { s:"a", m:"Thursday 3 PM is open! Confirm *Dental Consultation* for *Thursday at 3:00 PM*? ✅" },
-    { s:"c", m:"Yes confirm" },
-    { s:"a", m:"✅ *Appointment Confirmed!*\n\n📋 Dental Consultation · ₹300\n📅 Thursday · 3:00 PM\n\nPlease arrive 5 mins early 😊" },
-  ],
-  "Gym Studio": [
-    { s:"c", m:"Do you have personal training sessions available?" },
-    { s:"a", m:"Hey! 💪 Yes!\n\n*PT Session* — ₹800 (60 min)\n\nWant to book a trial?" },
-    { s:"c", m:"Yes, tomorrow morning" },
-    { s:"a", m:"Tomorrow 7 AM is open! Confirm *PT Session* for *tomorrow at 7:00 AM*? ✅" },
-    { s:"c", m:"Done!" },
-    { s:"a", m:"✅ *Session Confirmed!*\n\n📋 Personal Training · ₹800\n📅 Tomorrow · 7:00 AM\n\nCome ready to crush it! 💪" },
-  ],
-  "Consulting": [
-    { s:"c", m:"I need a business consultation, how does it work?" },
-    { s:"a", m:"Hi! 😊 Our *Free Discovery Call* is 30 mins — we understand your challenge and suggest the right plan.\n\nWant to book one?" },
-    { s:"c", m:"Yes, this week if possible" },
-    { s:"a", m:"Friday 11 AM is available. Confirm *Discovery Call* for *Friday at 11:00 AM*? ✅" },
-    { s:"c", m:"Perfect" },
-    { s:"a", m:"✅ *Call Confirmed!*\n\n📋 Free Discovery Call\n📅 Friday · 11:00 AM\n\nYou'll get a calendar invite shortly 😊" },
-  ],
-}
+const LIFECYCLE = [
+  { label: "Lead arrives", time: "11:42 PM", desc: "Customer messages on WhatsApp" },
+  { label: "AI responds", time: "11:42 PM", desc: "Instant reply, zero wait" },
+  { label: "AI qualifies", time: "11:42 PM", desc: "Service, date, time collected" },
+  { label: "Booking confirmed", time: "11:43 PM", desc: "Slot locked, owner notified" },
+]
 
-const FAQS = [
-  { q:"Do I need to change my WhatsApp number?", a:"No. You keep your existing WhatsApp Business number. Fastrill connects via Meta's official Business API — your customers message the same number they always have. Nothing changes on their end." },
-  { q:"How long does setup actually take?", a:"About 10 minutes from account creation to your first AI reply. Connect WhatsApp (one click via Meta), add your services and hours, go live. No developer required." },
-  { q:"Which Indian languages are supported?", a:"Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi, and English — all auto-detected per conversation. No configuration needed." },
-  { q:"Can I take over and reply manually?", a:"Yes, always. Toggle AI off for any conversation in your dashboard — you reply manually, AI waits. Toggle back on when done. Full control at every moment." },
-  { q:"What happens when the AI doesn't know the answer?", a:"It tells the customer it will check and get back to them — you get an instant notification with full context. The AI never guesses on pricing, policy, or anything important." },
-  { q:"Are there per-message charges on top of the subscription?", a:"No per-message charges ever from Fastrill. Flat monthly pricing regardless of volume. WhatsApp does charge for business-initiated messages (campaigns) per Meta's standard rates — those are passed through at cost." },
-  { q:"Is my customer data safe?", a:"All data is encrypted with 256-bit SSL and stored securely in India. We never share or sell your customer data to third parties. Your data is yours, always." },
-  { q:"Is there a free trial?", a:"Yes — 14 days, full Growth plan access, no credit card required. No automatic charges at the end. You decide whether to continue." },
+const FEATURES = [
+  {
+    icon: "chat",
+    title: "AI conversations",
+    desc: "Understands casual, mixed-language messages and responds like a trained staff member — not a button menu.",
+  },
+  {
+    icon: "calendar",
+    title: "Automated booking",
+    desc: "Collects service, date and time in order, checks real availability, and confirms — without a human touching it.",
+  },
+  {
+    icon: "recover",
+    title: "Lead recovery",
+    desc: "Customers who go quiet after asking about price get a timely, personalised follow-up automatically.",
+  },
+  {
+    icon: "broadcast",
+    title: "WhatsApp campaigns",
+    desc: "Send approved templates to customer segments and track exactly what each campaign converted to revenue.",
+  },
+  {
+    icon: "database",
+    title: "Customer memory",
+    desc: "Every conversation, booking and preference is remembered — return customers are recognised instantly.",
+  },
+  {
+    icon: "chart",
+    title: "Revenue analytics",
+    desc: "See bookings, campaign ROI and AI-handled revenue in one dashboard, not scattered across exports.",
+  },
+]
+
+const COMPARISON_ROWS = [
+  ["Response time", "Hours, if at all", "Minutes, business hours", "Under 2 seconds, 24/7"],
+  ["Lead recovery", "Manual, easily forgotten", "Not included", "Automatic follow-up"],
+  ["Booking automation", "None", "Basic, button-based", "Full conversational flow"],
+  ["Works after hours", "No", "No", "Yes"],
+  ["Revenue tracking", "Spreadsheets", "Message counts only", "Per-campaign ROI"],
 ]
 
 const TESTIMONIALS = [
-  { init:"P", grad:"135deg,#f59e0b,#ef4444", name:"Priya Nair",    biz:"Glow Parlour · Hyderabad",         result:"+43% bookings in month one",       quote:"I was losing Saturday night bookings because nobody replied after 8 PM. With Fastrill, customers book in the middle of the night and wake up to confirmation messages. It paid for itself in the first week." },
-  { init:"R", grad:"135deg,#3b82f6,#06b6d4", name:"Dr. Ravi Sharma",biz:"Skin First Clinic · Vijayawada",   result:"Saved ₹22k/month on front desk",   quote:"My patients message in Telugu and the AI replies perfectly — in Telugu. Books appointments, handles reschedules, follows up. I had to see it to believe it was actually AI." },
-  { init:"S", grad:"135deg,#10b981,#0ea5e9", name:"Sneha Reddy",    biz:"Studio S · 2 branches, Bangalore", result:"Replaced evening receptionist shift",quote:"Two branches, both WhatsApp inboxes handled simultaneously. Our staff now focuses entirely on in-person customers, not constantly checking their phones. Night and day difference." },
-  { init:"A", grad:"135deg,#a855f7,#6366f1", name:"Arjun Mehta",    biz:"FitLife Gym · Mumbai",             result:"320 membership leads converted",   quote:"We used to spend 4 hours a day on membership inquiries. Fastrill qualifies leads, explains packages, and books discovery sessions. Completely hands-off, completely consistent." },
-  { init:"N", grad:"135deg,#f59e0b,#10b981", name:"Nandini Iyer",   biz:"Ayur Wellness · Chennai",          result:"60% fewer no-shows",               quote:"Clients message in Tamil, AI responds in Tamil with perfect grammar. It sends reminders an hour before every appointment. No-shows dropped so fast in month one I thought the data was wrong." },
-  { init:"V", grad:"135deg,#0ea5e9,#10b981", name:"Vikram Naidu",   biz:"Skin Clinic · Guntur",             result:"3x lead-to-booking rate",          quote:"Before, I'd run ads and manually reply to every WhatsApp message at midnight. Now Fastrill replies in 2 seconds, qualifies the lead, and books them — I just confirm in the morning." },
+  {
+    quote: "We were losing Saturday night bookings because nobody replied after 8 PM. Customers now book at midnight and wake up to a confirmation.",
+    name: "Priya Nair",
+    role: "Owner, Glow Parlour",
+    metric: "+43%",
+    metricLabel: "bookings, month one",
+  },
+  {
+    quote: "Patients message in Telugu and the AI replies in Telugu, books the slot, and follows up if they go quiet. I had to see it to believe it wasn't a person.",
+    name: "Dr. Ravi Sharma",
+    role: "Skin First Clinic",
+    metric: "₹22k",
+    metricLabel: "saved per month",
+  },
+  {
+    quote: "Two branches, both inboxes handled at once. Our staff stopped checking phones and started focusing on the customer in front of them.",
+    name: "Sneha Reddy",
+    role: "Studio S, 2 branches",
+    metric: "0",
+    metricLabel: "missed messages",
+  },
 ]
 
-// ── WhatsApp Simulator Component ───────────────────────────────
-function WhatsAppSimulator() {
-  const [bizName,  setBizName]  = useState("Glow Studio")
-  const [bizType,  setBizType]  = useState("Hair Salon")
-  const [messages, setMessages] = useState([])
-  const [isTyping, setIsTyping] = useState(false)
-  const [started,  setStarted]  = useState(false)
-  const [done,     setDone]     = useState(false)
-  const chatRef  = useRef(null)
-  const timers   = useRef([])
+const PRICING = [
+  {
+    name: "Starter",
+    monthly: 999,
+    desc: "Solo operators getting started",
+    features: ["1 WhatsApp number", "300 AI conversations / month", "Booking automation", "10+ Indian languages"],
+    cta: "Get started",
+  },
+  {
+    name: "Growth",
+    monthly: 1999,
+    desc: "For growing businesses",
+    features: ["1 WhatsApp number", "Unlimited conversations", "Customer memory", "Lead recovery", "WhatsApp campaigns", "Priority support"],
+    cta: "Start free trial",
+    popular: true,
+  },
+  {
+    name: "Pro",
+    monthly: 4999,
+    desc: "Multi-branch teams",
+    features: ["Up to 5 WhatsApp numbers", "Everything in Growth", "Multi-branch management", "Custom AI playbook", "Dedicated onboarding"],
+    cta: "Contact sales",
+  },
+]
 
-  useEffect(() => {
-    chatRef.current?.scrollTo({ top: 9999, behavior:"smooth" })
-  }, [messages, isTyping])
-
-  function clear() { timers.current.forEach(clearTimeout); timers.current = [] }
-  useEffect(() => () => clear(), [])
-
-  function run(e) {
-    e.preventDefault()
-    clear()
-    setMessages([])
-    setIsTyping(false)
-    setDone(false)
-    setStarted(true)
-    const script = SIM_SCRIPTS[bizType] || SIM_SCRIPTS["Hair Salon"]
-    let delay = 400
-    script.forEach((msg, i) => {
-      if (msg.s === "c") {
-        timers.current.push(setTimeout(() => setMessages(p => [...p, msg]), delay))
-        delay += 900
-      } else {
-        timers.current.push(setTimeout(() => setIsTyping(true), delay))
-        delay += 1300
-        timers.current.push(setTimeout(() => {
-          setIsTyping(false)
-          setMessages(p => [...p, msg])
-          if (i === script.length - 1) setDone(true)
-        }, delay))
-        delay += 500
-      }
-    })
-  }
-
-  return (
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"clamp(28px,5vw,56px)",alignItems:"center",marginTop:56}} className="sim-grid">
-      {/* Left */}
-      <div>
-        <span style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(0,201,177,0.1)",border:"1px solid rgba(0,201,177,0.2)",borderRadius:100,padding:"4px 12px",fontSize:11,fontWeight:700,color:"#00C9B1",letterSpacing:1,textTransform:"uppercase",marginBottom:16}}>
-          ⚡ Interactive Playground
-        </span>
-        <h2 style={{fontSize:"clamp(22px,2.8vw,34px)",fontWeight:800,color:"#f1f5f9",lineHeight:1.15,letterSpacing:"-0.03em",marginBottom:10}}>
-          See it work for your exact business in 10 seconds.
-        </h2>
-        <p style={{fontSize:14,color:"#94a3b8",lineHeight:1.7,marginBottom:24}}>
-          Enter your business details and watch the AI handle a real booking — automatically.
-        </p>
-        <form onSubmit={run} style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div>
-            <label style={{display:"block",fontSize:12,fontWeight:600,color:"#94a3b8",marginBottom:5}}>Business Name</label>
-            <input className="sim-inp" value={bizName} onChange={e=>setBizName(e.target.value)} placeholder="e.g. Priya Salon, Apex Dental" required/>
-          </div>
-          <div>
-            <label style={{display:"block",fontSize:12,fontWeight:600,color:"#94a3b8",marginBottom:5}}>Business Type</label>
-            <select className="sim-inp" value={bizType} onChange={e=>setBizType(e.target.value)}>
-              <option>Hair Salon</option>
-              <option>Dental Clinic</option>
-              <option>Gym Studio</option>
-              <option>Consulting</option>
-            </select>
-          </div>
-          <button type="submit" style={{background:"#00C9B1",color:"#000",border:"none",padding:"13px",borderRadius:10,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",transition:"all .2s",boxShadow:"0 4px 14px rgba(0,201,177,.25)"}}>
-            {started ? "▶ Run Again" : "▶ Show Me How It Works"}
-          </button>
-        </form>
-        {done && (
-          <div style={{marginTop:16,padding:"12px 16px",background:"rgba(0,201,177,0.08)",border:"1px solid rgba(0,201,177,0.2)",borderRadius:10,fontSize:13,color:"#94a3b8",lineHeight:1.6}}>
-            🎉 <strong style={{color:"#f1f5f9"}}>That just happened automatically.</strong><br/>
-            Your customers get this 24/7 — no staff needed.
-            <a href="/signup" style={{display:"block",marginTop:10,textAlign:"center",background:"#00C9B1",color:"#000",padding:"10px",borderRadius:8,fontWeight:700,fontSize:13,textDecoration:"none"}}>
-              Start Free — No Card Needed →
-            </a>
-          </div>
-        )}
-      </div>
-      {/* Right — Phone */}
-      <div style={{display:"flex",justifyContent:"center"}}>
-        <div style={{width:300,background:"#0b141a",borderRadius:22,border:"1px solid rgba(255,255,255,0.07)",overflow:"hidden",boxShadow:"0 32px 80px rgba(0,0,0,0.6)"}}>
-          <div style={{background:"#1f2c34",padding:"11px 14px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-            <div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:"linear-gradient(135deg,#00C9B1,#0ea5e9)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,color:"#000"}}>
-              {bizName.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <div style={{fontSize:12.5,fontWeight:700,color:"#e9edef",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{bizName || "Your Business"}</div>
-              <div style={{fontSize:10,color:"#25d366",display:"flex",alignItems:"center",gap:4,marginTop:1}}>
-                <span style={{width:5,height:5,borderRadius:"50%",background:"#25d366",display:"inline-block"}}/>
-                Fastrill AI · Online
-              </div>
-            </div>
-          </div>
-          <div ref={chatRef} style={{padding:12,minHeight:280,maxHeight:340,overflowY:"auto",display:"flex",flexDirection:"column",gap:7,scrollbarWidth:"none"}}>
-            {!started && (
-              <div style={{margin:"auto",textAlign:"center",padding:14,background:"rgba(255,255,255,0.04)",borderRadius:10,fontSize:12,color:"rgba(255,255,255,0.3)",lineHeight:1.6}}>
-                👈 Enter your details<br/>and click the button
-              </div>
-            )}
-            {messages.map((msg,i)=>(
-              <div key={i} style={{
-                maxWidth:"82%",padding:"9px 12px",borderRadius:11,fontSize:12.5,lineHeight:1.55,whiteSpace:"pre-wrap",animation:"msgIn .2s ease both",
-                ...(msg.s==="c"
-                  ? {background:"#005c4b",color:"#e9edef",alignSelf:"flex-end",borderRadius:"11px 3px 11px 11px"}
-                  : {background:"#1a2d22",border:"1px solid rgba(37,211,102,0.1)",color:"#e9edef",alignSelf:"flex-start",borderRadius:"3px 11px 11px 11px"})
-              }}>
-                {msg.s==="a"&&<span style={{display:"block",fontSize:9,color:"#25d366",fontWeight:700,marginBottom:4}}>◈ Fastrill AI</span>}
-                {msg.m}
-              </div>
-            ))}
-            {isTyping && (
-              <div style={{alignSelf:"flex-start",background:"#1a2d22",border:"1px solid rgba(37,211,102,0.1)",padding:"10px 13px",borderRadius:"3px 11px 11px 11px",display:"flex",gap:4,alignItems:"center"}}>
-                {[0,0.2,0.4].map((d,i)=>(
-                  <span key={i} style={{width:6,height:6,borderRadius:"50%",background:"#25d366",display:"inline-block",animation:`blink 1s ${d}s infinite`}}/>
-                ))}
-              </div>
-            )}
-          </div>
-          <div style={{background:"#1f2c34",padding:"9px 12px",display:"flex",alignItems:"center",gap:8,borderTop:"1px solid rgba(255,255,255,0.05)"}}>
-            <div style={{flex:1,background:"rgba(255,255,255,0.05)",borderRadius:20,padding:"7px 12px",fontSize:11.5,color:"rgba(255,255,255,0.2)"}}>Type a message...</div>
-            <div style={{width:30,height:30,borderRadius:"50%",background:"#00C9B1",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#000",flexShrink:0}}>▶</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+function annualPrice(monthly) {
+  // 17% discount when billed annually — standard SaaS annual incentive,
+  // not an unrealistic "basically free" number
+  return Math.round(monthly * 0.83)
 }
 
-export default function MarketingPage() {
-  const [demoKey,  setDemoKey]  = useState("booking")
-  const [demoMsgs, setDemoMsgs] = useState([])
-  const [openFaq,  setOpenFaq]  = useState(null)
+function Icon({ name, size = 22 }) {
+  const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }
+  switch (name) {
+    case "chat":
+      return <svg {...common}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+    case "calendar":
+      return <svg {...common}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    case "recover":
+      return <svg {...common}><path d="M3 12a9 9 0 1 0 2.6-6.4"/><path d="M3 5v5h5"/></svg>
+    case "broadcast":
+      return <svg {...common}><path d="M4 11.5v1a7.5 7.5 0 0 0 15 0v-1"/><path d="M9 18l1 3M15 18l-1 3"/><circle cx="11.5" cy="6.5" r="4.5"/></svg>
+    case "database":
+      return <svg {...common}><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
+    case "chart":
+      return <svg {...common}><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+    case "check":
+      return <svg {...common} strokeWidth={2}><path d="M20 6L9 17l-5-5"/></svg>
+    case "arrow":
+      return <svg {...common} strokeWidth={2}><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    case "x":
+      return <svg {...common} strokeWidth={2}><path d="M5 5l14 14M19 5L5 19"/></svg>
+    case "play":
+      return <svg {...common} strokeWidth={2}><path d="M6 4l14 8-14 8V4z"/></svg>
+    default:
+      return null
+  }
+}
+
+export default function FastrillMarketingV2() {
+  const [billing, setBilling] = useState("monthly")
   const [scrolled, setScrolled] = useState(false)
-  const [mobOpen,  setMobOpen]  = useState(false)
-  const [exitShow, setExitShow] = useState(false)
-  const [exitGone, setExitGone] = useState(false)
-  const [counts,   setCounts]   = useState({ a:0, b:0, c:0 })
-
-  const demoRef    = useRef(null)
-  const statsRef   = useRef(null)
-  const countedRef = useRef(false)
-  const timerRef   = useRef(null)
-  const exitRef    = useRef(null)
+  const [demoMsgs, setDemoMsgs] = useState([])
+  const [lifecycleActive, setLifecycleActive] = useState(-1)
+  const demoRef = useRef(null)
+  const lifecycleRef = useRef(null)
+  const heroRef = useRef(null)
 
   useEffect(() => {
-    setDemoMsgs([])
-    clearTimeout(timerRef.current)
-    const msgs = DEMOS[demoKey]
-    msgs.forEach((m, i) => {
-      timerRef.current = setTimeout(() => {
-        setDemoMsgs(p => [...p, m])
-        if (demoRef.current) demoRef.current.scrollTop = 9999
-      }, 600 + i * 900)
-    })
-    return () => clearTimeout(timerRef.current)
-  }, [demoKey])
-
-  useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 40)
-    window.addEventListener("scroll", fn, { passive:true })
-    return () => window.removeEventListener("scroll", fn)
+    const onScroll = () => setScrolled(window.scrollY > 24)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
   }, [])
 
+  // Hero live-chat simulation — plays once on mount
   useEffect(() => {
-    if (exitGone) return
-    exitRef.current = setTimeout(() => setExitShow(true), 28000)
-    return () => clearTimeout(exitRef.current)
-  }, [exitGone])
+    const timers = []
+    DEMO_THREAD.forEach((msg, i) => {
+      timers.push(setTimeout(() => {
+        setDemoMsgs((p) => [...p, msg])
+      }, 700 + i * 1100))
+    })
+    return () => timers.forEach(clearTimeout)
+  }, [])
 
+  // Lifecycle rail — scroll-triggered sequential reveal (the signature element)
   useEffect(() => {
-    if (!statsRef.current || countedRef.current) return
-    const io = new IntersectionObserver(entries => {
-      if (!entries[0].isIntersecting) return
-      countedRef.current = true
-      io.disconnect()
-      const run = (to, dur, cb) => {
-        const s = performance.now()
-        const tick = now => {
-          const t = Math.min((now-s)/dur,1), e=1-Math.pow(1-t,3)
-          cb(Math.round(to*e))
-          if (t<1) requestAnimationFrame(tick)
+    const el = lifecycleRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          LIFECYCLE.forEach((_, i) => {
+            setTimeout(() => setLifecycleActive(i), i * 450)
+          })
+          io.disconnect()
         }
-        requestAnimationFrame(tick)
-      }
-      run(3200, 1800, v => setCounts(p=>({...p,a:v})))
-      run(99,   1500, v => setCounts(p=>({...p,b:v})))
-      run(73,   1400, v => setCounts(p=>({...p,c:v})))
-    }, { threshold:0.3 })
-    io.observe(statsRef.current)
+      },
+      { threshold: 0.4 }
+    )
+    io.observe(el)
     return () => io.disconnect()
   }, [])
 
+  // Generic reveal-on-scroll for fade elements
   useEffect(() => {
-    const io = new IntersectionObserver(entries => {
-      entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add("vis"); io.unobserve(e.target) } })
-    }, { threshold:0.05, rootMargin:"0px 0px -20px 0px" })
-    document.querySelectorAll(".fade").forEach((el) => {
-      const sibs = Array.from(el.parentElement?.querySelectorAll(":scope>.fade")||[])
-      const idx  = sibs.indexOf(el)
-      el.style.transitionDelay = Math.min(idx*0.07,0.25)+"s"
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("v2-in")
+            io.unobserve(e.target)
+          }
+        })
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
+    )
+    document.querySelectorAll(".v2-fade").forEach((el, idx) => {
+      el.style.transitionDelay = Math.min((idx % 4) * 0.08, 0.32) + "s"
       io.observe(el)
     })
     return () => io.disconnect()
   }, [])
 
-  return (<>
-    <style>{`
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap');
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
-body{background:#050811;color:#94a3b8;font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
-:root{
-  --ink:#f1f5f9;--ink2:#94a3b8;--ink3:#475569;--ink4:#1e293b;
-  --base:#050811;--s1:#080d1a;--s2:#0c1221;--s3:#101828;--s4:#162033;
-  --line:rgba(255,255,255,.06);--line2:rgba(255,255,255,.1);--line3:rgba(255,255,255,.16);
-  --teal:#00C9B1;--teal2:rgba(0,201,177,.12);--teal3:rgba(0,201,177,.22);--teal4:rgba(0,201,177,.06);
-  --wa:#25d366;--red:#f43f5e;--amber:#f59e0b;--sans:'DM Sans',sans-serif;
+  return (
+    <>
+      <style>{`
+@import url('https://api.fontshare.com/v2/css?f[]=general-sans@500,600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: #FFFFFF;
+  color: #0B0D12;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
-body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 90% 55% at 50% -10%,rgba(0,201,177,.07) 0%,transparent 60%),radial-gradient(ellipse 50% 40% at 85% 75%,rgba(0,80,200,.04) 0%,transparent 50%);}
-.nav{position:fixed;top:0;left:0;right:0;z-index:200;height:72px;padding:0 clamp(16px,4vw,56px);display:flex;align-items:center;justify-content:space-between;transition:all .3s;border-bottom:1px solid rgba(255,255,255,.03);}
-.nav.sc{background:rgba(5,8,17,.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.06);box-shadow:0 2px 12px rgba(0,0,0,.3);}
-.nav-logo{display:flex;align-items:center;gap:12px;text-decoration:none;}
-.nav-logo img{width:38px;height:38px;object-fit:contain;flex-shrink:0;display:block;}
-.nav-logo-text{font-family:'DM Sans',sans-serif;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.4px;line-height:1;}
-.nav-logo-text em{color:var(--teal);font-style:normal;}
-.nmid{display:flex;align-items:center;gap:6px;list-style:none;}
-.nmid a{font-size:14px;font-weight:500;color:var(--ink2);text-decoration:none;padding:8px 14px;border-radius:8px;transition:all .18s;}
-.nmid a:hover{color:var(--ink);background:rgba(255,255,255,.06)}
-.nr{display:flex;align-items:center;gap:8px;}
-.nav-login{font-size:13px;font-weight:500;color:var(--ink2);text-decoration:none;padding:7px 14px;border-radius:7px;transition:color .15s;}
-.nav-login:hover{color:var(--ink);}
-.nav-cta{display:inline-flex;align-items:center;gap:6px;background:var(--teal);color:#000;padding:10px 22px;border-radius:9px;font-weight:700;font-size:13.5px;text-decoration:none;transition:all .22s;letter-spacing:-.1px;box-shadow:0 4px 12px rgba(0,201,177,.2);}
-.nav-cta:hover{background:#00e5cc;transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,201,177,.3);}
-.hbg{display:none;background:none;border:1px solid var(--line2);border-radius:7px;padding:6px 10px;cursor:pointer;color:var(--ink2);font-size:15px;line-height:1;}
-.mdraw{position:fixed;top:72px;left:0;right:0;z-index:190;background:rgba(5,8,17,.97);backdrop-filter:blur(24px);border-bottom:1px solid var(--line);padding:10px 14px 18px;display:flex;flex-direction:column;gap:2px;transform:translateY(-110%);transition:transform .22s ease;}
-.mdraw.open{transform:none;}
-.mdraw a{color:var(--ink2);text-decoration:none;font-size:14px;font-weight:500;padding:10px 12px;border-radius:8px;transition:all .15s;}
-.mdraw a:hover{color:var(--ink);background:rgba(255,255,255,.04)}
-.mdraw hr{border:none;border-top:1px solid var(--line);margin:6px 0;}
-.hero{min-height:100vh;padding:clamp(120px,14vw,160px) clamp(16px,5vw,56px) clamp(80px,10vw,120px);background:var(--base);position:relative;overflow:hidden;}
-.hero-grid-bg{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse 70% 55% at 50% 0%,black,transparent 75%);}
-.hero-in{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 420px;gap:clamp(40px,5vw,80px);align-items:center;position:relative;z-index:1;}
-.hero-eyebrow{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--teal3);border-radius:100px;padding:5px 14px 5px 7px;margin-bottom:32px;font-size:11.5px;font-weight:600;color:var(--teal);letter-spacing:.3px;}
-.eyebrow-dot{width:20px;height:20px;border-radius:50%;background:var(--teal2);border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;}
-.eyebrow-dot::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite;}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.6)}}
-@keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
-@keyframes msgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-.h1{font-size:clamp(42px,5.2vw,72px);font-weight:800;line-height:1.04;letter-spacing:-.05em;color:var(--ink);margin-bottom:12px;}
-.h1-line2{display:block;font-size:clamp(26px,3.2vw,46px);font-weight:700;line-height:1.12;letter-spacing:-.035em;color:rgba(241,245,249,.5);margin-top:8px;margin-bottom:36px;}
-.h1-line2 em{color:var(--teal);font-style:normal;opacity:1;}
-.hero-sub{display:flex;flex-direction:column;gap:7px;margin-bottom:40px;max-width:560px;}
-.hero-sub-line{font-size:clamp(15px,1.6vw,17px);color:var(--ink2);line-height:1.7;font-weight:400;letter-spacing:-.01em;}
-.hero-sub-line strong{color:var(--ink);font-weight:700;background:rgba(0,201,177,.08);padding:1px 6px;border-radius:5px;}
-.hero-btns{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:40px;}
-.btn-primary{display:inline-flex;align-items:center;gap:8px;background:var(--teal);color:#000;padding:16px 32px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;transition:all .24s;letter-spacing:-.15px;box-shadow:0 8px 20px rgba(0,201,177,.25);}
-.btn-primary:hover{background:#00e5cc;transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,201,177,.35);}
-.btn-ghost{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);color:var(--ink);padding:16px 24px;border-radius:10px;font-weight:600;font-size:15px;text-decoration:none;border:1px solid var(--line2);transition:all .22s;}
-.btn-ghost:hover{background:rgba(255,255,255,.09);border-color:var(--teal);color:var(--teal);}
-.hero-proof{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--teal4);border:1px solid var(--teal3);border-radius:11px;max-width:420px;}
-.proof-avs{display:flex;}
-.proof-av{width:26px;height:26px;border-radius:50%;border:2px solid var(--base);margin-left:-6px;font-size:9.5px;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.proof-av:first-child{margin-left:0;}
-.proof-text{font-size:12.5px;color:var(--ink2);}
-.proof-text strong{color:var(--teal);font-weight:700;}
-.phone{background:var(--s2);border:1px solid var(--line2);border-radius:22px;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.65),0 0 0 1px rgba(0,201,177,.04);}
-.phone-top{background:var(--s3);border-bottom:1px solid var(--line);padding:13px 16px;display:flex;align-items:center;gap:10px;}
-.phone-av{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--teal),#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#000;}
-.phone-name{font-size:13px;font-weight:700;color:var(--ink);}
-.phone-status{font-size:10.5px;color:var(--teal);display:flex;align-items:center;gap:4px;margin-top:1px;}
-.phone-status::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite;}
-.ai-live-badge{margin-left:6px;font-size:9px;font-weight:800;background:var(--teal2);color:var(--teal);border:1px solid var(--teal3);border-radius:4px;padding:1px 6px;letter-spacing:.5px;}
-.phone-body{padding:14px;min-height:240px;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:none;}
-.phone-body::-webkit-scrollbar{display:none;}
-.pm{max-width:82%;padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.55;white-space:pre-wrap;animation:msgIn .22s ease both;}
-.pm.c{background:#005c4b;color:#e9edef;align-self:flex-end;border-radius:12px 4px 12px 12px;}
-.pm.a{background:var(--s4);border:1px solid var(--line);color:var(--ink);align-self:flex-start;border-radius:4px 12px 12px 12px;}
-.pm.a .ai-label{font-size:9.5px;color:var(--teal);font-weight:700;margin-bottom:4px;display:block;}
-.trust{border-bottom:1px solid var(--line);padding:13px clamp(14px,3vw,36px);display:flex;align-items:center;justify-content:center;gap:clamp(14px,3vw,36px);flex-wrap:wrap;background:var(--s1);}
-.tbadge{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--ink3);white-space:nowrap;}
-.tdiv{width:1px;height:16px;background:var(--line2);}
-.mq{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--s1);padding:12px 0;overflow:hidden;position:relative;}
-.mq::before,.mq::after{content:'';position:absolute;top:0;bottom:0;width:60px;z-index:2;}
-.mq::before{left:0;background:linear-gradient(90deg,var(--s1),transparent);}
-.mq::after{right:0;background:linear-gradient(-90deg,var(--s1),transparent);}
-.mq-track{display:flex;animation:mq 30s linear infinite;width:max-content;}
-@keyframes mq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.mq-item{display:flex;align-items:center;gap:6px;padding:0 20px;font-size:13px;font-weight:500;color:var(--ink3);white-space:nowrap;border-right:1px solid var(--line);}
-.stats{background:var(--s1);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
-.stats-row{display:grid;grid-template-columns:repeat(3,1fr);max-width:1200px;margin:0 auto;}
-.stat-cell{padding:clamp(36px,4.5vw,56px) clamp(20px,3vw,44px);border-right:1px solid var(--line);text-align:center;}
-.stat-cell:last-child{border-right:none;}
-.stat-n{font-size:clamp(44px,5vw,62px);font-weight:800;color:var(--ink);line-height:1;letter-spacing:-.05em;margin-bottom:6px;}
-.stat-n em{color:var(--teal);font-style:normal;}
-.stat-l{font-size:14px;font-weight:600;color:var(--ink2);}
-.stat-s{font-size:12px;color:var(--ink3);margin-top:4px;}
-.real-loss-sec{background:var(--base);}
-.loss-timeline{display:flex;flex-direction:column;gap:0;border-left:2px solid var(--line);position:relative;max-width:800px;margin:56px auto 0;}
-.loss-item{display:grid;grid-template-columns:100px 1fr;gap:20px;padding:24px 0 24px 32px;border-bottom:1px solid var(--line);position:relative;}
-.loss-item:last-child{border-bottom:none;}
-.loss-item::before{content:'';position:absolute;left:-8px;top:32px;width:14px;height:14px;border-radius:50%;background:var(--line);border:2px solid var(--base);}
-.loss-item-highlight{background:rgba(244,63,94,.04);padding:24px 28px 24px 32px;margin:0 -12px;border-radius:12px;}
-.loss-item-highlight::before{background:var(--red);border-color:var(--base);}
-.loss-time{font-size:13px;font-weight:700;color:var(--ink2);text-align:right;padding-top:2px;}
-.loss-content{display:flex;align-items:flex-start;gap:12px;}
-.loss-icon{font-size:24px;}
-.loss-event{font-size:14.5px;font-weight:700;color:var(--ink);margin-bottom:3px;letter-spacing:-.01em;}
-.loss-desc{font-size:13px;color:var(--ink2);line-height:1.6;}
-.loss-item-highlight .loss-event{color:var(--red);}
-.loss-item-highlight .loss-desc{color:rgba(244,63,94,.8);font-weight:600;}
-.loss-cta{max-width:680px;margin:56px auto 0;text-align:center;}
-.sec{padding:clamp(100px,12vw,140px) 0;position:relative;}
-.sec:nth-child(even){background:var(--s1);}
-.sec:nth-child(odd){background:var(--base);}
-.w{max-width:1200px;margin:0 auto;padding:0 clamp(16px,4vw,56px);}
-.label{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:3.2px;text-transform:uppercase;color:var(--teal);margin-bottom:18px;}
-.label::before{content:'';width:18px;height:1.5px;background:var(--teal);}
-.sh{font-weight:800;font-size:clamp(32px,4.5vw,56px);color:var(--ink);margin-bottom:18px;line-height:1.08;letter-spacing:-.04em;}
-.sh em{font-style:italic;color:var(--teal);}
-.sp{font-size:clamp(14.5px,1.6vw,16px);color:var(--ink2);line-height:1.88;font-weight:400;letter-spacing:-.01em;}
-.pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:56px;}
-.pain-card{background:var(--s1);padding:clamp(28px,3vw,44px);position:relative;overflow:hidden;transition:background .2s;}
-.pain-card:hover{background:var(--s2);}
-.pain-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,201,177,.3),transparent);opacity:0;transition:.3s;}
-.pain-card:hover::before{opacity:1;}
-.pain-num{font-size:clamp(56px,8vw,88px);font-weight:900;line-height:1;color:rgba(0,201,177,.06);margin-bottom:16px;letter-spacing:-.05em;}
-.pain-ico{font-size:28px;display:block;margin-bottom:14px;}
-.pain-title{font-size:18px;font-weight:800;color:var(--ink);margin-bottom:5px;letter-spacing:-.03em;line-height:1.2;}
-.pain-punch{font-size:12.5px;font-weight:700;color:var(--red);margin-bottom:10px;letter-spacing:.15px;}
-.pain-desc{font-size:13.5px;color:var(--ink2);line-height:1.8;font-weight:400;}
-.pain-tag{display:inline-block;margin-top:16px;font-size:11px;font-weight:700;color:var(--red);border:1px solid rgba(244,63,94,.22);border-radius:6px;padding:3px 9px;letter-spacing:.3px;}
-.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px;}
-.step{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:28px 24px;position:relative;transition:all .22s;}
-.step:hover{border-color:var(--teal3);background:var(--s2);transform:translateY(-3px);}
-.step-n{width:36px;height:36px;border-radius:9px;background:var(--teal2);border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:var(--teal);margin-bottom:18px;}
-.step h3{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:8px;letter-spacing:-.02em;}
-.step p{font-size:13.5px;color:var(--ink2);line-height:1.75;}
-.step-ui{margin-top:16px;background:var(--s3);border:1px solid var(--line);border-radius:10px;padding:10px;}
-.step-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;margin-bottom:4px;font-size:12px;color:var(--ink2);}
-.step-row:last-child{margin-bottom:0;}
-.step-row.on{background:var(--teal2);color:var(--teal);font-weight:600;}
-.step-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
-.step:not(:last-child)::after{content:'→';position:absolute;right:-14px;top:44px;font-size:18px;color:var(--teal);opacity:.3;z-index:2;}
-.demo-layout{display:grid;grid-template-columns:170px 1fr;gap:18px;margin-top:32px;align-items:start;}
-.demo-tabs{display:flex;flex-direction:column;gap:7px;}
-.demo-tab{background:var(--s1);border:1px solid var(--line);border-radius:11px;padding:12px 14px;cursor:pointer;transition:all .18s;}
-.demo-tab.on{border-color:var(--teal);background:var(--teal4);}
-.demo-tab:hover:not(.on){border-color:var(--line2);background:var(--s2);}
-.dt-label{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px;}
-.dt-sub{font-size:11px;color:var(--ink2);}
-.wa-mock{background:#0b141a;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.06);box-shadow:0 28px 72px rgba(0,0,0,.55);}
-.wa-head{background:#1f2c34;padding:13px 17px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.05);}
-.wa-av{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--teal),#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#000;}
-.wa-name{font-size:13.5px;font-weight:700;color:#e9edef;}
-.wa-st{font-size:10.5px;color:var(--wa);}
-.wa-body{padding:14px;min-height:280px;max-height:340px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;scrollbar-width:none;}
-.wa-body::-webkit-scrollbar{display:none;}
-.wm{max-width:80%;padding:9px 13px;border-radius:12px;font-size:13.5px;line-height:1.55;white-space:pre-wrap;animation:msgIn .22s ease both;}
-.wm.c{background:#005c4b;color:#e9edef;align-self:flex-end;border-radius:12px 4px 12px 12px;}
-.wm.a{background:#1a2d22;border:1px solid rgba(37,211,102,.1);color:#e9edef;align-self:flex-start;border-radius:4px 12px 12px 12px;}
-.wm.a .al{font-size:9.5px;color:var(--wa);font-weight:700;margin-bottom:4px;display:block;}
-.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:56px;}
-.fc{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:28px 24px;transition:all .24s;position:relative;overflow:hidden;}
-.fc::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--teal2),transparent);opacity:0;transition:.3s;}
-.fc:hover{border-color:var(--teal2);background:var(--s2);transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.2);}
-.fc:hover::after{opacity:1;}
-.fc-ico{width:44px;height:44px;border-radius:10px;background:var(--teal2);border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:16px;}
-.fc-badge{float:right;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--teal);background:var(--teal2);border:1px solid var(--teal3);padding:2px 7px;border-radius:4px;margin-top:2px;}
-.fc-title{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:7px;clear:both;letter-spacing:-.02em;}
-.fc-desc{font-size:13px;color:var(--ink2);line-height:1.75;}
-.rev-sec{padding:clamp(100px,12vw,140px) 0;background:var(--base);}
-.rev-viz{display:grid;grid-template-columns:1fr 48px 1fr;gap:20px;align-items:center;margin-top:56px;}
-.rev-col{background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:28px 24px;position:relative;}
-.rev-col.after{border-color:var(--teal3);background:var(--s2);}
-.rev-col.after::before{content:'';position:absolute;top:0;left:12%;right:12%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),transparent);}
-.rev-col-label{font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:7px;}
-.rev-col-label.bad{color:var(--red);}
-.rev-col-label.good{color:var(--teal);}
-.rev-item{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-bottom:1px solid var(--line);}
-.rev-item:last-child{border-bottom:none;}
-.rev-ico{width:32px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;}
-.rev-ico.bad{background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.18);}
-.rev-ico.good{background:var(--teal2);border:1px solid var(--teal3);}
-.rev-item-t{font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:2px;}
-.rev-item-s{font-size:11.5px;color:var(--ink2);line-height:1.4;}
-.rev-item-s.bad-s{color:rgba(244,63,94,.7);}
-.rev-item-s.good-s{color:var(--teal);}
-.rev-arrow{display:flex;flex-direction:column;align-items:center;gap:6px;}
-.rev-arrow-line{width:1px;height:32px;background:linear-gradient(to bottom,transparent,var(--teal),transparent);}
-.rev-arrow-icon{width:36px;height:36px;border-radius:50%;background:var(--teal2);border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--teal);}
-.who-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:56px;}
-.who-card{background:var(--s1);border:1px solid var(--line);border-radius:13px;padding:18px 16px;transition:all .18s;}
-.who-card:hover{border-color:var(--teal3);transform:translateY(-2px);background:var(--s2);}
-.who-e{font-size:24px;display:block;margin-bottom:8px;}
-.who-n{font-size:13.5px;font-weight:700;color:var(--ink);margin-bottom:3px;}
-.who-d{font-size:12px;color:var(--ink2);line-height:1.5;}
-.vs-layout{display:grid;grid-template-columns:1fr 1fr;gap:52px;align-items:start;margin-top:56px;}
-.vs-pts{display:flex;flex-direction:column;gap:12px;margin-top:20px;}
-.vs-pt{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--ink2);line-height:1.7;}
-.vs-ck{width:18px;height:18px;border-radius:50%;flex-shrink:0;margin-top:2px;background:var(--teal2);border:1px solid var(--teal3);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--teal);}
-.vs-tbl{background:var(--s1);border:1px solid var(--line);border-radius:16px;overflow:hidden;}
-.vs-head{display:grid;grid-template-columns:1fr 1fr;background:var(--s2);}
-.vs-th{padding:12px 20px;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;}
-.vs-th.tm{color:var(--ink3);border-right:1px solid var(--line);}
-.vs-th.us{color:var(--teal);}
-.vs-row{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);}
-.vs-c{padding:11px 20px;font-size:13px;display:flex;align-items:center;gap:6px;}
-.vs-c.tm{color:var(--ink3);border-right:1px solid var(--line);}
-.vs-c.tm::before{content:'✕';color:var(--red);font-size:10px;}
-.vs-c.us{color:var(--ink);font-weight:500;}
-.vs-c.us::before{content:'✓';color:var(--teal);font-size:11px;}
-.t-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:56px;}
-.tc{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:26px;transition:all .2s;}
-.tc:hover{border-color:var(--teal3);transform:translateY(-2px);box-shadow:0 16px 40px rgba(0,0,0,.3);}
-.tc-result{display:inline-block;background:var(--teal2);border:1px solid var(--teal3);color:var(--teal);font-size:14px;font-weight:800;padding:8px 14px;border-radius:9px;margin-bottom:16px;letter-spacing:-.01em;line-height:1.2;}
-.tc-stars{color:var(--amber);font-size:12px;letter-spacing:2px;margin-bottom:14px;}
-.tc-quote{font-size:14px;color:var(--ink2);line-height:1.9;margin-bottom:20px;font-style:italic;font-weight:400;}
-.tc-auth{display:flex;align-items:center;gap:12px;padding-top:16px;border-top:1px solid var(--line);}
-.tc-av{width:40px;height:40px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#fff;}
-.tc-name{font-size:14px;font-weight:700;color:var(--ink);}
-.tc-biz{font-size:12px;color:var(--ink2);}
-.tc-ver{font-size:11px;color:var(--teal);font-weight:600;margin-top:3px;}
-.founder-sec{padding:clamp(72px,9vw,116px) 0;background:var(--s1);border-top:1px solid var(--line);border-bottom:1px solid var(--line);position:relative;overflow:hidden;}
-.founder-card{background:var(--s2);border:1px solid var(--line2);border-radius:22px;padding:clamp(32px,5vw,56px);position:relative;overflow:hidden;max-width:860px;margin:0 auto;}
-.founder-card::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),transparent);}
-.founder-qmark{font-size:80px;line-height:.8;color:rgba(0,201,177,.08);margin-bottom:10px;display:block;}
-.founder-body{font-size:clamp(15px,1.5vw,16.5px);color:var(--ink2);line-height:2;font-weight:400;margin-bottom:32px;}
-.founder-body strong{color:var(--ink);font-weight:600;}
-.founder-body em{font-style:italic;color:var(--teal);}
-.founder-highlight{display:block;background:rgba(244,63,94,.07);border-left:2px solid var(--red);padding:12px 16px;border-radius:0 8px 8px 0;margin:12px 0;font-size:15px;color:var(--ink);font-style:normal;}
-.founder-profile{display:flex;align-items:center;gap:16px;padding-top:24px;border-top:1px solid var(--line);}
-.founder-av{width:50px;height:50px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--teal),#0ea5e9);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:#000;}
-.founder-name{font-size:15px;font-weight:700;color:var(--ink);}
-.founder-role{font-size:12.5px;color:var(--ink2);margin-top:1px;}
-.founder-co{font-size:11.5px;color:var(--teal);font-weight:600;margin-top:2px;}
-.pricing-context{max-width:680px;margin:0 auto 48px;background:linear-gradient(135deg,rgba(0,201,177,.08),rgba(0,201,177,.03));border:1px solid var(--teal2);border-radius:16px;padding:20px 28px;display:flex;align-items:center;gap:16px;backdrop-filter:blur(8px);}
-.pricing-context-ico{font-size:28px;flex-shrink:0;}
-.pricing-context-body{font-size:15px;color:var(--ink2);line-height:1.7;font-weight:400;}
-.pricing-context-body strong{color:var(--teal);font-weight:700;}
-.p-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start;}
-.plan{background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:clamp(22px,3vw,36px) clamp(18px,3vw,28px);position:relative;transition:all .2s;}
-.plan:hover:not(.pop){border-color:var(--teal3);}
-.plan.pop{background:var(--s2);border-color:rgba(0,201,177,.28);box-shadow:0 0 0 1px rgba(0,201,177,.06),0 24px 64px rgba(0,201,177,.06);}
-.plan.pop::before{content:'';position:absolute;top:0;left:14%;right:14%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),transparent);}
-.p-badge{position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:var(--teal);color:#000;font-size:10px;font-weight:800;padding:3px 14px;border-radius:0 0 9px 9px;white-space:nowrap;}
-.p-tier{font-size:10px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:var(--ink2);margin-bottom:5px;}
-.p-tag{font-size:13px;color:var(--ink2);margin-bottom:18px;}
-.p-price{display:flex;align-items:baseline;gap:1px;margin-bottom:3px;}
-.p-rs{font-size:17px;font-weight:700;color:var(--ink);margin-top:5px;}
-.p-amt{font-size:clamp(42px,5vw,54px);font-weight:900;color:var(--ink);line-height:1;letter-spacing:-.04em;}
-.plan.pop .p-amt,.plan.pop .p-rs{color:var(--teal);}
-.p-mo{font-size:12px;color:var(--ink2);margin-bottom:16px;}
-.p-value{display:flex;align-items:flex-start;gap:7px;background:var(--teal4);border:1px solid var(--teal3);border-radius:8px;padding:9px 11px;margin-bottom:20px;font-size:12px;color:var(--teal);font-weight:600;line-height:1.45;}
-.p-hr{border:none;border-top:1px solid var(--line);margin:16px 0;}
-.p-list{list-style:none;display:flex;flex-direction:column;gap:9px;margin-bottom:24px;}
-.p-list li{display:flex;align-items:flex-start;gap:7px;font-size:13px;line-height:1.5;}
-.p-list li.inc{color:var(--ink2);}
-.p-list li.inc::before{content:'✓';color:var(--teal);font-size:10px;margin-top:2px;flex-shrink:0;font-weight:800;}
-.p-list li.exc{color:var(--ink3);text-decoration:line-through;}
-.p-list li.exc::before{content:'✕';color:var(--ink3);font-size:10px;margin-top:2px;flex-shrink:0;}
-.p-list li.hi{color:var(--ink);font-weight:600;}
-.p-list li.hi::before{content:'✓';color:var(--teal);font-size:10px;margin-top:2px;flex-shrink:0;font-weight:800;}
-.p-btn{display:block;text-align:center;padding:13px;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none;transition:all .2s;letter-spacing:-.1px;}
-.p-btn.go{background:var(--teal);color:#000;}
-.p-btn.go:hover{background:#00e5cc;box-shadow:0 8px 24px rgba(0,201,177,.28);}
-.p-btn.out{background:transparent;color:var(--ink);border:1px solid var(--line2);}
-.p-btn.out:hover{border-color:var(--teal);color:var(--teal);}
-.p-foot{text-align:center;margin-top:24px;font-size:13px;color:var(--ink2);}
-.faq-box{max-width:680px;margin:56px auto 0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--s1);}
-.fi{border-bottom:1px solid var(--line);}
-.fi:last-child{border-bottom:none;}
-.fb{width:100%;background:none;border:none;padding:20px 24px;text-align:left;font-size:14.5px;font-weight:600;color:var(--ink);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;font-family:'DM Sans',sans-serif;transition:background .15s;letter-spacing:-.02em;}
-.fb:hover{background:rgba(255,255,255,.02);}
-.fp{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--ink2);flex-shrink:0;transition:all .2s;line-height:1;}
-.fa{padding:0 24px;font-size:14px;color:var(--ink2);line-height:1.85;max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s ease;}
-.fi.op .fa{max-height:220px;padding:0 24px 20px;}
-.fi.op .fp{background:var(--teal2);color:var(--teal);transform:rotate(45deg);}
-.cta-sec{padding:clamp(80px,10vw,128px) clamp(16px,4vw,56px);text-align:center;background:var(--base);position:relative;overflow:hidden;}
-.cta-sec::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(800px,100vw);height:600px;background:radial-gradient(ellipse,rgba(0,201,177,.05),transparent 60%);pointer-events:none;}
-.cta-card{max-width:740px;margin:0 auto;position:relative;z-index:1;background:var(--s1);border:1px solid var(--teal3);border-radius:24px;padding:clamp(48px,6vw,84px) clamp(28px,5vw,64px);overflow:hidden;}
-.cta-card::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),transparent);}
-.cta-h-stop{display:block;font-size:clamp(28px,4vw,50px);font-weight:800;color:var(--red);line-height:1.1;letter-spacing:-.04em;margin-bottom:4px;}
-.cta-h-start{display:block;font-size:clamp(28px,4vw,50px);font-weight:800;color:var(--ink);line-height:1.1;letter-spacing:-.04em;margin-bottom:20px;}
-.cta-h-start em{font-style:italic;color:var(--teal);}
-.cta-p{font-size:clamp(14px,1.5vw,16px);color:var(--ink2);margin-bottom:36px;line-height:1.85;}
-.cta-btns{display:flex;align-items:center;justify-content:center;gap:11px;flex-wrap:wrap;}
-.cta-note{margin-top:18px;font-size:12px;color:var(--ink3);}
-.exit-bar{position:fixed;bottom:0;left:0;right:0;z-index:300;background:var(--s2);border-top:1px solid var(--teal3);padding:13px clamp(16px,4vw,56px);display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;transform:translateY(100%);transition:transform .4s cubic-bezier(.22,1,.36,1);}
-.exit-bar.show{transform:none;}
-.exit-txt{font-size:14px;color:var(--ink2);}
-.exit-txt strong{color:var(--ink);}
-.exit-acts{display:flex;align-items:center;gap:9px;flex-shrink:0;}
-.exit-cta{display:inline-flex;align-items:center;gap:6px;background:var(--teal);color:#000;padding:9px 20px;border-radius:8px;font-weight:700;font-size:13.5px;text-decoration:none;transition:all .2s;}
-.exit-cta:hover{background:#00e5cc;}
-.exit-close{background:none;border:1px solid var(--line2);color:var(--ink3);padding:8px 13px;border-radius:8px;cursor:pointer;font-size:13px;transition:all .15s;font-family:'DM Sans',sans-serif;}
-.exit-close:hover{color:var(--ink);border-color:var(--line3);}
-footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(48px,6vw,68px) clamp(16px,4vw,56px) clamp(28px,4vw,38px);}
-.ft{max-width:1200px;margin:0 auto;}
-.ft-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:clamp(24px,4vw,52px);margin-bottom:clamp(32px,4vw,44px);}
-.ft-logo{display:flex;align-items:center;gap:10px;text-decoration:none;}
-.ft-logo img{width:34px;height:34px;object-fit:contain;flex-shrink:0;display:block;}
-.ft-logo-text{font-weight:800;font-size:20px;color:var(--ink);letter-spacing:-.3px;line-height:1;}
-.ft-logo-text em{color:var(--teal);font-style:normal;}
-.ft-tagline{font-size:13px;color:var(--ink2);line-height:1.85;margin-top:14px;max-width:260px;}
-.ft-badges{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px;}
-.ft-badge{font-size:11px;color:var(--ink3);background:var(--s2);border:1px solid var(--line);border-radius:6px;padding:3px 8px;}
-.ft-hd{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--ink3);margin-bottom:14px;}
-.ft-lks{list-style:none;display:flex;flex-direction:column;gap:9px;}
-.ft-lks a{font-size:13.5px;color:var(--ink2);text-decoration:none;transition:color .14s;}
-.ft-lks a:hover{color:var(--teal);}
-.ft-bot{padding-top:22px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink3);flex-wrap:wrap;gap:7px;}
-.fade{opacity:0;transform:translateY(20px);transition:opacity .65s ease,transform .65s ease;}
-.fade.vis{opacity:1;transform:none;}
-/* Simulator input */
-.sim-inp{width:100%;background:#0c1221;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:11px 14px;font-size:13.5px;color:#f1f5f9;outline:none;font-family:inherit;transition:border-color .2s;}
-.sim-inp:focus{border-color:#00C9B1;}
-@media(max-width:768px){
-  .nav{height:68px;padding:0 14px;}
-  .nmid,.nav-login{display:none;}
-  .hbg{display:flex;}
-  .hero{padding:90px 14px 56px;min-height:auto;}
-  .hero-in{grid-template-columns:1fr;gap:28px;}
-  .h1{font-size:clamp(32px,10vw,48px);}
-  .h1-line2{font-size:clamp(20px,7vw,32px);}
-  .hero-btns{flex-direction:column;align-items:stretch;gap:10px;}
-  .btn-primary,.btn-ghost{justify-content:center;width:100%;}
-  .stats-row{grid-template-columns:1fr;}
-  .stat-cell{border-right:none;border-bottom:1px solid var(--line);}
-  .stat-cell:last-child{border-bottom:none;}
-  .pain-grid{grid-template-columns:1fr;gap:0;}
-  .pain-card{border-bottom:1px solid var(--line);}
-  .steps{grid-template-columns:1fr;gap:12px;}
-  .step:not(:last-child)::after{display:none;}
-  .loss-timeline{border-left-width:1.5px;}
-  .loss-item{grid-template-columns:1fr;gap:12px;padding:20px 0 20px 24px;}
-  .loss-time{text-align:left;font-size:12px;}
-  .sim-grid{grid-template-columns:1fr!important;gap:28px!important;}
-  .demo-layout{grid-template-columns:1fr;gap:12px;}
-  .demo-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
-  .feat-grid{grid-template-columns:1fr;gap:10px;}
-  .rev-viz{grid-template-columns:1fr;gap:14px;}
-  .rev-arrow{flex-direction:row;justify-content:center;}
-  .rev-arrow-line{width:32px;height:1px;}
-  .who-grid{grid-template-columns:repeat(2,1fr);gap:9px;}
-  .vs-layout{grid-template-columns:1fr;gap:24px;}
-  .p-grid{grid-template-columns:1fr;gap:14px;}
-  .pricing-context{flex-direction:column;text-align:center;}
-  .t-grid{grid-template-columns:1fr;gap:10px;}
-  .cta-card{padding:32px 18px;border-radius:18px;}
-  .cta-btns{flex-direction:column;align-items:stretch;}
-  .cta-btns a{justify-content:center;}
-  .ft-top{grid-template-columns:1fr;gap:28px;}
-  .ft-tagline{max-width:100%;}
-  .ft-bot{flex-direction:column;text-align:center;}
-  .mq{display:none;}
-  .exit-bar{flex-direction:column;align-items:flex-start;}
-  .hero-proof{flex-direction:column;align-items:flex-start;}
+
+:root {
+  --ink: #0B0D12;
+  --ink-soft: #585F6E;
+  --ink-faint: #9197A5;
+  --paper: #FFFFFF;
+  --canvas: #F7F8FA;
+  --line: rgba(11,13,18,0.08);
+  --line-soft: rgba(11,13,18,0.05);
+  --signal: #146EF5;
+  --signal-deep: #0B4FC4;
+  --signal-tint: #EAF2FE;
+  --signal-tint-2: rgba(20,110,245,0.06);
+  --shadow-card: 0 1px 2px rgba(11,13,18,0.04), 0 8px 24px rgba(11,13,18,0.06);
+  --shadow-lift: 0 4px 12px rgba(11,13,18,0.06), 0 24px 48px rgba(11,13,18,0.10);
+  --display: 'General Sans', 'Inter', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
 }
-@media(min-width:769px) and (max-width:1100px){
-  .nmid,.nav-login{display:none;}
-  .hbg{display:flex;}
-  .feat-grid{grid-template-columns:repeat(2,1fr);}
-  .who-grid{grid-template-columns:repeat(3,1fr);}
-  .t-grid{grid-template-columns:repeat(2,1fr);}
-  .ft-top{grid-template-columns:1fr 1fr;gap:32px;}
-  .hero-in{grid-template-columns:1fr 380px;}
-  .vs-layout{grid-template-columns:1fr;}
-  .rev-viz{grid-template-columns:1fr 40px 1fr;}
+
+.v2-fade { opacity: 0; transform: translateY(16px); transition: opacity 0.7s cubic-bezier(.2,.8,.2,1), transform 0.7s cubic-bezier(.2,.8,.2,1); }
+.v2-fade.v2-in { opacity: 1; transform: none; }
+
+/* ── NAV ── */
+.v2-nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  height: 72px; padding: 0 clamp(20px,4vw,48px);
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.25s, box-shadow 0.25s;
 }
-    `}</style>
+.v2-nav.sc { border-bottom-color: var(--line); box-shadow: 0 1px 0 rgba(11,13,18,0.02); }
+.v2-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.v2-logo-mark { width: 28px; height: 28px; border-radius: 7px; background: var(--ink); display: flex; align-items: center; justify-content: center; }
+.v2-logo-mark svg { width: 14px; height: 14px; stroke: white; }
+.v2-logo-text { font-family: var(--display); font-weight: 600; font-size: 18px; color: var(--ink); letter-spacing: -0.02em; }
+.v2-nmid { display: flex; align-items: center; gap: 4px; list-style: none; }
+.v2-nmid a { font-size: 14px; font-weight: 500; color: var(--ink-soft); text-decoration: none; padding: 8px 14px; border-radius: 7px; transition: all 0.15s; }
+.v2-nmid a:hover { color: var(--ink); background: var(--canvas); }
+.v2-nr { display: flex; align-items: center; gap: 8px; }
+.v2-signin { font-size: 14px; font-weight: 500; color: var(--ink-soft); text-decoration: none; padding: 8px 14px; }
+.v2-signin:hover { color: var(--ink); }
+.v2-cta-nav {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--ink); color: white; padding: 9px 18px;
+  border-radius: 8px; font-weight: 600; font-size: 13.5px;
+  text-decoration: none; transition: all 0.2s;
+}
+.v2-cta-nav:hover { background: var(--signal-deep); transform: translateY(-1px); }
+.v2-hbg { display: none; background: none; border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; cursor: pointer; font-size: 16px; }
 
-    {/* EXIT BAR */}
-    {!exitGone && (
-      <div className={`exit-bar${exitShow?" show":""}`}>
-        <div className="exit-txt"><strong>Still deciding?</strong> Start free — 14 days, no credit card, cancel anytime.</div>
-        <div className="exit-acts">
-          <a href="/signup" className="exit-cta">Start Free Trial →</a>
-          <button className="exit-close" onClick={()=>{setExitShow(false);setExitGone(true);}}>Maybe later</button>
-        </div>
-      </div>
-    )}
+/* ── HERO ── */
+.v2-hero { padding: clamp(140px,16vw,180px) clamp(20px,4vw,48px) clamp(60px,8vw,96px); background: var(--paper); position: relative; overflow: hidden; }
+.v2-hero-grid {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+  background-image: linear-gradient(rgba(11,13,18,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(11,13,18,0.025) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, black, transparent 70%);
+}
+.v2-hero-in { max-width: 1140px; margin: 0 auto; position: relative; z-index: 1; }
+.v2-eyebrow {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--line); border-radius: 100px;
+  padding: 6px 14px; margin-bottom: 28px;
+  font-size: 13px; font-weight: 500; color: var(--ink-soft);
+  background: var(--canvas);
+}
+.v2-eyebrow strong { color: var(--ink); font-weight: 600; }
+.v2-h1 {
+  font-family: var(--display); font-weight: 600;
+  font-size: clamp(40px,5.6vw,68px); line-height: 1.04;
+  letter-spacing: -0.035em; color: var(--ink);
+  max-width: 760px; margin-bottom: 22px;
+}
+.v2-sub {
+  font-size: clamp(16px,1.7vw,19px); color: var(--ink-soft);
+  max-width: 540px; line-height: 1.6; margin-bottom: 36px; font-weight: 400;
+}
+.v2-hero-btns { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 56px; }
+.v2-btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--ink); color: white; padding: 14px 26px;
+  border-radius: 10px; font-weight: 600; font-size: 15px;
+  text-decoration: none; transition: all 0.2s; border: none; cursor: pointer;
+  font-family: 'Inter', sans-serif;
+}
+.v2-btn-primary:hover { background: var(--signal-deep); transform: translateY(-1px); box-shadow: var(--shadow-card); }
+.v2-btn-secondary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; color: var(--ink); padding: 14px 22px;
+  border-radius: 10px; font-weight: 600; font-size: 15px;
+  text-decoration: none; border: 1px solid var(--line); transition: all 0.2s;
+}
+.v2-btn-secondary:hover { border-color: var(--ink-faint); background: var(--canvas); }
 
-    {/* NAV */}
-    <nav className={`nav${scrolled?" sc":""}`}>
-      <a href="/" className="nav-logo">
-        <img src="/logo.png" width="38" height="38" alt="Fastrill" />
-        <span className="nav-logo-text">fast<em>rill</em></span>
-      </a>
-      <ul className="nmid">
-        {[["#pain","The Problem"],["#how","How It Works"],["#demo","Demo"],["#pricing","Pricing"],["#founder","Our Story"],["#faq","FAQ"]].map(([h,l])=>(
-          <li key={h}><a href={h}>{l}</a></li>
-        ))}
-      </ul>
-      <div className="nr">
-        <a href="/login" className="nav-login">Log in</a>
-        <a href="/signup" className="nav-cta">Start Free →</a>
-        <button className="hbg" onClick={()=>setMobOpen(p=>!p)}>☰</button>
-      </div>
-    </nav>
-    <div className={`mdraw${mobOpen?" open":""}`}>
-      {[["#pain","The Problem"],["#how","How It Works"],["#demo","Demo"],["#pricing","Pricing"],["#founder","Our Story"],["#faq","FAQ"]].map(([h,l])=>(
-        <a key={h} href={h} onClick={()=>setMobOpen(false)}>{l}</a>
-      ))}
-      <hr/>
-      <a href="/login" onClick={()=>setMobOpen(false)}>Log in</a>
-      <a href="/signup" onClick={()=>setMobOpen(false)} style={{color:"var(--teal)",fontWeight:700}}>Start Free Trial →</a>
-    </div>
+/* hero dashboard mockup */
+.v2-dash-wrap { position: relative; max-width: 980px; margin: 0 auto; }
+.v2-dash {
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-lift);
+}
+.v2-dash-bar { height: 44px; background: var(--canvas); border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 16px; gap: 7px; }
+.v2-dash-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+.v2-dash-body { padding: clamp(20px,3vw,32px); }
+.v2-dash-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.v2-dash-title { font-family: var(--display); font-weight: 600; font-size: 19px; color: var(--ink); }
+.v2-dash-sub { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+.v2-dash-kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+.v2-kpi { background: var(--canvas); border-radius: 10px; padding: 14px 16px; }
+.v2-kpi-label { font-size: 11.5px; color: var(--ink-faint); margin-bottom: 8px; font-weight: 500; }
+.v2-kpi-val { font-family: var(--mono); font-weight: 500; font-size: 22px; color: var(--ink); letter-spacing: -0.01em; }
+.v2-kpi-val.signal { color: var(--signal); }
+.v2-dash-rev { background: linear-gradient(135deg, var(--signal-tint), rgba(20,110,245,0.02)); border: 1px solid rgba(20,110,245,0.12); border-radius: 12px; padding: 18px 20px; }
+.v2-dash-rev-label { font-size: 12px; font-weight: 600; color: var(--signal-deep); margin-bottom: 12px; }
+.v2-dash-rev-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.v2-dash-rev-item-label { font-size: 11px; color: var(--ink-faint); margin-bottom: 4px; }
+.v2-dash-rev-item-val { font-family: var(--mono); font-weight: 500; font-size: 17px; color: var(--ink); }
 
-    {/* HERO */}
-    <section className="hero">
-      <div className="hero-grid-bg"/>
-      <div className="hero-in">
-        <div>
-          <div className="hero-eyebrow"><div className="eyebrow-dot"/>🇮🇳 Built for Indian businesses</div>
-          <h1 className="h1">You're not losing leads.</h1>
-          <span className="h1-line2">You're losing them <em>after they message you.</em></span>
-          <div className="hero-sub">
-            <span className="hero-sub-line">Every lead on WhatsApp = real money.</span>
-            <span className="hero-sub-line">Most businesses reply in <strong>hours</strong> — or never.</span>
-            <span className="hero-sub-line">That's where your revenue walks out.</span>
-            <span className="hero-sub-line">Fastrill replies in <strong>2 seconds.</strong> Books the appointment. Confirmed.</span>
-          </div>
-          <div className="hero-btns">
-            <a href="/signup" className="btn-primary">Start converting leads instantly →</a>
-            <a href="#demo" className="btn-ghost">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><path d="M6.5 5.5l4 2.5-4 2.5V5.5z" fill="currentColor"/></svg>
-              See it live
-            </a>
-          </div>
-          <div className="hero-proof">
-            <div className="proof-avs">
-              {[["#f59e0b","P"],["#10b981","R"],["#38bdf8","S"],["#a855f7","A"],["#ef4444","N"]].map(([c,i],idx)=>(
-                <div key={idx} className="proof-av" style={{background:`linear-gradient(135deg,${c},${c}88)`}}>{i}</div>
-              ))}
-            </div>
-            <div className="proof-text"><strong>80+ businesses</strong> already converting more leads on WhatsApp ★★★★★</div>
-          </div>
-        </div>
-        <div className="fade">
-          <div className="phone">
-            <div className="phone-top">
-              <div className="phone-av">R</div>
-              <div>
-                <div className="phone-name">Riya Salon <span className="ai-live-badge">AI</span></div>
-                <div className="phone-status">Fastrill AI · Online now</div>
-              </div>
-            </div>
-            <div className="phone-body">
-              {DEMOS.booking.map((m,i)=>(
-                <div key={i} className={`pm ${m.r}`}>
-                  {m.r==="a"&&<span className="ai-label">◈ Fastrill AI</span>}
-                  {m.m.split("\n").map((l,j,arr)=><span key={j}>{l}{j<arr.length-1&&<br/>}</span>)}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+.v2-float-chip {
+  position: absolute; background: var(--paper); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 14px; box-shadow: var(--shadow-card);
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; color: var(--ink);
+  opacity: 0; animation: v2chip 0.6s ease forwards;
+}
+.v2-float-chip .v2-chip-ico { width: 18px; height: 18px; border-radius: 50%; background: var(--signal-tint); color: var(--signal-deep); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+@keyframes v2chip { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.v2-chip-1 { top: -14px; right: 6%; animation-delay: 1.4s; }
+.v2-chip-2 { bottom: 8%; left: -18px; animation-delay: 2.3s; }
 
-    {/* TRUST BAR */}
-    <div className="trust">
-      {[{i:"🔒",t:"256-bit Encrypted"},{i:"🇮🇳",t:"India Servers"},{i:"⚡",t:"2-sec Response"},{i:"🌐",t:"10+ Languages"},{i:"⭐",t:"4.9/5 Rating"},{i:"🛡️",t:"Zero Data Sharing"}].map((b,i,arr)=>(
-        <span key={b.t} style={{display:"flex",alignItems:"center",gap:"clamp(14px,3vw,36px)"}}>
-          <span className="tbadge"><span>{b.i}</span>{b.t}</span>
-          {i<arr.length-1&&<span className="tdiv"/>}
-        </span>
-      ))}
-    </div>
+@media(max-width: 860px) {
+  .v2-float-chip { display: none; }
+  .v2-dash-kpis { grid-template-columns: repeat(2,1fr); }
+  .v2-dash-rev-grid { grid-template-columns: 1fr; }
+}
 
-    {/* MARQUEE */}
-    <div className="mq">
-      <div className="mq-track">
-        {[...Array(2)].map((_,r)=>
-          ["💈 Salons","🧖 Spas","🏥 Clinics","🦷 Dental","💪 Gyms","💅 Nail Studios","🏠 Real Estate","🎓 Coaching","🍽️ Restaurants","💻 Agencies","🌿 Ayurveda","🏪 Retail"].map(b=>(
-            <div key={r+b} className="mq-item">{b}</div>
-          ))
-        )}
-      </div>
-    </div>
+/* ── TRUST STRIP ── */
+.v2-trust { padding: 28px clamp(20px,4vw,48px); border-bottom: 1px solid var(--line); background: var(--canvas); }
+.v2-trust-in { max-width: 1140px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: clamp(24px,5vw,56px); flex-wrap: wrap; }
+.v2-trust-item { display: flex; align-items: baseline; gap: 8px; }
+.v2-trust-num { font-family: var(--display); font-weight: 600; font-size: 22px; color: var(--ink); }
+.v2-trust-label { font-size: 13px; color: var(--ink-faint); }
 
-    {/* STATS */}
-    <div className="stats" ref={statsRef}>
-      <div className="stats-row">
-        {[
-          {n:counts.a.toLocaleString("en-IN"),s:"+",l:"Bookings automated monthly",d:"across active businesses on the platform"},
-          {n:counts.b,s:"%",l:"Faster than human reply",d:"average 1.8 second AI response time"},
-          {n:counts.c,s:"%",l:"Fewer missed leads",d:"businesses see in their first 30 days"},
-        ].map((s,i)=>(
-          <div key={i} className="stat-cell fade">
-            <div className="stat-n">{s.n}<em>{s.s}</em></div>
-            <div className="stat-l">{s.l}</div>
-            <div className="stat-s">{s.d}</div>
-          </div>
-        ))}
-      </div>
-    </div>
+/* ── SECTION BASE ── */
+.v2-sec { padding: clamp(80px,10vw,128px) clamp(20px,4vw,48px); }
+.v2-sec.alt { background: var(--canvas); }
+.v2-w { max-width: 1140px; margin: 0 auto; }
+.v2-label { font-size: 13px; font-weight: 600; color: var(--signal-deep); letter-spacing: 0.01em; margin-bottom: 14px; }
+.v2-h2 { font-family: var(--display); font-weight: 600; font-size: clamp(30px,4vw,44px); line-height: 1.12; letter-spacing: -0.03em; color: var(--ink); margin-bottom: 16px; max-width: 620px; }
+.v2-h2-c { text-align: center; margin-left: auto; margin-right: auto; }
+.v2-p { font-size: 16px; color: var(--ink-soft); line-height: 1.65; max-width: 540px; }
+.v2-p-c { text-align: center; margin-left: auto; margin-right: auto; }
 
-    {/* REAL LOSS */}
-    <section className="sec real-loss-sec" style={{background:"var(--base)"}}>
-      <div className="w">
-        <div className="fade" style={{maxWidth:720,margin:"0 auto"}}>
-          <div className="label" style={{justifyContent:"center"}}>The silent cost</div>
-          <h2 className="sh" style={{textAlign:"center"}}>What happens when you don't reply instantly?</h2>
-          <p className="sp" style={{textAlign:"center",maxWidth:480,margin:"0 auto"}}>A real scenario. A real loss.</p>
-        </div>
-        <div className="loss-timeline fade">
-          {[
-            {time:"9:02 PM",event:"Customer messages you",desc:"Ready to book. Service: Keratin treatment. Budget: ₹2,800",icon:"💬"},
-            {time:"9:45 PM",event:"You finally reply",desc:"Too late. They already asked your competitor.",icon:"😬"},
-            {time:"10:12 PM",event:"Customer booked elsewhere",desc:"Your competitor replied in 2 minutes.",icon:"📕"},
-            {time:"—",event:"Your loss",desc:"₹2,800 + lifetime value + reviews = ₹12,000+",icon:"💸",highlight:true},
-          ].map((item,i)=>(
-            <div key={i} className={`loss-item${item.highlight?" loss-item-highlight":""}`}>
-              <div className="loss-time">{item.time}</div>
-              <div className="loss-content">
-                <div className="loss-icon">{item.icon}</div>
-                <div>
-                  <div className="loss-event">{item.event}</div>
-                  <div className="loss-desc">{item.desc}</div>
-                </div>
-              </div>
-            </div>
+/* ── PROBLEM CARDS ── */
+.v2-problem-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-top: 48px; }
+.v2-problem-card { background: var(--paper); padding: 28px 26px; }
+.v2-problem-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.v2-problem-x { width: 20px; height: 20px; border-radius: 50%; background: rgba(226,75,74,0.1); color: #A32D2D; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.v2-problem-title { font-weight: 600; font-size: 15px; color: var(--ink); }
+.v2-problem-desc { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; }
+
+/* ── LIFECYCLE RAIL (signature element) ── */
+.v2-rail-wrap { margin-top: 56px; position: relative; }
+.v2-rail-line { position: absolute; top: 17px; left: 5%; right: 5%; height: 2px; background: var(--line); z-index: 0; }
+.v2-rail-line-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--signal); width: 0%; transition: width 1.6s cubic-bezier(.2,.8,.2,1); }
+.v2-rail { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+.v2-rail-node { text-align: center; }
+.v2-rail-dot { width: 36px; height: 36px; border-radius: 50%; background: var(--paper); border: 2px solid var(--line); margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink-faint); transition: all 0.4s; }
+.v2-rail-node.active .v2-rail-dot { border-color: var(--signal); background: var(--signal); color: white; }
+.v2-rail-label { font-weight: 600; font-size: 14.5px; color: var(--ink); margin-bottom: 4px; transition: color 0.4s; }
+.v2-rail-time { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); margin-bottom: 6px; }
+.v2-rail-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; max-width: 170px; margin: 0 auto; }
+
+@media(max-width: 760px) {
+  .v2-rail { grid-template-columns: 1fr; gap: 28px; }
+  .v2-rail-line { display: none; }
+}
+
+/* ── FEATURES ── */
+.v2-feat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 48px; }
+.v2-feat-card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 26px 24px; transition: all 0.2s; }
+.v2-feat-card:hover { border-color: rgba(20,110,245,0.25); box-shadow: var(--shadow-card); transform: translateY(-2px); }
+.v2-feat-ico { width: 38px; height: 38px; border-radius: 10px; background: var(--signal-tint); color: var(--signal-deep); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
+.v2-feat-title { font-weight: 600; font-size: 15.5px; color: var(--ink); margin-bottom: 8px; }
+.v2-feat-desc { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; }
+
+/* ── COMPARISON TABLE ── */
+.v2-cmp { margin-top: 48px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--paper); }
+.v2-cmp-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; }
+.v2-cmp-row + .v2-cmp-row { border-top: 1px solid var(--line); }
+.v2-cmp-cell { padding: 16px 18px; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+.v2-cmp-head .v2-cmp-cell { font-weight: 600; font-size: 12.5px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.02em; background: var(--canvas); }
+.v2-cmp-row:not(.v2-cmp-head) .v2-cmp-cell:first-child { font-weight: 500; color: var(--ink); }
+.v2-cmp-cell.us { background: var(--signal-tint-2); color: var(--ink); font-weight: 500; }
+.v2-cmp-cell.bad { color: var(--ink-faint); }
+@media(max-width: 700px) {
+  .v2-cmp-row { grid-template-columns: 1fr; }
+  .v2-cmp-cell { padding: 10px 16px; border-bottom: 1px solid var(--line-soft); }
+}
+
+/* ── TESTIMONIALS ── */
+.v2-test-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 48px; }
+.v2-test-card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 18px; }
+.v2-test-metric { display: flex; align-items: baseline; gap: 8px; }
+.v2-test-metric-num { font-family: var(--display); font-weight: 600; font-size: 26px; color: var(--signal); }
+.v2-test-metric-label { font-size: 12.5px; color: var(--ink-faint); }
+.v2-test-quote { font-size: 14.5px; color: var(--ink-soft); line-height: 1.7; flex: 1; }
+.v2-test-auth { display: flex; align-items: center; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.v2-test-av { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex-shrink: 0; }
+.v2-test-name { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.v2-test-role { font-size: 12px; color: var(--ink-faint); }
+
+/* ── PRICING ── */
+.v2-toggle { display: inline-flex; align-items: center; gap: 4px; background: var(--canvas); border: 1px solid var(--line); border-radius: 100px; padding: 4px; margin: 0 auto 48px; }
+.v2-toggle-btn { padding: 8px 18px; border-radius: 100px; font-size: 13.5px; font-weight: 600; border: none; background: transparent; color: var(--ink-faint); cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 6px; }
+.v2-toggle-btn.on { background: var(--ink); color: white; }
+.v2-toggle-save { font-size: 10.5px; font-weight: 700; background: var(--signal-tint); color: var(--signal-deep); padding: 1px 7px; border-radius: 100px; }
+.v2-toggle-btn.on .v2-toggle-save { background: rgba(255,255,255,0.18); color: white; }
+.v2-pgrid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; align-items: start; }
+.v2-plan { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 30px 26px; position: relative; }
+.v2-plan.pop { border: 1.5px solid var(--signal); box-shadow: var(--shadow-lift); }
+.v2-plan-badge { position: absolute; top: -1px; left: 24px; transform: translateY(-50%); background: var(--signal); color: white; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 100px; }
+.v2-plan-name { font-family: var(--display); font-weight: 600; font-size: 17px; color: var(--ink); margin-bottom: 4px; }
+.v2-plan-desc { font-size: 13px; color: var(--ink-faint); margin-bottom: 20px; }
+.v2-plan-price { display: flex; align-items: baseline; gap: 4px; margin-bottom: 4px; }
+.v2-plan-curr { font-size: 18px; font-weight: 600; color: var(--ink); }
+.v2-plan-amt { font-family: var(--display); font-weight: 600; font-size: 40px; color: var(--ink); letter-spacing: -0.02em; }
+.v2-plan-period { font-size: 13px; color: var(--ink-faint); }
+.v2-plan-annual-note { font-size: 12px; color: var(--ink-faint); margin-bottom: 22px; min-height: 16px; }
+.v2-plan-list { list-style: none; display: flex; flex-direction: column; gap: 11px; margin-bottom: 26px; }
+.v2-plan-list li { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; color: var(--ink-soft); }
+.v2-plan-list li svg { flex-shrink: 0; margin-top: 2px; color: var(--signal); }
+.v2-plan-btn { display: block; text-align: center; padding: 12px; border-radius: 9px; font-weight: 600; font-size: 14px; text-decoration: none; transition: all 0.2s; }
+.v2-plan-btn.go { background: var(--ink); color: white; }
+.v2-plan-btn.go:hover { background: var(--signal-deep); }
+.v2-plan-btn.out { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.v2-plan-btn.out:hover { border-color: var(--ink-faint); background: var(--canvas); }
+
+/* ── FINAL CTA ── */
+.v2-fcta { padding: clamp(80px,10vw,128px) clamp(20px,4vw,48px); background: var(--ink); text-align: center; }
+.v2-fcta-h { font-family: var(--display); font-weight: 600; font-size: clamp(30px,4.5vw,48px); color: white; letter-spacing: -0.03em; margin-bottom: 16px; max-width: 640px; margin-left: auto; margin-right: auto; }
+.v2-fcta-p { font-size: 16px; color: rgba(255,255,255,0.65); max-width: 480px; margin: 0 auto 36px; line-height: 1.6; }
+.v2-fcta-btns { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.v2-fcta .v2-btn-primary { background: white; color: var(--ink); }
+.v2-fcta .v2-btn-primary:hover { background: var(--signal-tint); }
+.v2-fcta .v2-btn-secondary { color: white; border-color: rgba(255,255,255,0.2); }
+.v2-fcta .v2-btn-secondary:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.3); }
+
+/* ── FOOTER ── */
+.v2-footer { background: var(--paper); border-top: 1px solid var(--line); padding: clamp(48px,6vw,64px) clamp(20px,4vw,48px) 32px; }
+.v2-footer-in { max-width: 1140px; margin: 0 auto; }
+.v2-footer-top { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: clamp(24px,4vw,48px); margin-bottom: 48px; }
+.v2-footer-tag { font-size: 13.5px; color: var(--ink-soft); line-height: 1.7; margin-top: 14px; max-width: 260px; }
+.v2-footer-head { font-size: 11px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 14px; }
+.v2-footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.v2-footer-links a { font-size: 13.5px; color: var(--ink-soft); text-decoration: none; }
+.v2-footer-links a:hover { color: var(--ink); }
+.v2-footer-bot { padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--ink-faint); flex-wrap: wrap; gap: 10px; }
+
+/* ── LIVE CHAT SIM (used in solution section) ── */
+.v2-chatsim { background: var(--canvas); border-radius: 16px; padding: 4px; }
+.v2-chatsim-in { background: var(--paper); border-radius: 13px; overflow: hidden; border: 1px solid var(--line); }
+.v2-chatsim-head { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+.v2-chatsim-av { width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; }
+.v2-chatsim-name { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.v2-chatsim-status { font-size: 11px; color: var(--signal); display: flex; align-items: center; gap: 5px; }
+.v2-chatsim-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--signal); }
+.v2-chatsim-body { padding: 18px; min-height: 200px; display: flex; flex-direction: column; gap: 10px; }
+.v2-msg { max-width: 78%; padding: 10px 14px; border-radius: 12px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; animation: v2msgin 0.3s ease both; }
+.v2-msg.c { background: var(--ink); color: white; align-self: flex-end; border-radius: 12px 3px 12px 12px; }
+.v2-msg.a { background: var(--canvas); color: var(--ink); align-self: flex-start; border-radius: 3px 12px 12px 12px; border: 1px solid var(--line); }
+.v2-msg-time { font-size: 10px; opacity: 0.5; margin-top: 4px; display: block; }
+@keyframes v2msgin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+@media(max-width: 860px) {
+  .v2-nmid, .v2-signin { display: none; }
+  .v2-hbg { display: flex; }
+  .v2-hero { padding-top: 110px; }
+  .v2-problem-grid { grid-template-columns: 1fr; }
+  .v2-feat-grid { grid-template-columns: 1fr; }
+  .v2-test-grid { grid-template-columns: 1fr; }
+  .v2-pgrid { grid-template-columns: 1fr; }
+  .v2-footer-top { grid-template-columns: 1fr; }
+  .v2-dash-kpis { grid-template-columns: repeat(2,1fr); }
+}
+      `}</style>
+
+      {/* ── NAV ── */}
+      <nav className={`v2-nav${scrolled ? " sc" : ""}`}>
+        <a href="/" className="v2-logo">
+          <span className="v2-logo-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M13 2L3 14h8l-1 8 11-13h-8l1-7z" /></svg>
+          </span>
+          <span className="v2-logo-text">Fastrill</span>
+        </a>
+        <ul className="v2-nmid">
+          {[["#product", "Product"], ["#customers", "Customers"], ["#pricing", "Pricing"]].map(([h, l]) => (
+            <li key={h}><a href={h}>{l}</a></li>
           ))}
+        </ul>
+        <div className="v2-nr">
+          <a href="/login" className="v2-signin">Sign in</a>
+          <a href="/signup" className="v2-cta-nav">Start free <Icon name="arrow" size={14} /></a>
+          <button className="v2-hbg">≡</button>
         </div>
-        <div className="loss-cta fade">
-          <p style={{fontSize:"15px",color:"var(--ink2)",marginBottom:20}}>
-            This happens <strong style={{color:"var(--red)"}}>thousands of times every month</strong> across Indian businesses.
+      </nav>
+
+      {/* ── HERO ── */}
+      <section className="v2-hero">
+        <div className="v2-hero-grid" />
+        <div className="v2-hero-in">
+          <div className="v2-eyebrow">AI revenue engine for <strong>service businesses</strong></div>
+          <h1 className="v2-h1">Stop losing leads on WhatsApp.</h1>
+          <p className="v2-sub">
+            Fastrill replies in seconds, qualifies the customer, and books the appointment automatically — day or night, in their language.
           </p>
-          <a href="/signup" className="btn-primary">Stop the bleeding →</a>
-        </div>
-      </div>
-    </section>
+          <div className="v2-hero-btns">
+            <a href="/signup" className="v2-btn-primary">Get started free <Icon name="arrow" size={16} /></a>
+            <a href="#demo" className="v2-btn-secondary"><Icon name="play" size={15} /> See it in action</a>
+          </div>
 
-    {/* PAIN */}
-    <section className="sec" id="pain" style={{background:"var(--base)"}}>
-      <div className="w">
-        <div className="fade" style={{maxWidth:600}}>
-          <div className="label">The real problem</div>
-          <h2 className="sh">Your ads are working.<br /><em>Your follow-up isn't.</em></h2>
-          <p className="sp" style={{maxWidth:480}}>Most businesses spend thousands getting leads to message them.<br/>The money walks out in the WhatsApp inbox.</p>
-        </div>
-        <div className="pain-grid">
-          {[
-            {n:"01",ico:"🌙",title:"Leads die after hours.",punch:"₹8,500 gone — from a 10-hour silence.",desc:"A customer messages at 10 PM about your bridal package. You see it at 9 AM. She's already booked someone who replied in 2 minutes.",tag:"Revenue lost every night"},
-            {n:"02",ico:"⚡",title:"Speed wins the booking.",punch:"After 5 minutes, conversion drops 80%.",desc:"Your competitor replies in 2 seconds. You reply in 2 hours. Same service, same price — they win the appointment every time.",tag:"Competitive loss"},
-            {n:"03",ico:"😤",title:"Silence turns into a bad review.",punch:"One ignored message = one public complaint.",desc:"An upset customer messages at peak hour. Your staff is busy. Fastrill responds in 2 seconds with genuine empathy — before it reaches Google.",tag:"Reputation at risk"},
-          ].map(p=>(
-            <div key={p.n} className="pain-card fade">
-              <div className="pain-num">{p.n}</div>
-              <span className="pain-ico">{p.ico}</span>
-              <div className="pain-title">{p.title}</div>
-              <div className="pain-punch">{p.punch}</div>
-              <div className="pain-desc">{p.desc}</div>
-              <div className="pain-tag">{p.tag}</div>
+          <div className="v2-dash-wrap">
+            <div className="v2-float-chip v2-chip-1">
+              <span className="v2-chip-ico"><Icon name="check" size={11} /></span>
+              Appointment booked
             </div>
-          ))}
-        </div>
-      </div>
-    </section>
-
-    {/* HOW */}
-    <section className="sec" id="how" style={{background:"var(--s1)"}}>
-      <div className="w">
-        <div className="fade">
-          <div className="label">How it works</div>
-          <h2 className="sh">Live in 10 minutes.<br /><em>Zero technical knowledge.</em></h2>
-          <p className="sp" style={{maxWidth:460}}>No developer. No training data. No complicated setup.</p>
-        </div>
-        <div className="steps">
-          {[
-            {n:"1",title:"Connect WhatsApp",desc:"Link your existing WhatsApp Business number via Meta's official API. One click. Your customers keep messaging the same number.",rows:[{on:true,dot:"#10b981",t:"WhatsApp Business connected"},{on:false,dot:"#404858",t:"Phone: +91 98765 43210"},{on:true,dot:"#10b981",t:"Status: Active ✓"}]},
-            {n:"2",title:"Add Your Services",desc:"Add services, prices, working hours, and any custom instructions — plain English or Hindi. The AI learns your business instantly.",rows:[{on:true,dot:"#10b981",t:"Haircut — ₹400 · 30 min"},{on:true,dot:"#10b981",t:"Hair Spa — ₹800 · 60 min"},{on:true,dot:"#10b981",t:"Facial — ₹1,200 · 60 min"}]},
-            {n:"3",title:"AI Handles Everything",desc:"Every customer gets an instant, intelligent reply. Bookings confirmed, leads qualified, revenue tracked — all live in your dashboard.",rows:[{on:true,dot:"#10b981",t:"✅ Booking confirmed · Priya · 3PM"},{on:true,dot:"#38bdf8",t:"📋 New lead · Rahul · Bridal pkg"},{on:false,dot:"#f59e0b",t:"💬 Anita asking about pricing"}]},
-          ].map(s=>(
-            <div key={s.n} className="step fade">
-              <div className="step-n">{s.n}</div>
-              <h3>{s.title}</h3>
-              <p>{s.desc}</p>
-              <div className="step-ui">
-                {s.rows.map((r,i)=>(
-                  <div key={i} className={`step-row${r.on?" on":""}`}>
-                    <div className="step-dot" style={{background:r.on?r.dot:"var(--ink3)"}}/>
-                    {r.t}
+            <div className="v2-float-chip v2-chip-2">
+              <span className="v2-chip-ico"><Icon name="check" size={11} /></span>
+              Lead recovered
+            </div>
+            <div className="v2-dash">
+              <div className="v2-dash-bar">
+                <span className="v2-dash-dot" /><span className="v2-dash-dot" /><span className="v2-dash-dot" />
+              </div>
+              <div className="v2-dash-body">
+                <div className="v2-dash-head">
+                  <div>
+                    <div className="v2-dash-title">Campaign performance</div>
+                    <div className="v2-dash-sub">14 campaigns · Real-time tracking</div>
                   </div>
-                ))}
+                </div>
+                <div className="v2-dash-kpis">
+                  <div className="v2-kpi"><div className="v2-kpi-label">Total sent</div><div className="v2-kpi-val">3,214</div></div>
+                  <div className="v2-kpi"><div className="v2-kpi-label">Delivery rate</div><div className="v2-kpi-val signal">98%</div></div>
+                  <div className="v2-kpi"><div className="v2-kpi-label">Read rate</div><div className="v2-kpi-val">81%</div></div>
+                  <div className="v2-kpi"><div className="v2-kpi-label">Reply rate</div><div className="v2-kpi-val signal">34%</div></div>
+                </div>
+                <div className="v2-dash-rev">
+                  <div className="v2-dash-rev-label">Revenue impact</div>
+                  <div className="v2-dash-rev-grid">
+                    <div><div className="v2-dash-rev-item-label">Est. bookings</div><div className="v2-dash-rev-item-val">218</div></div>
+                    <div><div className="v2-dash-rev-item-label">Est. revenue</div><div className="v2-dash-rev-item-val">₹2,61,600</div></div>
+                    <div><div className="v2-dash-rev-item-label">ROI</div><div className="v2-dash-rev-item-val">+412%</div></div>
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TRUST STRIP ── */}
+      <div className="v2-trust">
+        <div className="v2-trust-in">
+          {[["80+", "businesses on Fastrill"], ["2s", "average response time"], ["10+", "Indian languages"], ["24/7", "always responding"]].map(([n, l]) => (
+            <div key={l} className="v2-trust-item">
+              <span className="v2-trust-num">{n}</span>
+              <span className="v2-trust-label">{l}</span>
+            </div>
           ))}
         </div>
       </div>
-    </section>
 
-    {/* ── DEMO — Simulator + Tabs ── */}
-    <section className="sec" id="demo" style={{background:"var(--base)"}}>
-      <div className="w">
-        <div className="fade">
-          <div className="label">Live demo</div>
-          <h2 className="sh">See how a real customer gets<br /><em>converted in seconds.</em></h2>
-          <p className="sp" style={{maxWidth:500}}>Enter your business details or pick a scenario below — watch the AI handle it instantly.</p>
+      {/* ── PROBLEM ── */}
+      <section className="v2-sec" id="product">
+        <div className="v2-w">
+          <div className="v2-fade">
+            <div className="v2-label">The cost of waiting</div>
+            <h2 className="v2-h2">Every missed WhatsApp message costs you a customer.</h2>
+            <p className="v2-p">Your ads are working. The follow-up isn't — and that gap is where the revenue disappears.</p>
+          </div>
+          <div className="v2-problem-grid">
+            {[
+              { t: "Slow responses", d: "A customer messages at 10 PM. You reply at 9 AM. They've already booked someone else." },
+              { t: "No follow-up", d: "Leads who ask about price and go quiet are gone for good — nobody circles back." },
+              { t: "Manual everything", d: "Every booking, reschedule and reminder takes a person's time, every single day." },
+            ].map((p) => (
+              <div key={p.t} className="v2-problem-card v2-fade">
+                <div className="v2-problem-row">
+                  <span className="v2-problem-x"><Icon name="x" size={11} /></span>
+                  <span className="v2-problem-title">{p.t}</span>
+                </div>
+                <p className="v2-problem-desc">{p.d}</p>
+              </div>
+            ))}
+          </div>
         </div>
+      </section>
 
-        {/* ── INTERACTIVE SIMULATOR ── */}
-        <WhatsAppSimulator />
-
-        {/* Divider */}
-        <div style={{margin:"56px 0 0",borderTop:"1px solid var(--line)",paddingTop:48}}>
-          <p style={{fontSize:13,color:"var(--ink3)",textAlign:"center",marginBottom:28,letterSpacing:1,textTransform:"uppercase",fontWeight:600}}>More scenarios</p>
-          <div className="demo-layout">
-            <div className="demo-tabs fade">
-              {DEMO_META.map(s=>(
-                <div key={s.k} className={`demo-tab${demoKey===s.k?" on":""}`} onClick={()=>setDemoKey(s.k)}>
-                  <div className="dt-label">{s.label}</div>
-                  <div className="dt-sub">{s.sub}</div>
+      {/* ── LIFECYCLE RAIL — signature element ── */}
+      <section className="v2-sec alt" ref={lifecycleRef}>
+        <div className="v2-w">
+          <div className="v2-fade" style={{ textAlign: "center" }}>
+            <div className="v2-label" style={{ justifyContent: "center", display: "flex" }}>How it works</div>
+            <h2 className="v2-h2 v2-h2-c">From message to booked, in one conversation.</h2>
+            <p className="v2-p v2-p-c">A real exchange — start to finish, with no human in the loop.</p>
+          </div>
+          <div className="v2-rail-wrap">
+            <div className="v2-rail-line">
+              <div className="v2-rail-line-fill" style={{ width: lifecycleActive >= 0 ? `${(lifecycleActive / (LIFECYCLE.length - 1)) * 100}%` : "0%" }} />
+            </div>
+            <div className="v2-rail">
+              {LIFECYCLE.map((node, i) => (
+                <div key={node.label} className={`v2-rail-node${i <= lifecycleActive ? " active" : ""}`}>
+                  <div className="v2-rail-dot">{i <= lifecycleActive ? <Icon name="check" size={15} /> : i + 1}</div>
+                  <div className="v2-rail-label">{node.label}</div>
+                  <div className="v2-rail-time">{node.time}</div>
+                  <div className="v2-rail-desc">{node.desc}</div>
                 </div>
               ))}
             </div>
-            <div className="wa-mock fade">
-              <div className="wa-head">
-                <div className="wa-av">R</div>
-                <div>
-                  <div className="wa-name">Riya Salon</div>
-                  <div className="wa-st">◈ Fastrill AI · Online</div>
-                </div>
-              </div>
-              <div className="wa-body" ref={demoRef}>
-                {demoMsgs.map((m,i)=>(
-                  <div key={i} className={`wm ${m.r}`}>
-                    {m.r==="a"&&<span className="al">◈ Fastrill AI</span>}
-                    {m.m.split("\n").map((l,j,arr)=><span key={j}>{l}{j<arr.length-1&&<br/>}</span>)}
+          </div>
+        </div>
+      </section>
+
+      {/* ── LIVE DEMO ── */}
+      <section className="v2-sec" id="demo">
+        <div className="v2-w" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}>
+          <div className="v2-fade">
+            <div className="v2-label">Live example</div>
+            <h2 className="v2-h2">No scripts. No button menus. Just a conversation.</h2>
+            <p className="v2-p" style={{ marginBottom: 28 }}>
+              The customer types like they would to a person. Fastrill understands intent, collects what it needs, and confirms — without ever feeling like a bot.
+            </p>
+            <a href="/signup" className="v2-btn-primary">Try it on your number <Icon name="arrow" size={16} /></a>
+          </div>
+          <div className="v2-fade">
+            <div className="v2-chatsim">
+              <div className="v2-chatsim-in">
+                <div className="v2-chatsim-head">
+                  <div className="v2-chatsim-av">R</div>
+                  <div>
+                    <div className="v2-chatsim-name">Riya Salon</div>
+                    <div className="v2-chatsim-status">Fastrill AI · Online</div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    {/* FEATURES */}
-    <section className="sec" id="features" style={{background:"var(--s1)"}}>
-      <div className="w">
-        <div className="fade">
-          <div className="label">Features</div>
-          <h2 className="sh">Not a chatbot.<br /><em>A revenue system.</em></h2>
-          <p className="sp" style={{maxWidth:480}}>Multilingual support, emotion detection, customer memory, and lead recovery. Everything a trained human receptionist does — at unlimited scale.</p>
-        </div>
-        <div className="feat-grid">
-          {[
-            {i:"🧠",badge:"Core AI",   title:"Real Intent Detection",      desc:"Understands 'I want to come tomorrow evening for a facial' — not just keywords. Works across all 10+ Indian languages automatically."},
-            {i:"💬",badge:"Language",  title:"10+ Indian Languages",       desc:"Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi, English — auto-detected per conversation."},
-            {i:"🔄",badge:"Smart",     title:"Handles Any Interruption",   desc:"Customer asks a price question mid-booking? AI answers and returns to the booking flow — exactly like a trained human would."},
-            {i:"😤",badge:"EQ",        title:"Emotion Detection",          desc:"Detects frustration or anger in real time. Switches to empathy mode — de-escalates before you even know there's an issue."},
-            {i:"🧩",badge:"Memory",    title:"Remembers Every Customer",   desc:"Preferred services, favourite times, past visits, language preference. Return customers feel recognised, not like strangers."},
-            {i:"🎯",badge:"Revenue",   title:"Lead Recovery Engine",       desc:"Customer dropped mid-booking? Fastrill follows up at the right moment. Every missed lead gets a second chance automatically."},
-            {i:"👤",badge:"Control",   title:"Human Handoff",              desc:"Knows when to stop — refunds, disputes, complex cases. Pauses and notifies you with full conversation context."},
-            {i:"📢",badge:"Marketing", title:"WhatsApp Campaigns",         desc:"Send personalised messages to customer segments. Track opens, replies, bookings — directly attributed to each campaign."},
-            {i:"📊",badge:"Analytics", title:"Revenue Dashboard",          desc:"Conversations, bookings, campaigns, leads — all in one view. Track AI quality and revenue impact live."},
-          ].map(f=>(
-            <div key={f.title} className="fc fade">
-              <div className="fc-badge">{f.badge}</div>
-              <div className="fc-ico">{f.i}</div>
-              <div className="fc-title">{f.title}</div>
-              <div className="fc-desc">{f.desc}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-
-    {/* REVENUE VIZ */}
-    <section className="rev-sec">
-      <div className="w">
-        <div className="fade" style={{textAlign:"center"}}>
-          <div className="label" style={{justifyContent:"center"}}>The difference</div>
-          <h2 className="sh" style={{textAlign:"center"}}>Before Fastrill.<br /><em>After Fastrill.</em></h2>
-          <p className="sp" style={{textAlign:"center",maxWidth:420,margin:"0 auto"}}>Two businesses. Same ads. Same leads.<br/>Different results.</p>
-        </div>
-        <div className="rev-viz fade">
-          <div className="rev-col">
-            <div className="rev-col-label bad">✕ &nbsp;Without Fastrill</div>
-            {[
-              {ico:"🌙",t:"Reply in 8 hours",s:"Lead already booked elsewhere",cls:"bad-s"},
-              {ico:"🔇",t:"No reply after hours",s:"₹300 ad spend — zero return",cls:"bad-s"},
-              {ico:"😤",t:"Complaint ignored",s:"Google Review: 2 stars",cls:"bad-s"},
-              {ico:"📊",t:"No visibility",s:"No idea which leads converted",cls:"bad-s"},
-              {ico:"😰",t:"Staff overwhelmed",s:"Checking WhatsApp all day",cls:"bad-s"},
-            ].map((item,i)=>(
-              <div key={i} className="rev-item">
-                <div className="rev-ico bad">{item.ico}</div>
-                <div><div className="rev-item-t">{item.t}</div><div className={`rev-item-s ${item.cls}`}>{item.s}</div></div>
-              </div>
-            ))}
-          </div>
-          <div className="rev-arrow">
-            <div className="rev-arrow-line"/><div className="rev-arrow-icon">→</div><div className="rev-arrow-line"/>
-          </div>
-          <div className="rev-col after">
-            <div className="rev-col-label good">✓ &nbsp;With Fastrill</div>
-            {[
-              {ico:"⚡",t:"Reply in 2 seconds",s:"Lead booked before competitor opens",cls:"good-s"},
-              {ico:"🌙",t:"Books at 2 AM",s:"You wake up to confirmed appointments",cls:"good-s"},
-              {ico:"🤝",t:"Complaint resolved in 2s",s:"Customer retained, crisis avoided",cls:"good-s"},
-              {ico:"📈",t:"Full revenue dashboard",s:"Every booking tracked to source",cls:"good-s"},
-              {ico:"😌",t:"Staff focused on service",s:"Zero time spent on WhatsApp",cls:"good-s"},
-            ].map((item,i)=>(
-              <div key={i} className="rev-item">
-                <div className="rev-ico good">{item.ico}</div>
-                <div><div className="rev-item-t">{item.t}</div><div className={`rev-item-s ${item.cls}`}>{item.s}</div></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-
-    {/* WHO */}
-    <section className="sec" style={{background:"var(--s1)"}}>
-      <div className="w">
-        <div className="fade" style={{textAlign:"center"}}>
-          <div className="label" style={{justifyContent:"center"}}>Who it's for</div>
-          <h2 className="sh" style={{textAlign:"center"}}>Any business that runs<br /><em>on customers</em></h2>
-          <p className="sp" style={{textAlign:"center",maxWidth:440,margin:"0 auto"}}>If customers message you on WhatsApp and you want to convert more — Fastrill works for you.</p>
-        </div>
-        <div className="who-grid">
-          {[
-            {e:"💈",n:"Salons & Parlours",d:"Bookings, pricing, reschedules"},
-            {e:"🧖",n:"Spas & Wellness",d:"Sessions, packages, follow-ups"},
-            {e:"🏥",n:"Clinics & Doctors",d:"Appointments, reminders, reports"},
-            {e:"🦷",n:"Dental Clinics",d:"Checkups, treatments, recalls"},
-            {e:"💪",n:"Gyms & Fitness",d:"PT sessions, memberships, trials"},
-            {e:"💅",n:"Nail & Makeup",d:"Bookings, bridal, extensions"},
-            {e:"🏠",n:"Real Estate",d:"Qualify leads, site visit bookings"},
-            {e:"🎓",n:"Coaching & Tutoring",d:"Discovery calls, enrolments"},
-            {e:"🍽️",n:"Restaurants",d:"Reservations, menu questions"},
-            {e:"💻",n:"Agencies",d:"Lead qualification, demo bookings"},
-            {e:"🌿",n:"Ayurveda & Physio",d:"Consultations, therapy sessions"},
-            {e:"🏪",n:"Retail & D2C",d:"Orders, stock queries, support"},
-          ].map(u=>(
-            <div key={u.n} className="who-card fade">
-              <span className="who-e">{u.e}</span>
-              <div className="who-n">{u.n}</div>
-              <p className="who-d">{u.d}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-
-    {/* VS */}
-    <section className="sec" style={{background:"var(--base)"}}>
-      <div className="w">
-        <div className="vs-layout">
-          <div className="fade">
-            <div className="label">Why Fastrill</div>
-            <h2 className="sh">Not just another<br /><em>WhatsApp tool</em></h2>
-            <p className="sp">Most tools give you rigid button menus that break the moment a customer says anything unexpected. Fastrill actually understands — in any language, in any context.</p>
-            <div className="vs-pts">
-              {["Natural conversation — not preset button menus","Remembers every customer across all conversations","Handles any message, not just expected inputs","Detects emotion and adapts tone in real time","Never guesses on pricing, policy, or availability","Knows exactly when to hand off to a human","Built specifically for Indian languages and context"].map(p=>(
-                <div key={p} className="vs-pt"><div className="vs-ck">✓</div>{p}</div>
-              ))}
-            </div>
-          </div>
-          <div className="vs-tbl fade">
-            <div className="vs-head">
-              <div className="vs-th tm">Other tools</div>
-              <div className="vs-th us">Fastrill</div>
-            </div>
-            {[["Fixed button menus","Natural conversation"],["English only","10+ Indian languages"],["Breaks on unexpected","Handles anything"],["No customer memory","Remembers everything"],["No emotion awareness","Adapts to mood"],["Per-message billing","Flat monthly unlimited"],["Needs a developer","10-min self-setup"],["Generic bot replies","Business-specific AI"]].map(([t,u])=>(
-              <div key={t} className="vs-row">
-                <div className="vs-c tm">{t}</div>
-                <div className="vs-c us">{u}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-
-    {/* TESTIMONIALS */}
-    <section className="sec" style={{background:"var(--s1)"}}>
-      <div className="w">
-        <div className="fade" style={{textAlign:"center"}}>
-          <div className="label" style={{justifyContent:"center"}}>Results</div>
-          <h2 className="sh" style={{textAlign:"center"}}>Real revenue from<br /><em>real Indian businesses</em></h2>
-          <p className="sp" style={{textAlign:"center",maxWidth:420,margin:"0 auto"}}>From salons in Hyderabad to clinics in Vijayawada — businesses that reply faster book more.</p>
-        </div>
-        <div className="t-grid">
-          {TESTIMONIALS.map(t=>(
-            <div key={t.name} className="tc fade">
-              <div className="tc-result">📈 {t.result}</div>
-              <div className="tc-stars">★★★★★</div>
-              <p className="tc-quote">"{t.quote}"</p>
-              <div className="tc-auth">
-                <div className="tc-av" style={{background:`linear-gradient(${t.grad})`}}>{t.init}</div>
-                <div>
-                  <div className="tc-name">{t.name}</div>
-                  <div className="tc-biz">{t.biz}</div>
-                  <div className="tc-ver">✅ Verified Customer</div>
+                </div>
+                <div className="v2-chatsim-body" ref={demoRef}>
+                  {demoMsgs.map((m, i) => (
+                    <div key={i} className={`v2-msg ${m.r}`}>
+                      {m.m}
+                      <span className="v2-msg-time">{m.t}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-          ))}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    {/* FOUNDER */}
-    <section className="founder-sec" id="founder">
-      <div className="w">
-        <div className="fade" style={{textAlign:"center",marginBottom:40}}>
-          <div className="label" style={{justifyContent:"center"}}>Why we built this</div>
-          <h2 className="sh" style={{textAlign:"center"}}>The story behind<br /><em>Fastrill</em></h2>
+      {/* ── FEATURES ── */}
+      <section className="v2-sec alt">
+        <div className="v2-w">
+          <div className="v2-fade">
+            <div className="v2-label">What's inside</div>
+            <h2 className="v2-h2">Not a chatbot. A revenue system.</h2>
+            <p className="v2-p">Everything a trained receptionist does — conversation, qualification, booking, follow-up — running at unlimited scale.</p>
+          </div>
+          <div className="v2-feat-grid">
+            {FEATURES.map((f) => (
+              <div key={f.title} className="v2-feat-card v2-fade">
+                <div className="v2-feat-ico"><Icon name={f.icon} size={19} /></div>
+                <div className="v2-feat-title">{f.title}</div>
+                <div className="v2-feat-desc">{f.desc}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="founder-card fade">
-          <span className="founder-qmark">"</span>
-          <p className="founder-body">
-            I've spent years in digital marketing — running ads, building funnels, optimising campaigns for businesses across India. I know how hard it is to get a lead. The targeting, the creative, the budget, the testing. Every lead costs money. Real money.<br /><br />
-            And yet, the single most common thing I saw across <strong>every single client</strong> — salons, clinics, gyms, coaching centres, real estate agents — was this:<br /><br />
-            <em className="founder-highlight">💸 Leads were arriving. And dying in the WhatsApp inbox.</em><br /><br />
-            A customer messages at 10 PM — interested, ready to book. Nobody replies until morning. By then, they've moved on. You spent ₹300 on that click. It just evaporated.<br /><br />
-            I saw a salon owner in Hyderabad spending <strong>₹40,000/month on Instagram ads</strong>. Her ROAS looked decent on paper. But when we dug in — almost 60% of the leads who messaged never got a reply within the hour. Her actual conversion rate was less than half of what it could be. Not because of bad ads. Because of slow replies.<br /><br />
-            <strong>The problem was never the ads. It was always the follow-up.</strong><br /><br />
-            So we built Fastrill — not as another chatbot, but as a <em>revenue recovery system</em>. Something that sits between your ad spend and your bank account, and makes sure every lead gets an instant, intelligent reply — in their language, at any hour, without you lifting a finger.
-          </p>
-          <div className="founder-profile">
-            <div className="founder-av">G</div>
+      </section>
+
+      {/* ── COMPARISON ── */}
+      <section className="v2-sec" id="customers">
+        <div className="v2-w">
+          <div className="v2-fade" style={{ textAlign: "center" }}>
+            <div className="v2-label" style={{ justifyContent: "center", display: "flex" }}>Why Fastrill</div>
+            <h2 className="v2-h2 v2-h2-c">Built for the gap other tools leave open.</h2>
+            <p className="v2-p v2-p-c">Manual replies don't scale. Generic WhatsApp tools don't book. Fastrill does both.</p>
+          </div>
+          <div className="v2-cmp v2-fade">
+            <div className="v2-cmp-row v2-cmp-head">
+              <div className="v2-cmp-cell" />
+              <div className="v2-cmp-cell">Manual</div>
+              <div className="v2-cmp-cell">Generic tools</div>
+              <div className="v2-cmp-cell">Fastrill</div>
+            </div>
+            {COMPARISON_ROWS.map((row) => (
+              <div key={row[0]} className="v2-cmp-row">
+                <div className="v2-cmp-cell">{row[0]}</div>
+                <div className="v2-cmp-cell bad">{row[1]}</div>
+                <div className="v2-cmp-cell bad">{row[2]}</div>
+                <div className="v2-cmp-cell us"><Icon name="check" size={14} />{row[3]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ── */}
+      <section className="v2-sec alt">
+        <div className="v2-w">
+          <div className="v2-fade" style={{ textAlign: "center" }}>
+            <div className="v2-label" style={{ justifyContent: "center", display: "flex" }}>Results</div>
+            <h2 className="v2-h2 v2-h2-c">Real revenue from real businesses.</h2>
+          </div>
+          <div className="v2-test-grid">
+            {TESTIMONIALS.map((t) => (
+              <div key={t.name} className="v2-test-card v2-fade">
+                <div className="v2-test-metric">
+                  <span className="v2-test-metric-num">{t.metric}</span>
+                  <span className="v2-test-metric-label">{t.metricLabel}</span>
+                </div>
+                <p className="v2-test-quote">"{t.quote}"</p>
+                <div className="v2-test-auth">
+                  <div className="v2-test-av">{t.name.charAt(0)}</div>
+                  <div>
+                    <div className="v2-test-name">{t.name}</div>
+                    <div className="v2-test-role">{t.role}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ── */}
+      <section className="v2-sec" id="pricing">
+        <div className="v2-w">
+          <div className="v2-fade" style={{ textAlign: "center" }}>
+            <div className="v2-label" style={{ justifyContent: "center", display: "flex" }}>Pricing</div>
+            <h2 className="v2-h2 v2-h2-c">Simple pricing. Pays for itself.</h2>
+            <p className="v2-p v2-p-c" style={{ marginBottom: 32 }}>No per-message fees. Cancel anytime.</p>
+          </div>
+          <div className="v2-fade" style={{ display: "flex", justifyContent: "center" }}>
+            <div className="v2-toggle">
+              <button className={`v2-toggle-btn${billing === "monthly" ? " on" : ""}`} onClick={() => setBilling("monthly")}>Monthly</button>
+              <button className={`v2-toggle-btn${billing === "annual" ? " on" : ""}`} onClick={() => setBilling("annual")}>
+                Annual <span className="v2-toggle-save">Save 17%</span>
+              </button>
+            </div>
+          </div>
+          <div className="v2-pgrid">
+            {PRICING.map((plan) => {
+              const price = billing === "annual" ? annualPrice(plan.monthly) : plan.monthly
+              return (
+                <div key={plan.name} className={`v2-plan v2-fade${plan.popular ? " pop" : ""}`}>
+                  {plan.popular && <div className="v2-plan-badge">Most popular</div>}
+                  <div className="v2-plan-name">{plan.name}</div>
+                  <div className="v2-plan-desc">{plan.desc}</div>
+                  <div className="v2-plan-price">
+                    <span className="v2-plan-curr">₹</span>
+                    <span className="v2-plan-amt">{price.toLocaleString("en-IN")}</span>
+                    <span className="v2-plan-period">/month</span>
+                  </div>
+                  <div className="v2-plan-annual-note">
+                    {billing === "annual" ? `Billed ₹${(price * 12).toLocaleString("en-IN")} yearly` : "Billed monthly"}
+                  </div>
+                  <ul className="v2-plan-list">
+                    {plan.features.map((f) => (
+                      <li key={f}><Icon name="check" size={15} />{f}</li>
+                    ))}
+                  </ul>
+                  <a href="/signup" className={`v2-plan-btn ${plan.popular ? "go" : "out"}`}>{plan.cta}</a>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ── */}
+      <section className="v2-fcta">
+        <h2 className="v2-fcta-h">Turn every WhatsApp conversation into revenue.</h2>
+        <p className="v2-fcta-p">Start automating replies, recovering leads, and booking customers today.</p>
+        <div className="v2-fcta-btns">
+          <a href="/signup" className="v2-btn-primary">Start free trial <Icon name="arrow" size={16} /></a>
+          <a href="https://wa.me/916309279265" className="v2-btn-secondary">Talk to us on WhatsApp</a>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer className="v2-footer">
+        <div className="v2-footer-in">
+          <div className="v2-footer-top">
             <div>
-              <div className="founder-name">Ganapathi</div>
-              <div className="founder-role">Founder · Digital Marketing Strategist</div>
-              <div className="founder-co">Fastrill — by Solvabil Pvt. Ltd. 🇮🇳</div>
+              <div className="v2-logo">
+                <span className="v2-logo-mark">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M13 2L3 14h8l-1 8 11-13h-8l1-7z" /></svg>
+                </span>
+                <span className="v2-logo-text">Fastrill</span>
+              </div>
+              <p className="v2-footer-tag">AI-powered WhatsApp automation for Indian service businesses. Built by Solvabil Pvt. Ltd.</p>
             </div>
+            {[
+              { h: "Product", links: [["Features", "#product"], ["Pricing", "#pricing"], ["Demo", "#demo"]] },
+              { h: "Company", links: [["About", "#"], ["Contact", "team@fastrill.com"]] },
+              { h: "Legal", links: [["Privacy", "/privacy"], ["Terms", "/terms"]] },
+            ].map((col) => (
+              <div key={col.h}>
+                <div className="v2-footer-head">{col.h}</div>
+                <ul className="v2-footer-links">
+                  {col.links.map(([n, h]) => (<li key={n}><a href={h}>{n}</a></li>))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div className="v2-footer-bot">
+            <span>© 2026 Fastrill, a product by Solvabil Pvt. Ltd.</span>
+            <span>Made in India</span>
           </div>
         </div>
-      </div>
-    </section>
-
-    {/* PRICING */}
-    <section className="sec" id="pricing" style={{background:"var(--base)"}}>
-      <div className="w">
-        <div className="fade" style={{textAlign:"center"}}>
-          <div className="label" style={{justifyContent:"center"}}>Pricing</div>
-          <h2 className="sh" style={{textAlign:"center"}}>Simple pricing.<br /><em>Pays for itself.</em></h2>
-          <p className="sp" style={{textAlign:"center",maxWidth:420,margin:"0 auto 40px"}}>No per-message fees. Flat monthly.</p>
-        </div>
-        <div className="pricing-context fade">
-          <div className="pricing-context-ico">💡</div>
-          <div className="pricing-context-body"><strong>One missed lead can cost ₹500–₹5,000.</strong><br/>Fastrill pays for itself in days — not months. A single extra booking per week covers the entire plan.</div>
-        </div>
-        <div className="p-grid">
-          {[
-            {tier:"Starter",price:"999",tag:"Solo operators & new businesses",cta:"Get Started",cs:"out",pop:false,value:"💡 1 extra booking/week = plan fully paid off",feats:[{c:"inc",t:"1 WhatsApp number"},{c:"inc",t:"300 AI conversations/month"},{c:"inc",t:"Appointment booking automation"},{c:"inc",t:"10+ Indian languages"},{c:"exc",t:"Customer memory"},{c:"exc",t:"Lead recovery automation"},{c:"exc",t:"WhatsApp campaigns"},{c:"exc",t:"Priority support"}]},
-            {tier:"Growth",price:"1,999",tag:"For growing businesses",cta:"Start Free Trial →",cs:"go",pop:true,badge:"Most Popular",value:"💡 Unlimited conversations — no per-message fees ever",feats:[{c:"inc",t:"1 WhatsApp number"},{c:"inc",t:"Unlimited AI conversations"},{c:"inc",t:"Customer memory & history"},{c:"inc",t:"Lead recovery automation"},{c:"inc",t:"Emotion detection & handoff"},{c:"inc",t:"WhatsApp campaigns"},{c:"hi",t:"Advanced analytics"},{c:"hi",t:"Priority support"}]},
-            {tier:"Pro",price:"4,999",tag:"Multi-branch & growing teams",cta:"Contact Sales",cs:"out",pop:false,value:"💡 Up to 5 WhatsApp numbers — one dashboard",feats:[{c:"inc",t:"Up to 5 WhatsApp numbers"},{c:"inc",t:"Everything in Growth"},{c:"inc",t:"Multi-branch management"},{c:"inc",t:"Staff availability routing"},{c:"hi",t:"Custom AI playbook"},{c:"hi",t:"API access"},{c:"hi",t:"Dedicated onboarding call"},{c:"hi",t:"SLA support"}]},
-          ].map(plan=>(
-            <div key={plan.tier} className={`plan fade${plan.pop?" pop":""}`}>
-              {plan.badge&&<div className="p-badge">{plan.badge}</div>}
-              <div className="p-tier">{plan.tier}</div>
-              <div className="p-tag">{plan.tag}</div>
-              <div className="p-price"><span className="p-rs">₹</span><span className="p-amt">{plan.price}</span></div>
-              <div className="p-mo">per month + GST</div>
-              <div className="p-value">{plan.value}</div>
-              <hr className="p-hr"/>
-              <ul className="p-list">{plan.feats.map(f=><li key={f.t} className={f.c}>{f.t}</li>)}</ul>
-              <a href="/signup" className={`p-btn ${plan.cs}`}>{plan.cta}</a>
-            </div>
-          ))}
-        </div>
-        <p className="p-foot">All plans include a <strong style={{color:"var(--ink)"}}>14-day free trial</strong> · No credit card · Cancel anytime · GST invoice provided</p>
-      </div>
-    </section>
-
-    {/* FAQ */}
-    <section className="sec" id="faq" style={{background:"var(--s1)"}}>
-      <div className="w">
-        <div className="fade" style={{textAlign:"center"}}>
-          <div className="label" style={{justifyContent:"center"}}>FAQ</div>
-          <h2 className="sh" style={{textAlign:"center"}}>Honest answers</h2>
-          <p className="sp" style={{textAlign:"center",maxWidth:380,margin:"0 auto"}}>No fluff. No pressure.</p>
-        </div>
-        <div className="faq-box">
-          {FAQS.map((q,i)=>(
-            <div key={i} className={`fi${openFaq===i?" op":""}`}>
-              <button className="fb" onClick={()=>setOpenFaq(openFaq===i?null:i)}>{q.q}<span className="fp">+</span></button>
-              <div className="fa">{q.a}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-
-    {/* CTA */}
-    <section className="cta-sec">
-      <div className="w">
-        <div className="cta-card fade">
-          <span className="cta-h-stop">Stop losing customers</span>
-          <span className="cta-h-start">who already want to <em>buy.</em></span>
-          <p className="cta-p">Don't make them wait. Don't lose them to whoever replies faster.<br/>Fastrill answers in 2 seconds — in their language, every time, 24/7.</p>
-          <div className="cta-btns">
-            <a href="/signup" className="btn-primary">Start Free — No Card Needed →</a>
-            <a href="https://wa.me/919346079265" className="btn-ghost">💬 Message us on WhatsApp</a>
-          </div>
-          <p className="cta-note">14-day free trial · Setup in 10 minutes · Cancel anytime · No credit card required</p>
-        </div>
-      </div>
-    </section>
-
-    {/* FOOTER */}
-    <footer>
-      <div className="ft">
-        <div className="ft-top">
-          <div>
-            <a href="/" className="ft-logo"><img src="/logo.png" width="34" height="34" alt="Fastrill" /><span className="ft-logo-text">fast<em>rill</em></span></a>
-            <p className="ft-tagline">AI-powered WhatsApp automation for Indian businesses. Turns every lead into a booked customer — 24/7, in any language.</p>
-            <div className="ft-badges">{["🔒 SSL Encrypted","🇮🇳 Indian Servers","🛡️ Zero Data Sharing"].map(b=><div key={b} className="ft-badge">{b}</div>)}</div>
-          </div>
-          {[
-            {h:"Product",lks:[["Features","#features"],["Pricing","#pricing"],["Demo","#demo"],["How it works","#how"]]},
-            {h:"Company",lks:[["Our Story","#founder"],["Blog","/blog"],["Contact","/contact"]]},
-            {h:"Legal",lks:[["Privacy","/privacy"],["Terms","/terms"],["Refund","/refund"]]},
-          ].map(col=>(
-            <div key={col.h}>
-              <div className="ft-hd">{col.h}</div>
-              <ul className="ft-lks">{col.lks.map(([n,h])=><li key={n}><a href={h}>{n}</a></li>)}</ul>
-            </div>
-          ))}
-        </div>
-        <div className="ft-bot">
-          <span>© 2026 Fastrill — a product by Solvabil Pvt. Ltd.</span>
-          <span>Made with ❤️ in India 🇮🇳</span>
-        </div>
-      </div>
-    </footer>
-  </>)
+      </footer>
+    </>
+  )
 }
