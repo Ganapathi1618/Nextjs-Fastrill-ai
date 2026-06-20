@@ -78,7 +78,7 @@ const PLANS = [
     locked:["Bulk campaigns"]
   },
   {
-    id:"pro", name:"Pro", price:"₹3,999", period:"/month",
+    id:"pro", name:"Pro", price:"₹4,999", period:"/month",
     description:"For high-volume businesses", color:"#f59e0b",
     features:["Everything in Growth","Bulk WhatsApp campaigns","Customer segments","Advanced analytics","Dedicated support"],
     locked:[]
