@@ -257,7 +257,8 @@ body {
 .v2-nav.sc { border-bottom-color: var(--line); box-shadow: 0 1px 0 rgba(11,13,18,0.02); }
 .v2-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .v2-logo-img { width: 30px; height: 30px; object-fit: contain; flex-shrink: 0; display: block; }
-.v2-logo-text { font-family: var(--display); font-weight: 600; font-size: 18px; color: var(--ink); letter-spacing: -0.02em; }
+.v2-logo-text { font-family: var(--display); font-weight: 600; font-size: 20px; color: var(--ink); letter-spacing: -0.02em; }
+.v2-logo-text em { color: var(--signal); font-style: normal; }
 .v2-nmid { display: flex; align-items: center; gap: 4px; list-style: none; }
 .v2-nmid a { font-size: 14px; font-weight: 500; color: var(--ink-soft); text-decoration: none; padding: 8px 14px; border-radius: 7px; transition: all 0.15s; }
 .v2-nmid a:hover { color: var(--ink); background: var(--canvas); }
@@ -274,14 +275,20 @@ body {
 .v2-hbg { display: none; background: none; border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; cursor: pointer; font-size: 16px; }
 
 /* ── HERO ── */
-.v2-hero { padding: clamp(110px,12vw,140px) clamp(20px,4vw,48px) clamp(50px,7vw,80px); background: var(--paper); position: relative; overflow: hidden; }
+.v2-hero { padding: 96px clamp(20px,4vw,48px) clamp(50px,7vw,80px); background: var(--paper); position: relative; overflow: hidden; }
 .v2-hero-grid {
   position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
   background-image: linear-gradient(rgba(11,13,18,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(11,13,18,0.025) 1px, transparent 1px);
   background-size: 64px 64px;
   mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, black, transparent 70%);
 }
-.v2-hero-in { max-width: 1140px; margin: 0 auto; position: relative; z-index: 1; }
+.v2-hero-mesh {
+  position: absolute; top: -120px; left: 50%; transform: translateX(-50%);
+  width: 1100px; height: 560px; pointer-events: none;
+  background: radial-gradient(ellipse 55% 60% at 50% 0%, rgba(20,110,245,0.07), transparent 70%);
+}
+.v2-hero-in { max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 480px; gap: clamp(24px,4vw,48px); align-items: center; }
+.v2-hero-left { max-width: 560px; }
 .v2-eyebrow {
   display: inline-flex; align-items: center; gap: 7px;
   border: 1px solid var(--line); border-radius: 100px;
@@ -300,7 +307,12 @@ body {
   font-size: clamp(16px,1.7vw,19px); color: var(--ink-soft);
   max-width: 540px; line-height: 1.6; margin-bottom: 36px; font-weight: 400;
 }
-.v2-hero-btns { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 56px; }
+.v2-hero-btns { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
+.v2-hero-trust-mini { display: flex; align-items: center; gap: 12px; }
+.v2-mini-avatars { display: flex; }
+.v2-mini-av { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg,var(--signal),#0b4fc4); border: 2px solid white; margin-left: -8px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: white; }
+.v2-mini-av:first-child { margin-left: 0; }
+.v2-hero-trust-mini span:last-child { font-size: 12.5px; color: var(--ink-faint); }
 .v2-btn-primary {
   display: inline-flex; align-items: center; gap: 8px;
   background: var(--ink); color: white; padding: 14px 26px;
@@ -318,25 +330,25 @@ body {
 .v2-btn-secondary:hover { border-color: var(--ink-faint); background: var(--canvas); }
 
 /* hero dashboard mockup */
-.v2-dash-wrap { position: relative; max-width: 980px; margin: 0 auto; }
+.v2-dash-wrap { position: relative; }
 .v2-dash {
   background: var(--paper); border: 1px solid var(--line);
   border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-lift);
 }
 .v2-dash-bar { height: 44px; background: var(--canvas); border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 16px; gap: 7px; }
 .v2-dash-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
-.v2-dash-body { padding: clamp(20px,3vw,32px); }
+.v2-dash-body { padding: clamp(16px,2vw,22px); }
 .v2-dash-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
 .v2-dash-title { font-family: var(--display); font-weight: 600; font-size: 19px; color: var(--ink); }
 .v2-dash-sub { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
-.v2-dash-kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+.v2-dash-kpis { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-bottom: 16px; }
 .v2-kpi { background: var(--canvas); border-radius: 10px; padding: 14px 16px; }
 .v2-kpi-label { font-size: 11.5px; color: var(--ink-faint); margin-bottom: 8px; font-weight: 500; }
 .v2-kpi-val { font-family: var(--mono); font-weight: 500; font-size: 22px; color: var(--ink); letter-spacing: -0.01em; }
 .v2-kpi-val.signal { color: var(--signal); }
-.v2-dash-rev { background: linear-gradient(135deg, var(--signal-tint), rgba(20,110,245,0.02)); border: 1px solid rgba(20,110,245,0.12); border-radius: 12px; padding: 18px 20px; }
+.v2-dash-rev { background: linear-gradient(135deg, var(--signal-tint), rgba(20,110,245,0.02)); border: 1px solid rgba(20,110,245,0.12); border-radius: 12px; padding: 14px 16px; }
 .v2-dash-rev-label { font-size: 12px; font-weight: 600; color: var(--signal-deep); margin-bottom: 12px; }
-.v2-dash-rev-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.v2-dash-rev-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
 .v2-dash-rev-item-label { font-size: 11px; color: var(--ink-faint); margin-bottom: 4px; }
 .v2-dash-rev-item-val { font-family: var(--mono); font-weight: 500; font-size: 17px; color: var(--ink); }
 
@@ -349,7 +361,8 @@ body {
 .v2-float-chip .v2-chip-ico { width: 18px; height: 18px; border-radius: 50%; background: var(--signal-tint); color: var(--signal-deep); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 @keyframes v2chip { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .v2-chip-1 { top: -14px; right: 6%; animation-delay: 1.4s; }
-.v2-chip-2 { bottom: 8%; left: -18px; animation-delay: 2.3s; }
+.v2-chip-2 { bottom: -16px; left: 8%; animation-delay: 2.3s; }
+.v2-chip-3 { top: 40%; left: -36px; animation-delay: 3.1s; }
 
 @media(max-width: 860px) {
   .v2-float-chip { display: none; }
@@ -365,7 +378,8 @@ body {
 .v2-trust-label { font-size: 13px; color: var(--ink-faint); }
 
 /* ── SECTION BASE ── */
-.v2-sec { padding: clamp(80px,10vw,128px) clamp(20px,4vw,48px); }
+.v2-sec { padding: clamp(80px,10vw,128px) clamp(20px,4vw,48px); border-top: 1px solid var(--line-soft); }
+.v2-sec:first-of-type { border-top: none; }
 .v2-sec.alt { background: var(--canvas); }
 .v2-w { max-width: 1140px; margin: 0 auto; }
 .v2-label { font-size: 13px; font-weight: 600; color: var(--signal-deep); letter-spacing: 0.01em; margin-bottom: 14px; }
@@ -555,6 +569,8 @@ body {
   .v2-nmid, .v2-signin { display: none; }
   .v2-hbg { display: flex; }
   .v2-hero { padding-top: 110px; }
+  .v2-hero-in { grid-template-columns: 1fr; }
+  .v2-hero-left { max-width: 100%; }
   .v2-problem-grid { grid-template-columns: 1fr; }
   .v2-feat-grid { grid-template-columns: 1fr; }
   .v2-test-grid { grid-template-columns: 1fr; }
@@ -568,7 +584,7 @@ body {
       <nav className={`v2-nav${scrolled ? " sc" : ""}`}>
         <a href="/" className="v2-logo">
           <img src="/logo.png" alt="Fastrill" className="v2-logo-img" />
-          <span className="v2-logo-text">Fastrill</span>
+          <span className="v2-logo-text">fast<em>rill</em></span>
         </a>
         <ul className="v2-nmid">
           {[["#product", "Product"], ["#customers", "Customers"], ["#pricing", "Pricing"]].map(([h, l]) => (
@@ -584,16 +600,25 @@ body {
 
       {/* ── HERO ── */}
       <section className="v2-hero">
+        <div className="v2-hero-mesh" />
         <div className="v2-hero-grid" />
         <div className="v2-hero-in">
-          <div className="v2-eyebrow">AI revenue engine for <strong>service businesses</strong></div>
-          <h1 className="v2-h1">Stop losing leads on WhatsApp.</h1>
-          <p className="v2-sub">
-            Fastrill replies in seconds, qualifies the customer, and books the appointment automatically — day or night, in their language.
-          </p>
-          <div className="v2-hero-btns">
-            <a href="/signup" className="v2-btn-primary">Get started free <Icon name="arrow" size={16} /></a>
-            <a href="#demo" className="v2-btn-secondary"><Icon name="play" size={15} /> See it in action</a>
+          <div className="v2-hero-left">
+            <div className="v2-eyebrow">AI revenue engine for <strong>service businesses</strong></div>
+            <h1 className="v2-h1">Stop losing leads on WhatsApp.</h1>
+            <p className="v2-sub">
+              Fastrill replies in seconds, qualifies the customer, and books the appointment automatically — day or night, in their language.
+            </p>
+            <div className="v2-hero-btns">
+              <a href="/signup" className="v2-btn-primary">Get started free <Icon name="arrow" size={16} /></a>
+              <a href="#demo" className="v2-btn-secondary"><Icon name="play" size={15} /> See it in action</a>
+            </div>
+            <div className="v2-hero-trust-mini">
+              <div className="v2-mini-avatars">
+                {["P","R","S","A"].map((c,i)=>(<span key={i} className="v2-mini-av" style={{zIndex:4-i}}>{c}</span>))}
+              </div>
+              <span>80+ businesses already converting more leads</span>
+            </div>
           </div>
 
           <div className="v2-dash-wrap">
@@ -604,6 +629,10 @@ body {
             <div className="v2-float-chip v2-chip-2">
               <span className="v2-chip-ico"><Icon name="check" size={11} /></span>
               Lead recovered
+            </div>
+            <div className="v2-float-chip v2-chip-3">
+              <span className="v2-chip-ico"><Icon name="check" size={11} /></span>
+              Reply sent in 1.8s
             </div>
             <div className="v2-dash">
               <div className="v2-dash-bar">
@@ -957,7 +986,7 @@ body {
         <p className="v2-fcta-p">Start automating replies, recovering leads, and booking customers today.</p>
         <div className="v2-fcta-btns">
           <a href="/signup" className="v2-btn-primary">Start free trial <Icon name="arrow" size={16} /></a>
-          <a href="https://wa.me/919346079265" className="v2-btn-secondary">Talk to us on WhatsApp</a>
+          <a href="https://wa.me/916309279265" className="v2-btn-secondary">Talk to us on WhatsApp</a>
         </div>
       </section>
 
@@ -968,13 +997,13 @@ body {
             <div>
               <div className="v2-logo">
                 <img src="/logo.png" alt="Fastrill" className="v2-logo-img" />
-                <span className="v2-logo-text">Fastrill</span>
+                <span className="v2-logo-text">fast<em>rill</em></span>
               </div>
               <p className="v2-footer-tag">AI-powered WhatsApp automation for Indian service businesses. Built by Solvabil Pvt. Ltd.</p>
             </div>
             {[
               { h: "Product", links: [["Features", "#product"], ["Pricing", "#pricing"], ["Demo", "#demo"]] },
-              { h: "Company", links: [["About", "#"], ["Contact", "mailto:hello@fastrill.com"]] },
+              { h: "Company", links: [["About", "#"], ["Contact", "mailto:team@fastrill.com"], ["Call us", "tel:+916309279265"]] },
               { h: "Legal", links: [["Privacy", "/privacy"], ["Terms", "/terms"]] },
             ].map((col) => (
               <div key={col.h}>
