@@ -60,6 +60,8 @@ export default function FastrillMarketingDark() {
   const [scrolled, setScrolled] = useState(false)
   const [mobOpen, setMobOpen] = useState(false)
   const [demoKey, setDemoKey] = useState("booking")
+  const [billing, setBilling] = useState("monthly")
+  const [activeTestimonial, setActiveTestimonial] = useState(0)
   const [demoMsgs, setDemoMsgs] = useState([])
   const [counts, setCounts] = useState({ a: 0, b: 0, c: 0 })
   const statsRef = useRef(null)
@@ -248,6 +250,8 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .v5-label{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:2.8px;text-transform:uppercase;color:var(--signal);margin-bottom:16px;}
 .v5-label::before{content:'';width:16px;height:1.5px;background:var(--signal);}
 .v5-h2{font-family:var(--display);font-weight:800;font-size:clamp(28px,3.6vw,44px);color:var(--ink);margin-bottom:16px;line-height:1.1;letter-spacing:-.03em;}
+.v5-h2-lead{font-size:clamp(32px,4.2vw,50px);}
+.v5-modules-intro{max-width:560px;}
 .v5-h2 em{font-style:italic;color:var(--signal);}
 .v5-p{font-size:clamp(14px,1.5vw,16px);color:var(--ink-soft);line-height:1.8;}
 
@@ -350,11 +354,16 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .v5-rev-arrow-ico{width:32px;height:32px;border-radius:50%;background:var(--signal-tint);border:1px solid rgba(57,211,187,.3);display:flex;align-items:center;justify-content:center;color:var(--signal);}
 
 /* TESTIMONIALS */
-.v5-test-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:48px;}
-.v5-tc{background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:24px;transition:border-color .2s;}
-.v5-tc:hover{border-color:rgba(57,211,187,.25);}
-.v5-tc-result{display:inline-block;background:var(--signal-tint);border:1px solid rgba(57,211,187,.25);color:var(--signal);font-size:13px;font-weight:700;padding:7px 13px;border-radius:8px;margin-bottom:16px;}
-.v5-tc-quote{font-size:13.5px;color:var(--ink-soft);line-height:1.8;margin-bottom:18px;}
+.v5-test-layout{display:grid;grid-template-columns:1.3fr 1fr;gap:clamp(32px,5vw,64px);align-items:start;margin-top:16px;}
+.v5-test-main{padding-top:8px;}
+.v5-test-qmark{font-size:56px;line-height:.8;color:rgba(57,211,187,.18);display:block;margin-bottom:8px;font-family:var(--display);}
+.v5-test-featured-quote{font-size:clamp(18px,2.2vw,24px);font-weight:600;color:var(--ink);line-height:1.5;letter-spacing:-.01em;margin-bottom:28px;max-width:520px;}
+.v5-test-rail{display:flex;flex-direction:column;gap:2px;border-left:1px solid var(--line);}
+.v5-test-rail-item{text-align:left;background:none;border:none;border-left:2px solid transparent;margin-left:-1px;padding:14px 0 14px 20px;cursor:pointer;font-family:inherit;transition:all .2s;}
+.v5-test-rail-item.on{border-left-color:var(--signal);}
+.v5-test-rail-result{font-family:var(--mono);font-weight:500;font-size:16px;color:var(--ink-faint);margin-bottom:4px;transition:color .2s;}
+.v5-test-rail-item.on .v5-test-rail-result{color:var(--signal);}
+.v5-test-rail-name{font-size:12px;color:var(--ink-faint);}
 .v5-tc-auth{display:flex;align-items:center;gap:11px;padding-top:15px;border-top:1px solid var(--line);}
 .v5-tc-av{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,var(--signal),var(--purple));}
 .v5-tc-name{font-size:13px;font-weight:700;color:var(--ink);}
@@ -373,7 +382,13 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .v5-founder-role{font-size:12px;color:var(--ink-faint);margin-top:1px;}
 
 /* PRICING */
-.v5-pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start;margin-top:48px;}
+.v5-billing-toggle{display:inline-flex;align-items:center;gap:4px;background:var(--s2);border:1px solid var(--line);border-radius:100px;padding:4px;margin-bottom:36px;}
+.v5-bt{padding:8px 18px;border-radius:100px;font-size:13px;font-weight:700;border:none;background:transparent;color:var(--ink-faint);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:all .2s;}
+.v5-bt.on{background:var(--signal);color:#06140f;}
+.v5-bt-save{font-size:10px;font-weight:800;background:rgba(0,0,0,.12);padding:1px 7px;border-radius:100px;}
+.v5-bt:not(.on) .v5-bt-save{background:var(--signal-tint);color:var(--signal);}
+.v5-plan-billed{font-weight:500;color:var(--ink-faint);}
+.v5-pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start;margin-top:8px;}
 .v5-plan{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:clamp(24px,3vw,32px) clamp(20px,3vw,26px);position:relative;}
 .v5-plan.pop{border-color:rgba(57,211,187,.4);box-shadow:var(--shadow-lift);}
 .v5-plan-badge{position:absolute;top:-1px;left:24px;transform:translateY(-50%);background:var(--signal);color:#fff;font-size:10.5px;font-weight:800;padding:3px 12px;border-radius:100px;}
@@ -446,7 +461,10 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
   .v5-rev-viz{grid-template-columns:1fr;}
   .v5-rev-arrow{flex-direction:row;justify-content:center;}
   .v5-rev-arrow-line{width:28px;height:1px;}
-  .v5-test-grid{grid-template-columns:1fr;}
+  .v5-test-layout{grid-template-columns:1fr;gap:28px;}
+  .v5-test-rail{border-left:none;border-top:1px solid var(--line);padding-top:4px;}
+  .v5-test-rail-item{border-left:none;border-top:2px solid transparent;margin-left:0;margin-top:-1px;padding:14px 0;}
+  .v5-test-rail-item.on{border-top-color:var(--signal);border-left:none;}
   .v5-pgrid{grid-template-columns:1fr;}
   .v5-ft-top{grid-template-columns:1fr;}
 }
@@ -558,8 +576,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
       <section className="v5-sec">
         <div className="v5-w">
           <div className="v5-fade" style={{ maxWidth: 680, margin: "0 auto", textAlign: "center" }}>
-            <div className="v5-label" style={{ justifyContent: "center" }}>The silent cost</div>
-            <h2 className="v5-h2">What happens when you don't reply instantly?</h2>
+            <h2 className="v5-h2 v5-h2-lead">What happens when you don't reply instantly?</h2>
             <p className="v5-p">A real scenario. A real loss.</p>
           </div>
           <div className="v5-loss-timeline v5-fade">
@@ -619,8 +636,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
       {/* MODULES */}
       <section className="v5-sec" id="how">
         <div className="v5-w">
-          <div className="v5-fade">
-            <div className="v5-label">What's inside</div>
+          <div className="v5-fade v5-modules-intro">
             <h2 className="v5-h2">Not a chatbot.<br /><em>A revenue system.</em></h2>
             <p className="v5-p" style={{ maxWidth: 480 }}>Three modules working together — conversation, campaigns and bookings, all in one dashboard.</p>
           </div>
@@ -753,8 +769,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
       <section className="v5-sec">
         <div className="v5-w">
           <div className="v5-fade" style={{ textAlign: "center" }}>
-            <div className="v5-label" style={{ justifyContent: "center" }}>The difference</div>
-            <h2 className="v5-h2">Before Fastrill.<br /><em>After Fastrill.</em></h2>
+            <h2 className="v5-h2 v5-h2-lead">Before Fastrill.<br /><em>After Fastrill.</em></h2>
             <p className="v5-p" style={{ maxWidth: 400, margin: "0 auto" }}>Two businesses. Same ads. Same leads. Different results.</p>
           </div>
           <div className="v5-rev-viz v5-fade">
@@ -796,21 +811,23 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
       {/* TESTIMONIALS */}
       <section className="v5-sec alt">
         <div className="v5-w">
-          <div className="v5-fade" style={{ textAlign: "center" }}>
-            <div className="v5-label" style={{ justifyContent: "center" }}>Results</div>
-            <h2 className="v5-h2">Real revenue from<br /><em>real Indian businesses</em></h2>
-          </div>
-          <div className="v5-test-grid">
-            {TESTIMONIALS.map((t) => (
-              <div key={t.name} className="v5-tc v5-fade">
-                <div className="v5-tc-result">{t.result}</div>
-                <p className="v5-tc-quote">"{t.quote}"</p>
-                <div className="v5-tc-auth">
-                  <div className="v5-tc-av">{t.name.charAt(0)}</div>
-                  <div><div className="v5-tc-name">{t.name}</div><div className="v5-tc-biz">{t.biz}</div></div>
-                </div>
+          <div className="v5-test-layout v5-fade">
+            <div className="v5-test-main">
+              <span className="v5-test-qmark">"</span>
+              <p className="v5-test-featured-quote">{TESTIMONIALS[activeTestimonial].quote}</p>
+              <div className="v5-tc-auth">
+                <div className="v5-tc-av">{TESTIMONIALS[activeTestimonial].name.charAt(0)}</div>
+                <div><div className="v5-tc-name">{TESTIMONIALS[activeTestimonial].name}</div><div className="v5-tc-biz">{TESTIMONIALS[activeTestimonial].biz}</div></div>
               </div>
-            ))}
+            </div>
+            <div className="v5-test-rail">
+              {TESTIMONIALS.map((t, i) => (
+                <button key={t.name} className={`v5-test-rail-item${i === activeTestimonial ? " on" : ""}`} onClick={() => setActiveTestimonial(i)}>
+                  <div className="v5-test-rail-result">{t.result}</div>
+                  <div className="v5-test-rail-name">{t.name} · {t.biz}</div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -850,27 +867,41 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
           <div className="v5-fade" style={{ textAlign: "center" }}>
             <div className="v5-label" style={{ justifyContent: "center" }}>Pricing</div>
             <h2 className="v5-h2">Simple pricing.<br /><em>Pays for itself.</em></h2>
-            <p className="v5-p" style={{ maxWidth: 400, margin: "0 auto" }}>No per-message fees. Flat monthly.</p>
+            <p className="v5-p" style={{ maxWidth: 400, margin: "0 auto", marginBottom: 28 }}>No per-message fees. Cancel anytime.</p>
+          </div>
+          <div className="v5-fade" style={{ display: "flex", justifyContent: "center" }}>
+            <div className="v5-billing-toggle">
+              <button className={`v5-bt${billing === "monthly" ? " on" : ""}`} onClick={() => setBilling("monthly")}>Monthly</button>
+              <button className={`v5-bt${billing === "annual" ? " on" : ""}`} onClick={() => setBilling("annual")}>
+                Annual <span className="v5-bt-save">Save 17%</span>
+              </button>
+            </div>
           </div>
           <div className="v5-pgrid">
             {[
-              { tier: "Starter", price: "999", tag: "Solo operators & new businesses", cta: "Get started", cs: "out", feats: [["inc", "1 WhatsApp number"], ["inc", "300 AI conversations / month"], ["inc", "Booking automation"], ["exc", "Lead recovery"], ["exc", "WhatsApp campaigns"]] },
-              { tier: "Growth", price: "1,999", tag: "For growing businesses", cta: "Start free trial", cs: "go", pop: true, feats: [["inc", "1 WhatsApp number"], ["inc", "Unlimited conversations"], ["inc", "Customer memory"], ["inc", "Lead recovery"], ["inc", "WhatsApp campaigns"]] },
-              { tier: "Pro", price: "4,999", tag: "Multi-branch teams", cta: "Contact sales", cs: "out", feats: [["inc", "Up to 5 WhatsApp numbers"], ["inc", "Everything in Growth"], ["inc", "Multi-branch management"], ["inc", "Custom AI playbook"], ["inc", "Dedicated onboarding"]] },
-            ].map((plan) => (
-              <div key={plan.tier} className={`v5-plan v5-fade${plan.pop ? " pop" : ""}`}>
-                {plan.pop && <div className="v5-plan-badge">Most popular</div>}
-                <div className="v5-plan-tier">{plan.tier}</div>
-                <div className="v5-plan-tag">{plan.tag}</div>
-                <div className="v5-plan-price"><span className="v5-plan-rs">₹</span><span className="v5-plan-amt">{plan.price}</span></div>
-                <div className="v5-plan-mo">per month + GST</div>
-                <hr className="v5-plan-hr" />
-                <ul className="v5-plan-list">
-                  {plan.feats.map(([c, t]) => (<li key={t} className={c}>{c === "inc" ? <Icon name="check" size={14} /> : <Icon name="x" size={14} />}{t}</li>))}
-                </ul>
-                <a href="/signup" className={`v5-plan-btn ${plan.cs}`}>{plan.cta}</a>
-              </div>
-            ))}
+              { tier: "Starter", monthly: 999, tag: "Solo operators & new businesses", cta: "Get started", cs: "out", feats: [["inc", "1 WhatsApp number"], ["inc", "300 AI conversations / month"], ["inc", "Booking automation"], ["exc", "Lead recovery"], ["exc", "WhatsApp campaigns"]] },
+              { tier: "Growth", monthly: 1999, tag: "For growing businesses", cta: "Start free trial", cs: "go", pop: true, feats: [["inc", "1 WhatsApp number"], ["inc", "Unlimited conversations"], ["inc", "Customer memory"], ["inc", "Lead recovery"], ["inc", "WhatsApp campaigns"]] },
+              { tier: "Pro", monthly: 4999, tag: "Multi-branch teams", cta: "Contact sales", cs: "out", feats: [["inc", "Up to 5 WhatsApp numbers"], ["inc", "Everything in Growth"], ["inc", "Multi-branch management"], ["inc", "Custom AI playbook"], ["inc", "Dedicated onboarding"]] },
+            ].map((plan) => {
+              const price = billing === "annual" ? Math.round(plan.monthly * 0.83) : plan.monthly
+              return (
+                <div key={plan.tier} className={`v5-plan v5-fade${plan.pop ? " pop" : ""}`}>
+                  {plan.pop && <div className="v5-plan-badge">Most popular</div>}
+                  <div className="v5-plan-tier">{plan.tier}</div>
+                  <div className="v5-plan-tag">{plan.tag}</div>
+                  <div className="v5-plan-price"><span className="v5-plan-rs">₹</span><span className="v5-plan-amt">{price.toLocaleString("en-IN")}</span></div>
+                  <div className="v5-plan-mo">
+                    per month + GST
+                    {billing === "annual" && <span className="v5-plan-billed"> · billed ₹{(price * 12).toLocaleString("en-IN")}/year</span>}
+                  </div>
+                  <hr className="v5-plan-hr" />
+                  <ul className="v5-plan-list">
+                    {plan.feats.map(([c, t]) => (<li key={t} className={c}>{c === "inc" ? <Icon name="check" size={14} /> : <Icon name="x" size={14} />}{t}</li>))}
+                  </ul>
+                  <a href="/signup" className={`v5-plan-btn ${plan.cs}`}>{plan.cta}</a>
+                </div>
+              )
+            })}
           </div>
           <p style={{ textAlign: "center", marginTop: 24, fontSize: 12.5, color: "var(--ink-faint)" }}>14-day free trial · No credit card · Cancel anytime</p>
         </div>
