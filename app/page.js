@@ -2,153 +2,70 @@
 
 import { useState, useEffect, useRef } from "react"
 
-// ── Demo conversation data (unchanged content, reused for live chat sim) ──
-const DEMO_THREAD = [
-  { r: "c", m: "Hi, I want a haircut tomorrow around 3pm", t: "11:42 PM" },
-  { r: "a", m: "Hey! Tomorrow's Saturday — 3 PM works great.\n\nShall I confirm Haircut for Saturday, 29th March at 3:00 PM?", t: "11:42 PM" },
-  { r: "c", m: "Yes please!", t: "11:43 PM" },
-  { r: "a", m: "Booking confirmed.\n\nHaircut · Saturday, 29 March · 3:00 PM\n\nSee you then!", t: "11:43 PM" },
-]
+const DEMOS = {
+  booking: [
+    { r: "c", m: "Hi, I want a haircut tomorrow around 3pm" },
+    { r: "a", m: "Tomorrow's Saturday — 3 PM works great.\n\nShall I confirm Haircut for Saturday, 29th March at 3:00 PM?" },
+    { r: "c", m: "Yes please!" },
+    { r: "a", m: "Booking confirmed.\n\nHaircut\nSaturday, 29 March\n3:00 PM\n\nSee you then!" },
+  ],
+  hindi: [
+    { r: "c", m: "Bhai facial karwa sakte hai kal?" },
+    { r: "a", m: "Haan bilkul!\n\nFacial ₹1,200 mein available hai (60 min).\n\nKis time aana chahenge?" },
+    { r: "c", m: "Shaam 6 baje" },
+    { r: "a", m: "Confirm karu Facial kal shaam 6:00 PM ke liye?" },
+    { r: "c", m: "Haan kar do" },
+    { r: "a", m: "Booking ho gayi!\n\nFacial · ₹1,200\nKal, 29 March\n6:00 PM\n\nMilenge!" },
+  ],
+  winback: [
+    { r: "a", m: "Hi Anita! It's been a while since your last visit at Riya Salon.\n\nYour favourite keratin treatment is available this week — want to book?" },
+    { r: "c", m: "Oh yes actually! What's the price?" },
+    { r: "a", m: "Keratin Treatment is ₹2,800 (90 min). 10% off this week — ₹2,520." },
+    { r: "c", m: "That's great, book me Saturday morning" },
+    { r: "a", m: "Booking confirmed.\n\nKeratin Treatment · ₹2,520\nSaturday, 29 March · 10:00 AM" },
+  ],
+}
 
-const LIFECYCLE = [
-  { label: "Lead arrives", time: "11:42 PM", desc: "Customer messages on WhatsApp" },
-  { label: "AI responds", time: "11:42 PM", desc: "Instant reply, zero wait" },
-  { label: "AI qualifies", time: "11:42 PM", desc: "Service, date, time collected" },
-  { label: "Booking confirmed", time: "11:43 PM", desc: "Slot locked, owner notified" },
-]
-
-const FEATURES = [
-  {
-    icon: "chat",
-    title: "AI conversations",
-    desc: "Understands casual, mixed-language messages and responds like a trained staff member — not a button menu.",
-  },
-  {
-    icon: "calendar",
-    title: "Automated booking",
-    desc: "Collects service, date and time in order, checks real availability, and confirms — without a human touching it.",
-  },
-  {
-    icon: "recover",
-    title: "Lead recovery",
-    desc: "Customers who go quiet after asking about price get a timely, personalised follow-up automatically.",
-  },
-  {
-    icon: "broadcast",
-    title: "WhatsApp campaigns",
-    desc: "Send approved templates to customer segments and track exactly what each campaign converted to revenue.",
-  },
-  {
-    icon: "database",
-    title: "Customer memory",
-    desc: "Every conversation, booking and preference is remembered — return customers are recognised instantly.",
-  },
-  {
-    icon: "chart",
-    title: "Revenue analytics",
-    desc: "See bookings, campaign ROI and AI-handled revenue in one dashboard, not scattered across exports.",
-  },
-]
-
-const COMPARISON_ROWS = [
-  ["Response time", "Hours, if at all", "Minutes, business hours", "Under 2 seconds, 24/7"],
-  ["Lead recovery", "Manual, easily forgotten", "Not included", "Automatic follow-up"],
-  ["Booking automation", "None", "Basic, button-based", "Full conversational flow"],
-  ["Works after hours", "No", "No", "Yes"],
-  ["Revenue tracking", "Spreadsheets", "Message counts only", "Per-campaign ROI"],
+const DEMO_META = [
+  { k: "booking", label: "Booking flow", sub: "End-to-end in 4 messages" },
+  { k: "hindi", label: "Hindi support", sub: "Auto-detected per chat" },
+  { k: "winback", label: "Win-back", sub: "Inactive customer" },
 ]
 
 const TESTIMONIALS = [
-  {
-    quote: "We were losing Saturday night bookings because nobody replied after 8 PM. Customers now book at midnight and wake up to a confirmation.",
-    name: "Priya Nair",
-    role: "Owner, Glow Parlour",
-    metric: "+43%",
-    metricLabel: "bookings, month one",
-  },
-  {
-    quote: "Patients message in Telugu and the AI replies in Telugu, books the slot, and follows up if they go quiet. I had to see it to believe it wasn't a person.",
-    name: "Dr. Ravi Sharma",
-    role: "Skin First Clinic",
-    metric: "₹22k",
-    metricLabel: "saved per month",
-  },
-  {
-    quote: "Two branches, both inboxes handled at once. Our staff stopped checking phones and started focusing on the customer in front of them.",
-    name: "Sneha Reddy",
-    role: "Studio S, 2 branches",
-    metric: "0",
-    metricLabel: "missed messages",
-  },
+  { name: "Priya Nair", biz: "Glow Parlour, Hyderabad", result: "+43% bookings, month one", quote: "I was losing Saturday night bookings because nobody replied after 8 PM. Customers now book at midnight and wake up to a confirmation. It paid for itself in the first week." },
+  { name: "Dr. Ravi Sharma", biz: "Skin First Clinic, Vijayawada", result: "₹22k saved per month", quote: "My patients message in Telugu and the AI replies in Telugu, books the slot, and follows up if they go quiet. I had to see it to believe it wasn't a person." },
+  { name: "Sneha Reddy", biz: "Studio S, 2 branches, Bangalore", result: "0 missed messages", quote: "Two branches, both inboxes handled at once. Our staff stopped checking phones and started focusing on the customer in front of them." },
 ]
 
-const PRICING = [
-  {
-    name: "Starter",
-    monthly: 999,
-    desc: "Solo operators getting started",
-    features: ["1 WhatsApp number", "300 AI conversations / month", "Booking automation", "10+ Indian languages"],
-    cta: "Get started",
-  },
-  {
-    name: "Growth",
-    monthly: 1999,
-    desc: "For growing businesses",
-    features: ["1 WhatsApp number", "Unlimited conversations", "Customer memory", "Lead recovery", "WhatsApp campaigns", "Priority support"],
-    cta: "Start free trial",
-    popular: true,
-  },
-  {
-    name: "Pro",
-    monthly: 4999,
-    desc: "Multi-branch teams",
-    features: ["Up to 5 WhatsApp numbers", "Everything in Growth", "Multi-branch management", "Custom AI playbook", "Dedicated onboarding"],
-    cta: "Contact sales",
-  },
-]
-
-function annualPrice(monthly) {
-  // 17% discount when billed annually — standard SaaS annual incentive,
-  // not an unrealistic "basically free" number
-  return Math.round(monthly * 0.83)
-}
-
-function Icon({ name, size = 22 }) {
-  const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }
+function Icon({ name, size = 20 }) {
+  const c = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }
   switch (name) {
-    case "chat":
-      return <svg {...common}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-    case "calendar":
-      return <svg {...common}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-    case "recover":
-      return <svg {...common}><path d="M3 12a9 9 0 1 0 2.6-6.4"/><path d="M3 5v5h5"/></svg>
-    case "broadcast":
-      return <svg {...common}><path d="M4 11.5v1a7.5 7.5 0 0 0 15 0v-1"/><path d="M9 18l1 3M15 18l-1 3"/><circle cx="11.5" cy="6.5" r="4.5"/></svg>
-    case "database":
-      return <svg {...common}><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
-    case "chart":
-      return <svg {...common}><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
-    case "check":
-      return <svg {...common} strokeWidth={2}><path d="M20 6L9 17l-5-5"/></svg>
-    case "arrow":
-      return <svg {...common} strokeWidth={2}><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-    case "x":
-      return <svg {...common} strokeWidth={2}><path d="M5 5l14 14M19 5L5 19"/></svg>
-    case "play":
-      return <svg {...common} strokeWidth={2}><path d="M6 4l14 8-14 8V4z"/></svg>
-    default:
-      return null
+    case "calendar": return <svg {...c}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+    case "broadcast": return <svg {...c}><path d="M4 11.5v1a7.5 7.5 0 0 0 15 0v-1" /><path d="M9 18l1 3M15 18l-1 3" /><circle cx="11.5" cy="6.5" r="4.5" /></svg>
+    case "recover": return <svg {...c}><path d="M3 12a9 9 0 1 0 2.6-6.4" /><path d="M3 5v5h5" /></svg>
+    case "globe": return <svg {...c}><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></svg>
+    case "check": return <svg {...c} strokeWidth={2.2}><path d="M20 6L9 17l-5-5" /></svg>
+    case "arrow": return <svg {...c} strokeWidth={2}><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+    case "x": return <svg {...c} strokeWidth={2}><path d="M5 5l14 14M19 5L5 19" /></svg>
+    case "play": return <svg {...c} strokeWidth={2}><path d="M6 4l14 8-14 8V4z" /></svg>
+    case "moon": return <svg {...c}><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" /></svg>
+    case "bolt": return <svg {...c}><path d="M13 2L4.5 14h7L11 22l8.5-12h-7L13 2z" /></svg>
+    case "frown": return <svg {...c}><circle cx="12" cy="12" r="9" /><path d="M16 16s-1.5-2-4-2-4 2-4 2M9 9h.01M15 9h.01" /></svg>
+    default: return null
   }
 }
 
-export default function FastrillMarketingV2() {
-  const [billing, setBilling] = useState("monthly")
+export default function FastrillMarketingDark() {
   const [scrolled, setScrolled] = useState(false)
+  const [mobOpen, setMobOpen] = useState(false)
+  const [demoKey, setDemoKey] = useState("booking")
   const [demoMsgs, setDemoMsgs] = useState([])
-  const [lifecycleActive, setLifecycleActive] = useState(-1)
+  const [counts, setCounts] = useState({ a: 0, b: 0, c: 0 })
+  const statsRef = useRef(null)
+  const countedRef = useRef(false)
   const demoRef = useRef(null)
-  const lifecycleRef = useRef(null)
-  const heroRef = useRef(null)
+  const timerRef = useRef(null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24)
@@ -156,51 +73,62 @@ export default function FastrillMarketingV2() {
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
 
-  // Hero live-chat simulation — plays once on mount
   useEffect(() => {
-    const timers = []
-    DEMO_THREAD.forEach((msg, i) => {
-      timers.push(setTimeout(() => {
-        setDemoMsgs((p) => [...p, msg])
-      }, 700 + i * 1100))
+    setDemoMsgs([])
+    clearTimeout(timerRef.current)
+    const msgs = DEMOS[demoKey]
+    msgs.forEach((m, i) => {
+      timerRef.current = setTimeout(() => {
+        setDemoMsgs((p) => [...p, m])
+        if (demoRef.current) demoRef.current.scrollTop = 9999
+      }, 500 + i * 950)
     })
-    return () => timers.forEach(clearTimeout)
-  }, [])
+    return () => clearTimeout(timerRef.current)
+  }, [demoKey])
 
-  // Lifecycle rail — scroll-triggered sequential reveal (the signature element)
   useEffect(() => {
-    const el = lifecycleRef.current
-    if (!el) return
+    if (!statsRef.current || countedRef.current) return
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          LIFECYCLE.forEach((_, i) => {
-            setTimeout(() => setLifecycleActive(i), i * 450)
-          })
-          io.disconnect()
+        if (!entries[0].isIntersecting) return
+        countedRef.current = true
+        io.disconnect()
+        const run = (to, dur, cb) => {
+          const s = performance.now()
+          const tick = (now) => {
+            const t = Math.min((now - s) / dur, 1)
+            const e = 1 - Math.pow(1 - t, 3)
+            cb(Math.round(to * e))
+            if (t < 1) requestAnimationFrame(tick)
+          }
+          requestAnimationFrame(tick)
         }
+        run(3200, 1700, (v) => setCounts((p) => ({ ...p, a: v })))
+        run(99, 1400, (v) => setCounts((p) => ({ ...p, b: v })))
+        run(73, 1300, (v) => setCounts((p) => ({ ...p, c: v })))
       },
-      { threshold: 0.4 }
+      { threshold: 0.3 }
     )
-    io.observe(el)
+    io.observe(statsRef.current)
     return () => io.disconnect()
   }, [])
 
-  // Generic reveal-on-scroll for fade elements
   useEffect(() => {
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
           if (e.isIntersecting) {
-            e.target.classList.add("v2-in")
+            e.target.classList.add("v5-in")
             io.unobserve(e.target)
           }
         })
       },
-      { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
+      { threshold: 0.08, rootMargin: "0px 0px -40px 0px" }
     )
-    document.querySelectorAll(".v2-fade").forEach((el, idx) => {
-      el.style.transitionDelay = Math.min((idx % 4) * 0.08, 0.32) + "s"
+    document.querySelectorAll(".v5-fade").forEach((el, idx) => {
+      const sibs = Array.from(el.parentElement?.querySelectorAll(":scope>.v5-fade") || [])
+      const i = sibs.indexOf(el)
+      el.style.transitionDelay = Math.min(i * 0.07, 0.28) + "s"
       io.observe(el)
     })
     return () => io.disconnect()
@@ -209,668 +137,578 @@ export default function FastrillMarketingV2() {
   return (
     <>
       <style>{`
-@import url('https://api.fontshare.com/v2/css?f[]=general-sans@500,600,700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:#050608;color:#9CA3B0;font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-body {
-  background: #FFFFFF;
-  color: #0B0D12;
-  font-family: 'Inter', -apple-system, sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
+:root{
+  --ink:#F4F5F7;--ink-soft:#9CA3B0;--ink-faint:#5B6270;
+  --base:#050608;--s1:#0A0C10;--s2:#0F1217;--s3:#151921;
+  --line:rgba(255,255,255,0.07);--line2:rgba(255,255,255,0.11);
+  --signal:#3D8BFF;--signal-deep:#1F6FE5;--signal-tint:rgba(61,139,255,0.1);--signal-tint2:rgba(61,139,255,0.05);
+  --warn:#E2574C;--warn-tint:rgba(226,87,76,0.08);
+  --display:'Plus Jakarta Sans',sans-serif;--mono:'JetBrains Mono',monospace;
+  --shadow-card:0 1px 2px rgba(0,0,0,0.3),0 8px 24px rgba(0,0,0,0.35);
+  --shadow-lift:0 4px 16px rgba(0,0,0,0.4),0 32px 64px rgba(0,0,0,0.45);
 }
 
-:root {
-  --ink: #0B0D12;
-  --ink-soft: #585F6E;
-  --ink-faint: #9197A5;
-  --paper: #FFFFFF;
-  --canvas: #F7F8FA;
-  --line: rgba(11,13,18,0.08);
-  --line-soft: rgba(11,13,18,0.05);
-  --signal: #146EF5;
-  --signal-deep: #0B4FC4;
-  --signal-tint: #EAF2FE;
-  --signal-tint-2: rgba(20,110,245,0.06);
-  --shadow-card: 0 1px 2px rgba(11,13,18,0.04), 0 8px 24px rgba(11,13,18,0.06);
-  --shadow-lift: 0 4px 12px rgba(11,13,18,0.06), 0 24px 48px rgba(11,13,18,0.10);
-  --display: 'General Sans', 'Inter', sans-serif;
-  --mono: 'JetBrains Mono', monospace;
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 70% 50% at 50% -10%,rgba(61,139,255,0.08),transparent 60%);}
+
+.v5-fade{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.2,.8,.2,1),transform .7s cubic-bezier(.2,.8,.2,1)}
+.v5-fade.v5-in{opacity:1;transform:none}
+
+/* NAV */
+.v5-nav{position:fixed;top:0;left:0;right:0;z-index:200;height:72px;padding:0 clamp(20px,4vw,48px);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid transparent;transition:all .25s;}
+.v5-nav.sc{background:rgba(5,6,8,.88);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom-color:var(--line);}
+.v5-logo{display:flex;align-items:center;gap:10px;text-decoration:none;}
+.v5-logo-img{width:30px;height:30px;object-fit:contain;flex-shrink:0;display:block;}
+.v5-logo-text{font-family:var(--display);font-weight:800;font-size:21px;color:var(--ink);letter-spacing:-0.02em;}
+.v5-logo-text em{color:var(--signal);font-style:normal;}
+.v5-nmid{display:flex;align-items:center;gap:4px;list-style:none;}
+.v5-nmid a{font-size:14px;font-weight:500;color:var(--ink-soft);text-decoration:none;padding:8px 14px;border-radius:7px;transition:all .15s;}
+.v5-nmid a:hover{color:var(--ink);background:rgba(255,255,255,.04);}
+.v5-nr{display:flex;align-items:center;gap:8px;}
+.v5-signin{font-size:14px;font-weight:500;color:var(--ink-soft);text-decoration:none;padding:8px 14px;}
+.v5-signin:hover{color:var(--ink);}
+.v5-cta-nav{display:inline-flex;align-items:center;gap:6px;background:var(--signal);color:#fff;padding:9px 18px;border-radius:8px;font-weight:700;font-size:13.5px;text-decoration:none;transition:all .2s;}
+.v5-cta-nav:hover{background:var(--signal-deep);transform:translateY(-1px);box-shadow:0 8px 24px rgba(61,139,255,.3);}
+.v5-hbg{display:none;background:none;border:1px solid var(--line2);border-radius:7px;padding:7px 10px;cursor:pointer;color:var(--ink-soft);font-size:16px;}
+.v5-mdraw{position:fixed;top:72px;left:0;right:0;z-index:190;background:rgba(5,6,8,.97);backdrop-filter:blur(20px);border-bottom:1px solid var(--line);padding:10px 14px 18px;display:flex;flex-direction:column;gap:2px;transform:translateY(-110%);transition:transform .22s ease;}
+.v5-mdraw.open{transform:none;}
+.v5-mdraw a{color:var(--ink-soft);text-decoration:none;font-size:14px;font-weight:500;padding:10px 12px;border-radius:8px;}
+.v5-mdraw a:hover{color:var(--ink);background:rgba(255,255,255,.04);}
+
+/* HERO */
+.v5-hero{min-height:96vh;display:flex;align-items:center;padding:clamp(110px,12vw,140px) clamp(20px,4vw,48px) clamp(48px,6vw,72px);position:relative;overflow:hidden;}
+.v5-hero-grid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:72px 72px;mask-image:radial-gradient(ellipse 65% 55% at 50% 0%,black,transparent 75%);}
+.v5-hero-in{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 460px;gap:clamp(32px,5vw,72px);align-items:center;position:relative;z-index:1;width:100%;}
+.v5-eyebrow{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line2);border-radius:100px;padding:6px 14px 6px 8px;margin-bottom:26px;font-size:12.5px;font-weight:600;color:var(--ink-soft);background:rgba(255,255,255,.02);}
+.v5-eyebrow-dot{width:18px;height:18px;border-radius:50%;background:var(--signal-tint);border:1px solid rgba(61,139,255,.3);display:flex;align-items:center;justify-content:center;}
+.v5-eyebrow-dot::after{content:'';width:5px;height:5px;border-radius:50%;background:var(--signal);animation:v5pulse 2s infinite;}
+@keyframes v5pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.7)}}
+.v5-h1{font-family:var(--display);font-weight:800;font-size:clamp(38px,4.8vw,60px);line-height:1.04;letter-spacing:-.035em;color:var(--ink);margin-bottom:8px;}
+.v5-h1-line2{display:block;font-size:clamp(22px,2.6vw,32px);font-weight:700;line-height:1.15;letter-spacing:-.025em;color:var(--ink-faint);margin-top:6px;margin-bottom:26px;}
+.v5-h1-line2 em{color:var(--signal);font-style:normal;}
+.v5-sub{display:flex;flex-direction:column;gap:6px;margin-bottom:32px;max-width:480px;}
+.v5-sub-line{font-size:15px;color:var(--ink-soft);line-height:1.65;}
+.v5-sub-line strong{color:var(--ink);font-weight:700;background:var(--signal-tint2);padding:1px 5px;border-radius:4px;}
+.v5-hero-btns{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:32px;}
+.v5-btn-primary{display:inline-flex;align-items:center;gap:8px;background:var(--signal);color:#fff;padding:14px 26px;border-radius:10px;font-weight:700;font-size:14.5px;text-decoration:none;transition:all .22s;border:none;cursor:pointer;font-family:inherit;box-shadow:0 8px 24px rgba(61,139,255,.25);}
+.v5-btn-primary:hover{background:var(--signal-deep);transform:translateY(-1px);box-shadow:0 12px 32px rgba(61,139,255,.35);}
+.v5-btn-secondary{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.03);color:var(--ink);padding:14px 22px;border-radius:10px;font-weight:600;font-size:14.5px;text-decoration:none;border:1px solid var(--line2);transition:all .2s;}
+.v5-btn-secondary:hover{background:rgba(255,255,255,.06);border-color:var(--signal);color:var(--signal);}
+.v5-trust-mini{display:flex;align-items:center;gap:12px;}
+.v5-mini-avs{display:flex;}
+.v5-mini-av{width:26px;height:26px;border-radius:50%;border:2px solid var(--base);margin-left:-6px;font-size:9.5px;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--signal),#7c4dff);}
+.v5-mini-av:first-child{margin-left:0;}
+.v5-trust-mini span{font-size:12.5px;color:var(--ink-faint);}
+
+/* phone mockup */
+.v5-phone-wrap{position:relative;}
+.v5-float-chip{position:absolute;background:var(--s2);border:1px solid var(--line2);border-radius:10px;padding:9px 13px;box-shadow:var(--shadow-card);display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--ink);opacity:0;animation:v5chip .6s ease forwards;z-index:3;}
+.v5-chip-ico{width:17px;height:17px;border-radius:50%;background:var(--signal-tint);color:var(--signal);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+@keyframes v5chip{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.v5-chip-1{top:-12px;right:-10px;animation-delay:1.3s;}
+.v5-chip-2{bottom:18%;left:-26px;animation-delay:2.2s;}
+.v5-phone{background:var(--s2);border:1px solid var(--line2);border-radius:22px;overflow:hidden;box-shadow:var(--shadow-lift);}
+.v5-phone-top{background:var(--s3);border-bottom:1px solid var(--line);padding:13px 16px;display:flex;align-items:center;gap:10px;}
+.v5-phone-av{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--signal),#7c4dff);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;}
+.v5-phone-name{font-size:13px;font-weight:700;color:var(--ink);}
+.v5-phone-status{font-size:10.5px;color:var(--signal);display:flex;align-items:center;gap:4px;margin-top:1px;}
+.v5-phone-status::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--signal);animation:v5pulse 2s infinite;}
+.v5-phone-body{padding:14px;min-height:260px;max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:none;}
+.v5-phone-body::-webkit-scrollbar{display:none;}
+.v5-pm{max-width:82%;padding:9px 13px;border-radius:12px;font-size:12.5px;line-height:1.55;white-space:pre-wrap;animation:v5msgin .22s ease both;}
+.v5-pm.c{background:var(--signal);color:#fff;align-self:flex-end;border-radius:12px 4px 12px 12px;}
+.v5-pm.a{background:var(--s3);border:1px solid var(--line);color:var(--ink);align-self:flex-start;border-radius:4px 12px 12px 12px;}
+@keyframes v5msgin{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* TRUST BAR */
+.v5-trust{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px clamp(16px,3vw,48px);display:flex;align-items:center;justify-content:center;gap:clamp(16px,3vw,40px);flex-wrap:wrap;background:var(--s1);}
+.v5-tbadge{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--ink-faint);white-space:nowrap;}
+.v5-tdiv{width:1px;height:14px;background:var(--line2);}
+
+/* STATS */
+.v5-stats{background:var(--s1);border-bottom:1px solid var(--line);}
+.v5-stats-row{display:grid;grid-template-columns:repeat(3,1fr);max-width:1200px;margin:0 auto;}
+.v5-stat-cell{padding:clamp(36px,4.5vw,52px) clamp(20px,3vw,40px);border-right:1px solid var(--line);text-align:center;}
+.v5-stat-cell:last-child{border-right:none;}
+.v5-stat-n{font-family:var(--mono);font-size:clamp(38px,4.5vw,54px);font-weight:500;color:var(--ink);line-height:1;letter-spacing:-.02em;margin-bottom:6px;}
+.v5-stat-n em{color:var(--signal);font-style:normal;}
+.v5-stat-l{font-size:13.5px;font-weight:600;color:var(--ink-soft);}
+.v5-stat-s{font-size:11.5px;color:var(--ink-faint);margin-top:4px;}
+
+/* SECTION BASE */
+.v5-sec{padding:clamp(88px,10vw,128px) 0;border-top:1px solid var(--line);}
+.v5-sec:first-of-type{border-top:none;}
+.v5-sec.alt{background:var(--s1);}
+.v5-w{max-width:1200px;margin:0 auto;padding:0 clamp(20px,4vw,48px);}
+.v5-label{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:2.8px;text-transform:uppercase;color:var(--signal);margin-bottom:16px;}
+.v5-label::before{content:'';width:16px;height:1.5px;background:var(--signal);}
+.v5-h2{font-family:var(--display);font-weight:800;font-size:clamp(28px,3.6vw,44px);color:var(--ink);margin-bottom:16px;line-height:1.1;letter-spacing:-.03em;}
+.v5-h2 em{font-style:italic;color:var(--signal);}
+.v5-p{font-size:clamp(14px,1.5vw,16px);color:var(--ink-soft);line-height:1.8;}
+
+/* LOSS TIMELINE */
+.v5-loss-timeline{display:flex;flex-direction:column;border-left:2px solid var(--line);position:relative;max-width:760px;margin:48px auto 0;}
+.v5-loss-item{display:grid;grid-template-columns:90px 1fr;gap:18px;padding:22px 0 22px 28px;border-bottom:1px solid var(--line);position:relative;}
+.v5-loss-item:last-child{border-bottom:none;}
+.v5-loss-item::before{content:'';position:absolute;left:-7px;top:30px;width:12px;height:12px;border-radius:50%;background:var(--line);border:2px solid var(--base);}
+.v5-loss-item.hl{background:var(--warn-tint);padding:22px 24px 22px 28px;margin:0 -10px;border-radius:10px;}
+.v5-loss-item.hl::before{background:var(--warn);}
+.v5-loss-time{font-size:12.5px;font-weight:700;color:var(--ink-faint);text-align:right;padding-top:2px;}
+.v5-loss-content{display:flex;align-items:flex-start;gap:11px;}
+.v5-loss-ico{width:30px;height:30px;border-radius:8px;background:var(--s2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--ink-faint);}
+.v5-loss-item.hl .v5-loss-ico{background:rgba(226,87,76,.12);border-color:rgba(226,87,76,.25);color:var(--warn);}
+.v5-loss-event{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:3px;}
+.v5-loss-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.6;}
+.v5-loss-item.hl .v5-loss-event{color:var(--warn);}
+
+/* PAIN CARDS */
+.v5-pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-top:48px;}
+.v5-pain-card{background:var(--s1);padding:clamp(26px,3vw,36px);position:relative;}
+.v5-pain-num{font-family:var(--mono);font-size:clamp(40px,5vw,56px);font-weight:500;line-height:1;color:rgba(61,139,255,.12);margin-bottom:14px;}
+.v5-pain-ico{width:36px;height:36px;border-radius:9px;background:var(--s2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);margin-bottom:14px;}
+.v5-pain-title{font-size:17px;font-weight:700;color:var(--ink);margin-bottom:6px;letter-spacing:-.01em;}
+.v5-pain-desc{font-size:13px;color:var(--ink-soft);line-height:1.75;}
+.v5-pain-tag{display:inline-block;margin-top:14px;font-size:11px;font-weight:700;color:var(--warn);border:1px solid rgba(226,87,76,.25);border-radius:6px;padding:3px 9px;}
+
+/* MODULES */
+.v5-module{display:grid;grid-template-columns:1fr 1fr;gap:clamp(28px,5vw,60px);align-items:center;margin-top:72px;}
+.v5-module.rev .v5-module-text{order:2;}
+.v5-module.rev .v5-module-visual{order:1;}
+.v5-module-tag{display:inline-block;font-size:11.5px;font-weight:700;color:var(--signal);background:var(--signal-tint);padding:4px 12px;border-radius:100px;margin-bottom:14px;}
+.v5-module-title{font-family:var(--display);font-weight:800;font-size:clamp(20px,2.4vw,26px);color:var(--ink);letter-spacing:-.02em;line-height:1.2;margin-bottom:10px;}
+.v5-module-desc{font-size:13.5px;color:var(--ink-soft);line-height:1.7;margin-bottom:18px;}
+.v5-module-list{list-style:none;display:flex;flex-direction:column;gap:10px;}
+.v5-module-list li{display:flex;align-items:flex-start;gap:9px;font-size:13px;color:var(--ink-soft);}
+.v5-module-list li svg{color:var(--signal);flex-shrink:0;margin-top:2px;}
+
+.v5-mock-dash{background:var(--s1);border:1px solid var(--line2);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-lift);max-width:400px;margin:0 auto;}
+.v5-mock-bar{height:38px;background:var(--s2);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 14px;gap:6px;}
+.v5-mock-dot{width:8px;height:8px;border-radius:50%;background:var(--line2);}
+.v5-mock-body{padding:20px;}
+.v5-mock-title{font-weight:700;font-size:14px;color:var(--ink);margin-bottom:14px;}
+.v5-mock-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+.v5-mock-stat-label{font-size:10.5px;color:var(--ink-faint);margin-bottom:5px;}
+.v5-mock-stat-val{font-family:var(--mono);font-weight:500;font-size:17px;color:var(--ink);}
+.v5-mock-stat-val.s{color:var(--signal);}
+.v5-mock-roi{background:var(--s2);border-radius:10px;padding:13px 15px;}
+.v5-mock-roi-row{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-soft);padding:4px 0;}
+.v5-mock-roi-row strong{font-family:var(--mono);font-weight:500;color:var(--ink);}
+.v5-mock-roi-row strong.s{color:var(--signal);}
+
+.v5-mock-inbox{background:var(--s1);border:1px solid var(--line2);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-lift);max-width:420px;margin:0 auto;}
+.v5-inbox-row{display:flex;align-items:center;gap:11px;padding:13px 16px;border-bottom:1px solid var(--line);}
+.v5-inbox-row:last-child{border-bottom:none;}
+.v5-inbox-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--signal),#7c4dff);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;}
+.v5-inbox-mid{flex:1;min-width:0;}
+.v5-inbox-name{font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+.v5-inbox-msg{font-size:11.5px;color:var(--ink-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.v5-inbox-right{text-align:right;flex-shrink:0;}
+.v5-inbox-time{font-size:10px;color:var(--ink-faint);margin-bottom:4px;}
+.v5-ai-pill{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:100px;background:var(--s2);color:var(--ink-faint);}
+.v5-ai-pill.on{background:var(--signal-tint);color:var(--signal);}
+
+/* DEMO */
+.v5-demo-layout{display:grid;grid-template-columns:170px 1fr;gap:18px;margin-top:40px;align-items:start;}
+.v5-demo-tabs{display:flex;flex-direction:column;gap:7px;}
+.v5-demo-tab{background:var(--s1);border:1px solid var(--line);border-radius:11px;padding:13px 14px;cursor:pointer;transition:all .18s;}
+.v5-demo-tab.on{border-color:var(--signal);background:var(--signal-tint2);}
+.v5-demo-tab:hover:not(.on){border-color:var(--line2);}
+.v5-dt-label{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+.v5-dt-sub{font-size:11px;color:var(--ink-faint);}
+.v5-wa-mock{background:#0a0c10;border-radius:18px;overflow:hidden;border:1px solid var(--line2);box-shadow:var(--shadow-lift);}
+.v5-wa-head{background:var(--s3);padding:13px 17px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);}
+.v5-wa-av{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--signal),#7c4dff);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;}
+.v5-wa-name{font-size:13.5px;font-weight:700;color:var(--ink);}
+.v5-wa-st{font-size:10.5px;color:var(--signal);}
+.v5-wa-body{padding:14px;min-height:280px;max-height:340px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;scrollbar-width:none;}
+.v5-wa-body::-webkit-scrollbar{display:none;}
+.v5-wm{max-width:80%;padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.55;white-space:pre-wrap;animation:v5msgin .22s ease both;}
+.v5-wm.c{background:var(--signal);color:#fff;align-self:flex-end;border-radius:12px 4px 12px 12px;}
+.v5-wm.a{background:var(--s3);border:1px solid var(--line);color:var(--ink);align-self:flex-start;border-radius:4px 12px 12px 12px;}
+
+/* REVENUE BEFORE/AFTER */
+.v5-rev-viz{display:grid;grid-template-columns:1fr 44px 1fr;gap:18px;align-items:center;margin-top:48px;}
+.v5-rev-col{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:24px 22px;}
+.v5-rev-col.after{border-color:rgba(61,139,255,.3);}
+.v5-rev-col-label{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:7px;}
+.v5-rev-col-label.bad{color:var(--warn);}
+.v5-rev-col-label.good{color:var(--signal);}
+.v5-rev-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+.v5-rev-item:last-child{border-bottom:none;}
+.v5-rev-ico{width:28px;height:28px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.v5-rev-ico.bad{background:rgba(226,87,76,.1);color:var(--warn);}
+.v5-rev-ico.good{background:var(--signal-tint);color:var(--signal);}
+.v5-rev-item-t{font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:2px;}
+.v5-rev-item-s{font-size:11px;color:var(--ink-faint);line-height:1.4;}
+.v5-rev-arrow{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.v5-rev-arrow-line{width:1px;height:28px;background:linear-gradient(to bottom,transparent,var(--signal),transparent);}
+.v5-rev-arrow-ico{width:32px;height:32px;border-radius:50%;background:var(--signal-tint);border:1px solid rgba(61,139,255,.3);display:flex;align-items:center;justify-content:center;color:var(--signal);}
+
+/* TESTIMONIALS */
+.v5-test-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:48px;}
+.v5-tc{background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:24px;transition:border-color .2s;}
+.v5-tc:hover{border-color:rgba(61,139,255,.25);}
+.v5-tc-result{display:inline-block;background:var(--signal-tint);border:1px solid rgba(61,139,255,.25);color:var(--signal);font-size:13px;font-weight:700;padding:7px 13px;border-radius:8px;margin-bottom:16px;}
+.v5-tc-quote{font-size:13.5px;color:var(--ink-soft);line-height:1.8;margin-bottom:18px;}
+.v5-tc-auth{display:flex;align-items:center;gap:11px;padding-top:15px;border-top:1px solid var(--line);}
+.v5-tc-av{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,var(--signal),#7c4dff);}
+.v5-tc-name{font-size:13px;font-weight:700;color:var(--ink);}
+.v5-tc-biz{font-size:11.5px;color:var(--ink-faint);}
+
+/* FOUNDER */
+.v5-founder-card{background:var(--s1);border:1px solid var(--line2);border-radius:18px;padding:clamp(28px,4vw,48px);position:relative;max-width:820px;margin:0 auto;}
+.v5-founder-qmark{font-size:64px;line-height:.8;color:rgba(61,139,255,.12);margin-bottom:8px;display:block;font-family:var(--display);}
+.v5-founder-body{font-size:14.5px;color:var(--ink-soft);line-height:1.95;margin-bottom:28px;}
+.v5-founder-body strong{color:var(--ink);font-weight:700;}
+.v5-founder-body em{font-style:italic;color:var(--signal);}
+.v5-founder-hl{display:block;background:var(--warn-tint);border-left:2px solid var(--warn);padding:11px 15px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14px;color:var(--ink);font-style:normal;}
+.v5-founder-profile{display:flex;align-items:center;gap:14px;padding-top:22px;border-top:1px solid var(--line);}
+.v5-founder-av{width:44px;height:44px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--signal),#7c4dff);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff;}
+.v5-founder-name{font-size:14px;font-weight:700;color:var(--ink);}
+.v5-founder-role{font-size:12px;color:var(--ink-faint);margin-top:1px;}
+
+/* PRICING */
+.v5-pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start;margin-top:48px;}
+.v5-plan{background:var(--s1);border:1px solid var(--line);border-radius:16px;padding:clamp(24px,3vw,32px) clamp(20px,3vw,26px);position:relative;}
+.v5-plan.pop{border-color:rgba(61,139,255,.4);box-shadow:var(--shadow-lift);}
+.v5-plan-badge{position:absolute;top:-1px;left:24px;transform:translateY(-50%);background:var(--signal);color:#fff;font-size:10.5px;font-weight:800;padding:3px 12px;border-radius:100px;}
+.v5-plan-tier{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:5px;}
+.v5-plan-tag{font-size:12.5px;color:var(--ink-faint);margin-bottom:18px;}
+.v5-plan-price{display:flex;align-items:baseline;gap:2px;margin-bottom:3px;}
+.v5-plan-rs{font-size:16px;font-weight:700;color:var(--ink);}
+.v5-plan-amt{font-family:var(--mono);font-size:clamp(36px,4.5vw,44px);font-weight:500;color:var(--ink);letter-spacing:-.02em;}
+.v5-plan.pop .v5-plan-amt,.v5-plan.pop .v5-plan-rs{color:var(--signal);}
+.v5-plan-mo{font-size:11.5px;color:var(--ink-faint);margin-bottom:16px;}
+.v5-plan-hr{border:none;border-top:1px solid var(--line);margin:14px 0;}
+.v5-plan-list{list-style:none;display:flex;flex-direction:column;gap:9px;margin-bottom:22px;}
+.v5-plan-list li{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--ink-soft);}
+.v5-plan-list li svg{color:var(--signal);flex-shrink:0;margin-top:2px;}
+.v5-plan-list li.exc{color:var(--ink-faint);text-decoration:line-through;}
+.v5-plan-btn{display:block;text-align:center;padding:12px;border-radius:9px;font-weight:700;font-size:13.5px;text-decoration:none;transition:all .2s;}
+.v5-plan-btn.go{background:var(--signal);color:#fff;}
+.v5-plan-btn.go:hover{background:var(--signal-deep);box-shadow:0 8px 24px rgba(61,139,255,.3);}
+.v5-plan-btn.out{background:transparent;color:var(--ink);border:1px solid var(--line2);}
+.v5-plan-btn.out:hover{border-color:var(--signal);color:var(--signal);}
+
+/* FAQ */
+.v5-faq-box{max-width:700px;margin:48px auto 0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--s1);}
+.v5-fi{border-bottom:1px solid var(--line);}
+.v5-fi:last-child{border-bottom:none;}
+.v5-fb{width:100%;background:none;border:none;padding:18px 22px;text-align:left;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;font-family:inherit;}
+.v5-fb:hover{background:rgba(255,255,255,.015);}
+.v5-fp{width:22px;height:22px;border-radius:50%;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--ink-faint);flex-shrink:0;transition:all .2s;}
+.v5-fa{padding:0 22px;font-size:13.5px;color:var(--ink-soft);line-height:1.8;max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s ease;}
+.v5-fi.op .v5-fa{max-height:200px;padding:0 22px 18px;}
+.v5-fi.op .v5-fp{background:var(--signal-tint);color:var(--signal);transform:rotate(45deg);}
+
+/* CTA */
+.v5-cta-sec{padding:clamp(72px,9vw,112px) clamp(20px,4vw,48px);text-align:center;position:relative;}
+.v5-cta-card{max-width:720px;margin:0 auto;position:relative;background:var(--s1);border:1px solid rgba(61,139,255,.3);border-radius:20px;padding:clamp(40px,5vw,72px) clamp(24px,4vw,56px);}
+.v5-cta-h{font-family:var(--display);font-weight:800;font-size:clamp(26px,3.6vw,42px);color:var(--ink);line-height:1.15;letter-spacing:-.03em;margin-bottom:16px;}
+.v5-cta-h em{font-style:italic;color:var(--signal);}
+.v5-cta-p{font-size:14.5px;color:var(--ink-soft);margin-bottom:30px;line-height:1.8;max-width:440px;margin-left:auto;margin-right:auto;}
+.v5-cta-btns{display:flex;align-items:center;justify-content:center;gap:11px;flex-wrap:wrap;}
+.v5-cta-note{margin-top:16px;font-size:11.5px;color:var(--ink-faint);}
+
+/* FOOTER */
+.v5-footer{background:var(--s1);border-top:1px solid var(--line);padding:clamp(44px,6vw,60px) clamp(20px,4vw,48px) 28px;}
+.v5-ft{max-width:1200px;margin:0 auto;}
+.v5-ft-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:clamp(24px,4vw,48px);margin-bottom:40px;}
+.v5-ft-tagline{font-size:12.5px;color:var(--ink-faint);line-height:1.8;margin-top:14px;max-width:260px;}
+.v5-ft-hd{font-size:10px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:var(--ink-faint);margin-bottom:13px;}
+.v5-ft-lks{list-style:none;display:flex;flex-direction:column;gap:9px;}
+.v5-ft-lks a{font-size:13px;color:var(--ink-soft);text-decoration:none;}
+.v5-ft-lks a:hover{color:var(--signal);}
+.v5-ft-bot{padding-top:20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--ink-faint);flex-wrap:wrap;gap:8px;}
+
+@media(max-width:860px){
+  .v5-nmid,.v5-signin{display:none;}
+  .v5-hbg{display:flex;}
+  .v5-hero{padding-top:100px;min-height:auto;}
+  .v5-hero-in{grid-template-columns:1fr;gap:36px;}
+  .v5-float-chip{display:none;}
+  .v5-stats-row{grid-template-columns:1fr;}
+  .v5-stat-cell{border-right:none;border-bottom:1px solid var(--line);}
+  .v5-stat-cell:last-child{border-bottom:none;}
+  .v5-pain-grid{grid-template-columns:1fr;}
+  .v5-loss-item{grid-template-columns:1fr;gap:10px;padding:18px 0 18px 24px;}
+  .v5-loss-time{text-align:left;}
+  .v5-module,.v5-module.rev{grid-template-columns:1fr;gap:24px;}
+  .v5-module.rev .v5-module-text{order:1;}
+  .v5-module.rev .v5-module-visual{order:2;}
+  .v5-demo-layout{grid-template-columns:1fr;}
+  .v5-demo-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+  .v5-rev-viz{grid-template-columns:1fr;}
+  .v5-rev-arrow{flex-direction:row;justify-content:center;}
+  .v5-rev-arrow-line{width:28px;height:1px;}
+  .v5-test-grid{grid-template-columns:1fr;}
+  .v5-pgrid{grid-template-columns:1fr;}
+  .v5-ft-top{grid-template-columns:1fr;}
 }
-
-.v2-fade { opacity: 0; transform: translateY(16px); transition: opacity 0.7s cubic-bezier(.2,.8,.2,1), transform 0.7s cubic-bezier(.2,.8,.2,1); }
-.v2-fade.v2-in { opacity: 1; transform: none; }
-
-/* ── NAV ── */
-.v2-nav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
-  height: 72px; padding: 0 clamp(20px,4vw,48px);
-  display: flex; align-items: center; justify-content: space-between;
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.25s, box-shadow 0.25s;
-}
-.v2-nav.sc { border-bottom-color: var(--line); box-shadow: 0 1px 0 rgba(11,13,18,0.02); }
-.v2-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.v2-logo-img { width: 30px; height: 30px; object-fit: contain; flex-shrink: 0; display: block; }
-.v2-logo-text { font-family: var(--display); font-weight: 600; font-size: 20px; color: var(--ink); letter-spacing: -0.02em; }
-.v2-logo-text em { color: var(--signal); font-style: normal; }
-.v2-nmid { display: flex; align-items: center; gap: 4px; list-style: none; }
-.v2-nmid a { font-size: 14px; font-weight: 500; color: var(--ink-soft); text-decoration: none; padding: 8px 14px; border-radius: 7px; transition: all 0.15s; }
-.v2-nmid a:hover { color: var(--ink); background: var(--canvas); }
-.v2-nr { display: flex; align-items: center; gap: 8px; }
-.v2-signin { font-size: 14px; font-weight: 500; color: var(--ink-soft); text-decoration: none; padding: 8px 14px; }
-.v2-signin:hover { color: var(--ink); }
-.v2-cta-nav {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: var(--ink); color: white; padding: 9px 18px;
-  border-radius: 8px; font-weight: 600; font-size: 13.5px;
-  text-decoration: none; transition: all 0.2s;
-}
-.v2-cta-nav:hover { background: var(--signal-deep); transform: translateY(-1px); }
-.v2-hbg { display: none; background: none; border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px; cursor: pointer; font-size: 16px; }
-
-/* ── HERO ── */
-.v2-hero { padding: 96px clamp(20px,4vw,48px) clamp(50px,7vw,80px); background: var(--paper); position: relative; overflow: hidden; }
-.v2-hero-grid {
-  position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
-  background-image: linear-gradient(rgba(11,13,18,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(11,13,18,0.025) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, black, transparent 70%);
-}
-.v2-hero-mesh {
-  position: absolute; top: -120px; left: 50%; transform: translateX(-50%);
-  width: 1100px; height: 560px; pointer-events: none;
-  background: radial-gradient(ellipse 55% 60% at 50% 0%, rgba(20,110,245,0.07), transparent 70%);
-}
-.v2-hero-in { max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 480px; gap: clamp(24px,4vw,48px); align-items: center; }
-.v2-hero-left { max-width: 560px; }
-.v2-eyebrow {
-  display: inline-flex; align-items: center; gap: 7px;
-  border: 1px solid var(--line); border-radius: 100px;
-  padding: 6px 14px; margin-bottom: 20px;
-  font-size: 13px; font-weight: 500; color: var(--ink-soft);
-  background: var(--canvas);
-}
-.v2-eyebrow strong { color: var(--ink); font-weight: 600; }
-.v2-h1 {
-  font-family: var(--display); font-weight: 600;
-  font-size: clamp(40px,5.6vw,68px); line-height: 1.04;
-  letter-spacing: -0.035em; color: var(--ink);
-  max-width: 760px; margin-bottom: 22px;
-}
-.v2-sub {
-  font-size: clamp(16px,1.7vw,19px); color: var(--ink-soft);
-  max-width: 540px; line-height: 1.6; margin-bottom: 36px; font-weight: 400;
-}
-.v2-hero-btns { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
-.v2-hero-trust-mini { display: flex; align-items: center; gap: 12px; }
-.v2-mini-avatars { display: flex; }
-.v2-mini-av { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg,var(--signal),#0b4fc4); border: 2px solid white; margin-left: -8px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: white; }
-.v2-mini-av:first-child { margin-left: 0; }
-.v2-hero-trust-mini span:last-child { font-size: 12.5px; color: var(--ink-faint); }
-.v2-btn-primary {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: var(--ink); color: white; padding: 14px 26px;
-  border-radius: 10px; font-weight: 600; font-size: 15px;
-  text-decoration: none; transition: all 0.2s; border: none; cursor: pointer;
-  font-family: 'Inter', sans-serif;
-}
-.v2-btn-primary:hover { background: var(--signal-deep); transform: translateY(-1px); box-shadow: var(--shadow-card); }
-.v2-btn-secondary {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: transparent; color: var(--ink); padding: 14px 22px;
-  border-radius: 10px; font-weight: 600; font-size: 15px;
-  text-decoration: none; border: 1px solid var(--line); transition: all 0.2s;
-}
-.v2-btn-secondary:hover { border-color: var(--ink-faint); background: var(--canvas); }
-
-/* hero dashboard mockup */
-.v2-dash-wrap { position: relative; }
-.v2-dash {
-  background: var(--paper); border: 1px solid var(--line);
-  border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-lift);
-}
-.v2-dash-bar { height: 44px; background: var(--canvas); border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 16px; gap: 7px; }
-.v2-dash-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
-.v2-dash-body { padding: clamp(16px,2vw,22px); }
-.v2-dash-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
-.v2-dash-title { font-family: var(--display); font-weight: 600; font-size: 19px; color: var(--ink); }
-.v2-dash-sub { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
-.v2-dash-kpis { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin-bottom: 16px; }
-.v2-kpi { background: var(--canvas); border-radius: 10px; padding: 14px 16px; }
-.v2-kpi-label { font-size: 11.5px; color: var(--ink-faint); margin-bottom: 8px; font-weight: 500; }
-.v2-kpi-val { font-family: var(--mono); font-weight: 500; font-size: 22px; color: var(--ink); letter-spacing: -0.01em; }
-.v2-kpi-val.signal { color: var(--signal); }
-.v2-dash-rev { background: linear-gradient(135deg, var(--signal-tint), rgba(20,110,245,0.02)); border: 1px solid rgba(20,110,245,0.12); border-radius: 12px; padding: 14px 16px; }
-.v2-dash-rev-label { font-size: 12px; font-weight: 600; color: var(--signal-deep); margin-bottom: 12px; }
-.v2-dash-rev-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
-.v2-dash-rev-item-label { font-size: 11px; color: var(--ink-faint); margin-bottom: 4px; }
-.v2-dash-rev-item-val { font-family: var(--mono); font-weight: 500; font-size: 17px; color: var(--ink); }
-
-.v2-float-chip {
-  position: absolute; background: var(--paper); border: 1px solid var(--line);
-  border-radius: 10px; padding: 10px 14px; box-shadow: var(--shadow-card);
-  display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; color: var(--ink);
-  opacity: 0; animation: v2chip 0.6s ease forwards;
-}
-.v2-float-chip .v2-chip-ico { width: 18px; height: 18px; border-radius: 50%; background: var(--signal-tint); color: var(--signal-deep); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-@keyframes v2chip { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.v2-chip-1 { top: -14px; right: 6%; animation-delay: 1.4s; }
-.v2-chip-2 { bottom: -16px; left: 8%; animation-delay: 2.3s; }
-.v2-chip-3 { top: 40%; left: -36px; animation-delay: 3.1s; }
-
-@media(max-width: 860px) {
-  .v2-float-chip { display: none; }
-  .v2-dash-kpis { grid-template-columns: repeat(2,1fr); }
-  .v2-dash-rev-grid { grid-template-columns: 1fr; }
-}
-
-/* ── TRUST STRIP ── */
-.v2-trust { padding: 28px clamp(20px,4vw,48px); border-bottom: 1px solid var(--line); background: var(--canvas); }
-.v2-trust-in { max-width: 1140px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: clamp(24px,5vw,56px); flex-wrap: wrap; }
-.v2-trust-item { display: flex; align-items: baseline; gap: 8px; }
-.v2-trust-num { font-family: var(--display); font-weight: 600; font-size: 22px; color: var(--ink); }
-.v2-trust-label { font-size: 13px; color: var(--ink-faint); }
-
-/* ── SECTION BASE ── */
-.v2-sec { padding: clamp(80px,10vw,128px) clamp(20px,4vw,48px); border-top: 1px solid var(--line-soft); }
-.v2-sec:first-of-type { border-top: none; }
-.v2-sec.alt { background: var(--canvas); }
-.v2-w { max-width: 1140px; margin: 0 auto; }
-.v2-label { font-size: 13px; font-weight: 600; color: var(--signal-deep); letter-spacing: 0.01em; margin-bottom: 14px; }
-.v2-h2 { font-family: var(--display); font-weight: 600; font-size: clamp(30px,4vw,44px); line-height: 1.12; letter-spacing: -0.03em; color: var(--ink); margin-bottom: 16px; max-width: 620px; }
-.v2-h2-c { text-align: center; margin-left: auto; margin-right: auto; }
-.v2-p { font-size: 16px; color: var(--ink-soft); line-height: 1.65; max-width: 540px; }
-.v2-p-c { text-align: center; margin-left: auto; margin-right: auto; }
-
-/* ── PROBLEM CARDS ── */
-.v2-problem-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-top: 48px; }
-.v2-problem-card { background: var(--paper); padding: 28px 26px; }
-.v2-problem-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.v2-problem-x { width: 20px; height: 20px; border-radius: 50%; background: rgba(226,75,74,0.1); color: #A32D2D; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.v2-problem-title { font-weight: 600; font-size: 15px; color: var(--ink); }
-.v2-problem-desc { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; }
-
-/* ── LIFECYCLE RAIL (signature element) ── */
-.v2-rail-wrap { margin-top: 56px; position: relative; }
-.v2-rail-line { position: absolute; top: 17px; left: 5%; right: 5%; height: 2px; background: var(--line); z-index: 0; }
-.v2-rail-line-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--signal); width: 0%; transition: width 1.6s cubic-bezier(.2,.8,.2,1); }
-.v2-rail { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
-.v2-rail-node { text-align: center; }
-.v2-rail-dot { width: 36px; height: 36px; border-radius: 50%; background: var(--paper); border: 2px solid var(--line); margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink-faint); transition: all 0.4s; }
-.v2-rail-node.active .v2-rail-dot { border-color: var(--signal); background: var(--signal); color: white; }
-.v2-rail-label { font-weight: 600; font-size: 14.5px; color: var(--ink); margin-bottom: 4px; transition: color 0.4s; }
-.v2-rail-time { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); margin-bottom: 6px; }
-.v2-rail-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; max-width: 170px; margin: 0 auto; }
-
-@media(max-width: 760px) {
-  .v2-rail { grid-template-columns: 1fr; gap: 28px; }
-  .v2-rail-line { display: none; }
-}
-
-/* ── FEATURES (legacy, unused after module redesign) ── */
-.v2-feat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 48px; }
-.v2-feat-card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 26px 24px; transition: all 0.2s; }
-.v2-feat-card:hover { border-color: rgba(20,110,245,0.25); box-shadow: var(--shadow-card); transform: translateY(-2px); }
-.v2-feat-ico { width: 38px; height: 38px; border-radius: 10px; background: var(--signal-tint); color: var(--signal-deep); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; }
-.v2-feat-title { font-weight: 600; font-size: 15.5px; color: var(--ink); margin-bottom: 8px; }
-.v2-feat-desc { font-size: 13.5px; color: var(--ink-soft); line-height: 1.65; }
-
-/* ── MODULES — real screenshot rows, alternating ── */
-.v2-module { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(32px,5vw,64px); align-items: center; margin-top: 80px; }
-.v2-module.reverse .v2-module-text { order: 2; }
-.v2-module.reverse .v2-module-visual { order: 1; }
-.v2-module-tag { display: inline-block; font-size: 12px; font-weight: 600; color: var(--signal-deep); background: var(--signal-tint); padding: 4px 12px; border-radius: 100px; margin-bottom: 16px; }
-.v2-module-title { font-family: var(--display); font-weight: 600; font-size: clamp(22px,2.6vw,28px); color: var(--ink); letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 12px; }
-.v2-module-desc { font-size: 14.5px; color: var(--ink-soft); line-height: 1.65; margin-bottom: 20px; }
-.v2-module-list { list-style: none; display: flex; flex-direction: column; gap: 11px; }
-.v2-module-list li { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; color: var(--ink-soft); }
-.v2-module-list li svg { color: var(--signal); flex-shrink: 0; margin-top: 2px; }
-
-/* WhatsApp-style mockup (module 1) */
-.v2-mockup-wa { background: #0b141a; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-lift); border: 1px solid var(--line); max-width: 380px; margin: 0 auto; }
-.v2-mockup-wa-head { background: #1f2c34; padding: 13px 16px; display: flex; align-items: center; gap: 10px; }
-.v2-mockup-av { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,var(--signal),#0b4fc4); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; color: white; flex-shrink: 0; }
-.v2-mockup-name { font-size: 13px; font-weight: 600; color: #e9edef; }
-.v2-mockup-status { font-size: 10.5px; color: #25d366; }
-.v2-mockup-wa-body { padding: 16px; min-height: 220px; display: flex; flex-direction: column; gap: 9px; }
-.v2-mockup-wa .v2-msg { max-width: 80%; padding: 9px 13px; border-radius: 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
-.v2-mockup-wa .v2-msg.c { background: #005c4b; color: #e9edef; align-self: flex-end; border-radius: 12px 3px 12px 12px; }
-.v2-mockup-wa .v2-msg.a { background: #1a2d22; border: 1px solid rgba(37,211,102,0.1); color: #e9edef; align-self: flex-start; border-radius: 3px 12px 12px 12px; }
-
-/* Mini dashboard mockup (module 2) */
-.v2-mockup-dash-mini { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-lift); max-width: 380px; margin: 0 auto; }
-.v2-mockup-dash-mini-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
-.v2-mockup-dash-mini-title { font-weight: 600; font-size: 14.5px; color: var(--ink); }
-.v2-mockup-badge { font-size: 11px; font-weight: 600; color: var(--signal-deep); background: var(--signal-tint); padding: 3px 10px; border-radius: 100px; }
-.v2-mockup-stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 18px; }
-.v2-mockup-stat-label { font-size: 11px; color: var(--ink-faint); margin-bottom: 6px; }
-.v2-mockup-stat-val { font-family: var(--mono); font-weight: 500; font-size: 18px; color: var(--ink); }
-.v2-mockup-stat-val.signal { color: var(--signal); }
-.v2-mockup-roi { background: var(--canvas); border-radius: 10px; padding: 14px 16px; }
-.v2-mockup-roi-label { font-size: 11.5px; font-weight: 600; color: var(--ink-faint); margin-bottom: 10px; }
-.v2-mockup-roi-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-soft); padding: 5px 0; }
-.v2-mockup-roi-row strong { font-family: var(--mono); font-weight: 500; color: var(--ink); }
-.v2-mockup-roi-row strong.signal { color: var(--signal); }
-
-/* Inbox mockup (module 3) */
-.v2-mockup-inbox { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-lift); max-width: 420px; margin: 0 auto; }
-.v2-mockup-inbox-row { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
-.v2-mockup-inbox-row:last-child { border-bottom: none; }
-.v2-mockup-inbox-av { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex-shrink: 0; }
-.v2-mockup-inbox-mid { flex: 1; min-width: 0; }
-.v2-mockup-inbox-name { font-size: 13.5px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
-.v2-mockup-inbox-msg { font-size: 12.5px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.v2-mockup-inbox-right { text-align: right; flex-shrink: 0; }
-.v2-mockup-inbox-time { font-size: 11px; color: var(--ink-faint); margin-bottom: 5px; }
-.v2-mockup-ai-pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 100px; background: var(--canvas); color: var(--ink-faint); }
-.v2-mockup-ai-pill.on { background: var(--signal-tint); color: var(--signal-deep); }
-
-@media(max-width: 860px) {
-  .v2-module, .v2-module.reverse { grid-template-columns: 1fr; gap: 28px; }
-  .v2-module.reverse .v2-module-text { order: 1; }
-  .v2-module.reverse .v2-module-visual { order: 2; }
-}
-
-/* ── COMPARISON TABLE ── */
-.v2-cmp { margin-top: 48px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--paper); }
-.v2-cmp-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; }
-.v2-cmp-row + .v2-cmp-row { border-top: 1px solid var(--line); }
-.v2-cmp-cell { padding: 16px 18px; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
-.v2-cmp-head .v2-cmp-cell { font-weight: 600; font-size: 12.5px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.02em; background: var(--canvas); }
-.v2-cmp-row:not(.v2-cmp-head) .v2-cmp-cell:first-child { font-weight: 500; color: var(--ink); }
-.v2-cmp-cell.us { background: var(--signal-tint-2); color: var(--ink); font-weight: 500; }
-.v2-cmp-cell.bad { color: var(--ink-faint); }
-@media(max-width: 700px) {
-  .v2-cmp-row { grid-template-columns: 1fr; }
-  .v2-cmp-cell { padding: 10px 16px; border-bottom: 1px solid var(--line-soft); }
-}
-
-/* ── TESTIMONIALS ── */
-.v2-test-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 48px; }
-.v2-test-card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 26px; display: flex; flex-direction: column; gap: 18px; }
-.v2-test-metric { display: flex; align-items: baseline; gap: 8px; }
-.v2-test-metric-num { font-family: var(--display); font-weight: 600; font-size: 26px; color: var(--signal); }
-.v2-test-metric-label { font-size: 12.5px; color: var(--ink-faint); }
-.v2-test-quote { font-size: 14.5px; color: var(--ink-soft); line-height: 1.7; flex: 1; }
-.v2-test-auth { display: flex; align-items: center; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
-.v2-test-av { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex-shrink: 0; }
-.v2-test-name { font-weight: 600; font-size: 13.5px; color: var(--ink); }
-.v2-test-role { font-size: 12px; color: var(--ink-faint); }
-
-/* ── PRICING ── */
-.v2-toggle { display: inline-flex; align-items: center; gap: 4px; background: var(--canvas); border: 1px solid var(--line); border-radius: 100px; padding: 4px; margin: 0 auto 48px; }
-.v2-toggle-btn { padding: 8px 18px; border-radius: 100px; font-size: 13.5px; font-weight: 600; border: none; background: transparent; color: var(--ink-faint); cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 6px; }
-.v2-toggle-btn.on { background: var(--ink); color: white; }
-.v2-toggle-save { font-size: 10.5px; font-weight: 700; background: var(--signal-tint); color: var(--signal-deep); padding: 1px 7px; border-radius: 100px; }
-.v2-toggle-btn.on .v2-toggle-save { background: rgba(255,255,255,0.18); color: white; }
-.v2-pgrid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; align-items: start; }
-.v2-plan { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 30px 26px; position: relative; }
-.v2-plan.pop { border: 1.5px solid var(--signal); box-shadow: var(--shadow-lift); }
-.v2-plan-badge { position: absolute; top: -1px; left: 24px; transform: translateY(-50%); background: var(--signal); color: white; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 100px; }
-.v2-plan-name { font-family: var(--display); font-weight: 600; font-size: 17px; color: var(--ink); margin-bottom: 4px; }
-.v2-plan-desc { font-size: 13px; color: var(--ink-faint); margin-bottom: 20px; }
-.v2-plan-price { display: flex; align-items: baseline; gap: 4px; margin-bottom: 4px; }
-.v2-plan-curr { font-size: 18px; font-weight: 600; color: var(--ink); }
-.v2-plan-amt { font-family: var(--display); font-weight: 600; font-size: 40px; color: var(--ink); letter-spacing: -0.02em; }
-.v2-plan-period { font-size: 13px; color: var(--ink-faint); }
-.v2-plan-annual-note { font-size: 12px; color: var(--ink-faint); margin-bottom: 22px; min-height: 16px; }
-.v2-plan-list { list-style: none; display: flex; flex-direction: column; gap: 11px; margin-bottom: 26px; }
-.v2-plan-list li { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; color: var(--ink-soft); }
-.v2-plan-list li svg { flex-shrink: 0; margin-top: 2px; color: var(--signal); }
-.v2-plan-btn { display: block; text-align: center; padding: 12px; border-radius: 9px; font-weight: 600; font-size: 14px; text-decoration: none; transition: all 0.2s; }
-.v2-plan-btn.go { background: var(--ink); color: white; }
-.v2-plan-btn.go:hover { background: var(--signal-deep); }
-.v2-plan-btn.out { background: transparent; color: var(--ink); border: 1px solid var(--line); }
-.v2-plan-btn.out:hover { border-color: var(--ink-faint); background: var(--canvas); }
-
-/* ── FINAL CTA ── */
-.v2-fcta { padding: clamp(80px,10vw,128px) clamp(20px,4vw,48px); background: var(--ink); text-align: center; }
-.v2-fcta-h { font-family: var(--display); font-weight: 600; font-size: clamp(30px,4.5vw,48px); color: white; letter-spacing: -0.03em; margin-bottom: 16px; max-width: 640px; margin-left: auto; margin-right: auto; }
-.v2-fcta-p { font-size: 16px; color: rgba(255,255,255,0.65); max-width: 480px; margin: 0 auto 36px; line-height: 1.6; }
-.v2-fcta-btns { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
-.v2-fcta .v2-btn-primary { background: white; color: var(--ink); }
-.v2-fcta .v2-btn-primary:hover { background: var(--signal-tint); }
-.v2-fcta .v2-btn-secondary { color: white; border-color: rgba(255,255,255,0.2); }
-.v2-fcta .v2-btn-secondary:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.3); }
-
-/* ── FOOTER ── */
-.v2-footer { background: var(--paper); border-top: 1px solid var(--line); padding: clamp(48px,6vw,64px) clamp(20px,4vw,48px) 32px; }
-.v2-footer-in { max-width: 1140px; margin: 0 auto; }
-.v2-footer-top { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: clamp(24px,4vw,48px); margin-bottom: 48px; }
-.v2-footer-tag { font-size: 13.5px; color: var(--ink-soft); line-height: 1.7; margin-top: 14px; max-width: 260px; }
-.v2-footer-head { font-size: 11px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 14px; }
-.v2-footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.v2-footer-links a { font-size: 13.5px; color: var(--ink-soft); text-decoration: none; }
-.v2-footer-links a:hover { color: var(--ink); }
-.v2-footer-bot { padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--ink-faint); flex-wrap: wrap; gap: 10px; }
-
-/* ── LIVE CHAT SIM (used in solution section) ── */
-.v2-chatsim { background: var(--canvas); border-radius: 16px; padding: 4px; }
-.v2-chatsim-in { background: var(--paper); border-radius: 13px; overflow: hidden; border: 1px solid var(--line); }
-.v2-chatsim-head { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
-.v2-chatsim-av { width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; }
-.v2-chatsim-name { font-weight: 600; font-size: 13.5px; color: var(--ink); }
-.v2-chatsim-status { font-size: 11px; color: var(--signal); display: flex; align-items: center; gap: 5px; }
-.v2-chatsim-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--signal); }
-.v2-chatsim-body { padding: 18px; min-height: 200px; display: flex; flex-direction: column; gap: 10px; }
-.v2-msg { max-width: 78%; padding: 10px 14px; border-radius: 12px; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; animation: v2msgin 0.3s ease both; }
-.v2-msg.c { background: var(--ink); color: white; align-self: flex-end; border-radius: 12px 3px 12px 12px; }
-.v2-msg.a { background: var(--canvas); color: var(--ink); align-self: flex-start; border-radius: 3px 12px 12px 12px; border: 1px solid var(--line); }
-.v2-msg-time { font-size: 10px; opacity: 0.5; margin-top: 4px; display: block; }
-@keyframes v2msgin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-
-@media(max-width: 860px) {
-  .v2-nmid, .v2-signin { display: none; }
-  .v2-hbg { display: flex; }
-  .v2-hero { padding-top: 110px; }
-  .v2-hero-in { grid-template-columns: 1fr; }
-  .v2-hero-left { max-width: 100%; }
-  .v2-problem-grid { grid-template-columns: 1fr; }
-  .v2-feat-grid { grid-template-columns: 1fr; }
-  .v2-test-grid { grid-template-columns: 1fr; }
-  .v2-pgrid { grid-template-columns: 1fr; }
-  .v2-footer-top { grid-template-columns: 1fr; }
-  .v2-dash-kpis { grid-template-columns: repeat(2,1fr); }
+@media(min-width:861px) and (max-width:1140px){
+  .v5-nmid,.v5-signin{display:none;}
+  .v5-hbg{display:flex;}
+  .v5-hero-in{grid-template-columns:1fr 380px;}
 }
       `}</style>
 
-      {/* ── NAV ── */}
-      <nav className={`v2-nav${scrolled ? " sc" : ""}`}>
-        <a href="/" className="v2-logo">
-          <img src="/logo.png" alt="Fastrill" className="v2-logo-img" />
-          <span className="v2-logo-text">fast<em>rill</em></span>
+      {/* NAV */}
+      <nav className={`v5-nav${scrolled ? " sc" : ""}`}>
+        <a href="/" className="v5-logo">
+          <img src="/logo.png" alt="Fastrill" className="v5-logo-img" />
+          <span className="v5-logo-text">fast<em>rill</em></span>
         </a>
-        <ul className="v2-nmid">
-          {[["#product", "Product"], ["#customers", "Customers"], ["#pricing", "Pricing"]].map(([h, l]) => (
+        <ul className="v5-nmid">
+          {[["#pain", "Problem"], ["#how", "Product"], ["#demo", "Demo"], ["#pricing", "Pricing"]].map(([h, l]) => (
             <li key={h}><a href={h}>{l}</a></li>
           ))}
         </ul>
-        <div className="v2-nr">
-          <a href="/login" className="v2-signin">Sign in</a>
-          <a href="/signup" className="v2-cta-nav">Start free <Icon name="arrow" size={14} /></a>
-          <button className="v2-hbg">≡</button>
+        <div className="v5-nr">
+          <a href="/login" className="v5-signin">Sign in</a>
+          <a href="/signup" className="v5-cta-nav">Start free</a>
+          <button className="v5-hbg" onClick={() => setMobOpen((p) => !p)}>≡</button>
         </div>
       </nav>
+      <div className={`v5-mdraw${mobOpen ? " open" : ""}`}>
+        {[["#pain", "Problem"], ["#how", "Product"], ["#demo", "Demo"], ["#pricing", "Pricing"]].map(([h, l]) => (
+          <a key={h} href={h} onClick={() => setMobOpen(false)}>{l}</a>
+        ))}
+        <a href="/login" onClick={() => setMobOpen(false)}>Sign in</a>
+      </div>
 
-      {/* ── HERO ── */}
-      <section className="v2-hero">
-        <div className="v2-hero-mesh" />
-        <div className="v2-hero-grid" />
-        <div className="v2-hero-in">
-          <div className="v2-hero-left">
-            <div className="v2-eyebrow">AI revenue engine for <strong>service businesses</strong></div>
-            <h1 className="v2-h1">Stop losing leads on WhatsApp.</h1>
-            <p className="v2-sub">
-              Fastrill replies in seconds, qualifies the customer, and books the appointment automatically — day or night, in their language.
-            </p>
-            <div className="v2-hero-btns">
-              <a href="/signup" className="v2-btn-primary">Get started free <Icon name="arrow" size={16} /></a>
-              <a href="#demo" className="v2-btn-secondary"><Icon name="play" size={15} /> See it in action</a>
+      {/* HERO */}
+      <section className="v5-hero">
+        <div className="v5-hero-grid" />
+        <div className="v5-hero-in">
+          <div>
+            <div className="v5-eyebrow"><span className="v5-eyebrow-dot" />AI revenue engine for Indian service businesses</div>
+            <h1 className="v5-h1">You're not losing leads.</h1>
+            <span className="v5-h1-line2">You're losing them <em>after they message you.</em></span>
+            <div className="v5-sub">
+              <span className="v5-sub-line">Every lead on WhatsApp is real money.</span>
+              <span className="v5-sub-line">Most businesses reply in <strong>hours</strong> — or never.</span>
+              <span className="v5-sub-line">Fastrill replies in <strong>under 2 seconds.</strong> Books the appointment. Confirmed.</span>
             </div>
-            <div className="v2-hero-trust-mini">
-              <div className="v2-mini-avatars">
-                {["P","R","S","A"].map((c,i)=>(<span key={i} className="v2-mini-av" style={{zIndex:4-i}}>{c}</span>))}
+            <div className="v5-hero-btns">
+              <a href="/signup" className="v5-btn-primary">Start free <Icon name="arrow" size={15} /></a>
+              <a href="#demo" className="v5-btn-secondary"><Icon name="play" size={14} /> See it live</a>
+            </div>
+            <div className="v5-trust-mini">
+              <div className="v5-mini-avs">
+                {["P", "R", "S", "A"].map((c, i) => (<span key={i} className="v5-mini-av" style={{ zIndex: 4 - i }}>{c}</span>))}
               </div>
               <span>80+ businesses already converting more leads</span>
             </div>
           </div>
 
-          <div className="v2-dash-wrap">
-            <div className="v2-float-chip v2-chip-1">
-              <span className="v2-chip-ico"><Icon name="check" size={11} /></span>
-              Appointment booked
-            </div>
-            <div className="v2-float-chip v2-chip-2">
-              <span className="v2-chip-ico"><Icon name="check" size={11} /></span>
-              Lead recovered
-            </div>
-            <div className="v2-float-chip v2-chip-3">
-              <span className="v2-chip-ico"><Icon name="check" size={11} /></span>
-              Reply sent in 1.8s
-            </div>
-            <div className="v2-dash">
-              <div className="v2-dash-bar">
-                <span className="v2-dash-dot" /><span className="v2-dash-dot" /><span className="v2-dash-dot" />
+          <div className="v5-phone-wrap">
+            <div className="v5-float-chip v5-chip-1"><span className="v5-chip-ico"><Icon name="check" size={11} /></span>Appointment booked</div>
+            <div className="v5-float-chip v5-chip-2"><span className="v5-chip-ico"><Icon name="check" size={11} /></span>Lead recovered</div>
+            <div className="v5-phone">
+              <div className="v5-phone-top">
+                <div className="v5-phone-av">R</div>
+                <div>
+                  <div className="v5-phone-name">Riya Salon</div>
+                  <div className="v5-phone-status">Fastrill AI · Online now</div>
+                </div>
               </div>
-              <div className="v2-dash-body">
-                <div className="v2-dash-head">
-                  <div>
-                    <div className="v2-dash-title">Campaign performance</div>
-                    <div className="v2-dash-sub">14 campaigns · Real-time tracking</div>
-                  </div>
-                </div>
-                <div className="v2-dash-kpis">
-                  <div className="v2-kpi"><div className="v2-kpi-label">Total sent</div><div className="v2-kpi-val">3,214</div></div>
-                  <div className="v2-kpi"><div className="v2-kpi-label">Delivery rate</div><div className="v2-kpi-val signal">98%</div></div>
-                  <div className="v2-kpi"><div className="v2-kpi-label">Read rate</div><div className="v2-kpi-val">81%</div></div>
-                  <div className="v2-kpi"><div className="v2-kpi-label">Reply rate</div><div className="v2-kpi-val signal">34%</div></div>
-                </div>
-                <div className="v2-dash-rev">
-                  <div className="v2-dash-rev-label">Revenue impact</div>
-                  <div className="v2-dash-rev-grid">
-                    <div><div className="v2-dash-rev-item-label">Est. bookings</div><div className="v2-dash-rev-item-val">218</div></div>
-                    <div><div className="v2-dash-rev-item-label">Est. revenue</div><div className="v2-dash-rev-item-val">₹2,61,600</div></div>
-                    <div><div className="v2-dash-rev-item-label">ROI</div><div className="v2-dash-rev-item-val">+412%</div></div>
-                  </div>
-                </div>
+              <div className="v5-phone-body">
+                {DEMOS.booking.map((m, i) => (
+                  <div key={i} className={`v5-pm ${m.r}`}>{m.m}</div>
+                ))}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── TRUST STRIP ── */}
-      <div className="v2-trust">
-        <div className="v2-trust-in">
-          {[["80+", "businesses on Fastrill"], ["2s", "average response time"], ["10+", "Indian languages"], ["24/7", "always responding"]].map(([n, l]) => (
-            <div key={l} className="v2-trust-item">
-              <span className="v2-trust-num">{n}</span>
-              <span className="v2-trust-label">{l}</span>
+      {/* TRUST BAR */}
+      <div className="v5-trust">
+        {[["256-bit encrypted"], ["India servers"], ["2-sec response"], ["10+ languages"], ["4.9/5 rating"]].map(([t], i, arr) => (
+          <span key={t} style={{ display: "flex", alignItems: "center", gap: "inherit" }}>
+            <span className="v5-tbadge">{t}</span>
+            {i < arr.length - 1 && <span className="v5-tdiv" />}
+          </span>
+        ))}
+      </div>
+
+      {/* STATS */}
+      <div className="v5-stats" ref={statsRef}>
+        <div className="v5-stats-row">
+          {[
+            { n: counts.a.toLocaleString("en-IN"), s: "+", l: "Bookings automated monthly", d: "across active businesses" },
+            { n: counts.b, s: "%", l: "Faster than human reply", d: "average 1.8-second response" },
+            { n: counts.c, s: "%", l: "Fewer missed leads", d: "in the first 30 days" },
+          ].map((s, i) => (
+            <div key={i} className="v5-stat-cell v5-fade">
+              <div className="v5-stat-n">{s.n}<em>{s.s}</em></div>
+              <div className="v5-stat-l">{s.l}</div>
+              <div className="v5-stat-s">{s.d}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── PROBLEM ── */}
-      <section className="v2-sec" id="product">
-        <div className="v2-w">
-          <div className="v2-fade">
-            <div className="v2-label">The cost of waiting</div>
-            <h2 className="v2-h2">Every missed WhatsApp message costs you a customer.</h2>
-            <p className="v2-p">Your ads are working. The follow-up isn't — and that gap is where the revenue disappears.</p>
+      {/* LOSS TIMELINE */}
+      <section className="v5-sec">
+        <div className="v5-w">
+          <div className="v5-fade" style={{ maxWidth: 680, margin: "0 auto", textAlign: "center" }}>
+            <div className="v5-label" style={{ justifyContent: "center" }}>The silent cost</div>
+            <h2 className="v5-h2">What happens when you don't reply instantly?</h2>
+            <p className="v5-p">A real scenario. A real loss.</p>
           </div>
-          <div className="v2-problem-grid">
+          <div className="v5-loss-timeline v5-fade">
             {[
-              { t: "Slow responses", d: "A customer messages at 10 PM. You reply at 9 AM. They've already booked someone else." },
-              { t: "No follow-up", d: "Leads who ask about price and go quiet are gone for good — nobody circles back." },
-              { t: "Manual everything", d: "Every booking, reschedule and reminder takes a person's time, every single day." },
-            ].map((p) => (
-              <div key={p.t} className="v2-problem-card v2-fade">
-                <div className="v2-problem-row">
-                  <span className="v2-problem-x"><Icon name="x" size={11} /></span>
-                  <span className="v2-problem-title">{p.t}</span>
+              { time: "9:02 PM", event: "Customer messages you", desc: "Ready to book. Service: keratin treatment. Budget: ₹2,800", icon: "globe" },
+              { time: "9:45 PM", event: "You finally reply", desc: "Too late — they already asked your competitor.", icon: "frown" },
+              { time: "10:12 PM", event: "Customer booked elsewhere", desc: "Your competitor replied in 2 minutes.", icon: "x" },
+              { time: "—", event: "Your loss", desc: "₹2,800 + lifetime value + reviews = ₹12,000+", icon: "frown", hl: true },
+            ].map((item, i) => (
+              <div key={i} className={`v5-loss-item${item.hl ? " hl" : ""}`}>
+                <div className="v5-loss-time">{item.time}</div>
+                <div className="v5-loss-content">
+                  <div className="v5-loss-ico"><Icon name={item.icon} size={15} /></div>
+                  <div>
+                    <div className="v5-loss-event">{item.event}</div>
+                    <div className="v5-loss-desc">{item.desc}</div>
+                  </div>
                 </div>
-                <p className="v2-problem-desc">{p.d}</p>
+              </div>
+            ))}
+          </div>
+          <div className="v5-fade" style={{ textAlign: "center", marginTop: 40 }}>
+            <p style={{ fontSize: 14, color: "var(--ink-soft)", marginBottom: 20 }}>
+              This happens <strong style={{ color: "var(--warn)" }}>thousands of times every month</strong> across Indian businesses.
+            </p>
+            <a href="/signup" className="v5-btn-primary">Stop the bleeding <Icon name="arrow" size={15} /></a>
+          </div>
+        </div>
+      </section>
+
+      {/* PAIN */}
+      <section className="v5-sec alt" id="pain">
+        <div className="v5-w">
+          <div className="v5-fade" style={{ maxWidth: 580 }}>
+            <div className="v5-label">The real problem</div>
+            <h2 className="v5-h2">Your ads are working.<br /><em>Your follow-up isn't.</em></h2>
+            <p className="v5-p">Most businesses spend thousands getting leads to message them. The money walks out in the WhatsApp inbox.</p>
+          </div>
+          <div className="v5-pain-grid">
+            {[
+              { n: "01", icon: "moon", title: "Leads die after hours.", desc: "A customer messages at 10 PM about your bridal package. You see it at 9 AM — she's already booked someone who replied in 2 minutes.", tag: "Revenue lost every night" },
+              { n: "02", icon: "bolt", title: "Speed wins the booking.", desc: "Your competitor replies in 2 seconds. You reply in 2 hours. Same service, same price — they win the appointment every time.", tag: "Competitive loss" },
+              { n: "03", icon: "frown", title: "Silence becomes a bad review.", desc: "An upset customer messages at peak hour. Your staff is busy. Fastrill responds in 2 seconds with genuine empathy — before it reaches Google.", tag: "Reputation at risk" },
+            ].map((p) => (
+              <div key={p.n} className="v5-pain-card v5-fade">
+                <div className="v5-pain-num">{p.n}</div>
+                <div className="v5-pain-ico"><Icon name={p.icon} size={17} /></div>
+                <div className="v5-pain-title">{p.title}</div>
+                <p className="v5-pain-desc">{p.desc}</p>
+                <div className="v5-pain-tag">{p.tag}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── LIFECYCLE RAIL — signature element ── */}
-      <section className="v2-sec alt" ref={lifecycleRef}>
-        <div className="v2-w">
-          <div className="v2-fade" style={{ textAlign: "center" }}>
-            <div className="v2-label" style={{ justifyContent: "center", display: "flex" }}>How it works</div>
-            <h2 className="v2-h2 v2-h2-c">From message to booked, in one conversation.</h2>
-            <p className="v2-p v2-p-c">A real exchange — start to finish, with no human in the loop.</p>
-          </div>
-          <div className="v2-rail-wrap">
-            <div className="v2-rail-line">
-              <div className="v2-rail-line-fill" style={{ width: lifecycleActive >= 0 ? `${(lifecycleActive / (LIFECYCLE.length - 1)) * 100}%` : "0%" }} />
-            </div>
-            <div className="v2-rail">
-              {LIFECYCLE.map((node, i) => (
-                <div key={node.label} className={`v2-rail-node${i <= lifecycleActive ? " active" : ""}`}>
-                  <div className="v2-rail-dot">{i <= lifecycleActive ? <Icon name="check" size={15} /> : i + 1}</div>
-                  <div className="v2-rail-label">{node.label}</div>
-                  <div className="v2-rail-time">{node.time}</div>
-                  <div className="v2-rail-desc">{node.desc}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── LIVE DEMO ── */}
-      <section className="v2-sec" id="demo">
-        <div className="v2-w" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 56, alignItems: "center" }}>
-          <div className="v2-fade">
-            <div className="v2-label">Live example</div>
-            <h2 className="v2-h2">No scripts. No button menus. Just a conversation.</h2>
-            <p className="v2-p" style={{ marginBottom: 28 }}>
-              The customer types like they would to a person. Fastrill understands intent, collects what it needs, and confirms — without ever feeling like a bot.
-            </p>
-            <a href="/signup" className="v2-btn-primary">Try it on your number <Icon name="arrow" size={16} /></a>
-          </div>
-          <div className="v2-fade">
-            <div className="v2-chatsim">
-              <div className="v2-chatsim-in">
-                <div className="v2-chatsim-head">
-                  <div className="v2-chatsim-av">R</div>
-                  <div>
-                    <div className="v2-chatsim-name">Riya Salon</div>
-                    <div className="v2-chatsim-status">Fastrill AI · Online</div>
-                  </div>
-                </div>
-                <div className="v2-chatsim-body" ref={demoRef}>
-                  {demoMsgs.map((m, i) => (
-                    <div key={i} className={`v2-msg ${m.r}`}>
-                      {m.m}
-                      <span className="v2-msg-time">{m.t}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── MODULES — real product screenshots, alternating layout ── */}
-      <section className="v2-sec alt">
-        <div className="v2-w">
-          <div className="v2-fade">
-            <div className="v2-label">What's inside</div>
-            <h2 className="v2-h2">Not a chatbot. A revenue system.</h2>
-            <p className="v2-p">Three modules working together — conversation, campaigns and bookings, all in one dashboard.</p>
+      {/* MODULES */}
+      <section className="v5-sec" id="how">
+        <div className="v5-w">
+          <div className="v5-fade">
+            <div className="v5-label">What's inside</div>
+            <h2 className="v5-h2">Not a chatbot.<br /><em>A revenue system.</em></h2>
+            <p className="v5-p" style={{ maxWidth: 480 }}>Three modules working together — conversation, campaigns and bookings, all in one dashboard.</p>
           </div>
 
-          {/* Module 1 — Booking conversation */}
-          <div className="v2-module">
-            <div className="v2-module-text v2-fade">
-              <div className="v2-module-tag">Booking</div>
-              <h3 className="v2-module-title">Books the appointment, start to finish.</h3>
-              <p className="v2-module-desc">Service, date, time, confirmation — collected in order, checked against real availability, and confirmed without a human touching it.</p>
-              <ul className="v2-module-list">
-                <li><Icon name="check" size={15} />Understands casual, mixed-language messages</li>
-                <li><Icon name="check" size={15} />Checks real slot availability before confirming</li>
-                <li><Icon name="check" size={15} />Notifies the owner the moment it's booked</li>
+          <div className="v5-module">
+            <div className="v5-module-text v5-fade">
+              <div className="v5-module-tag">Booking</div>
+              <h3 className="v5-module-title">Books the appointment, start to finish.</h3>
+              <p className="v5-module-desc">Service, date, time, confirmation — collected in order, checked against real availability, and confirmed without a human touching it.</p>
+              <ul className="v5-module-list">
+                <li><Icon name="check" size={14} />Understands casual, mixed-language messages</li>
+                <li><Icon name="check" size={14} />Checks real slot availability before confirming</li>
+                <li><Icon name="check" size={14} />Notifies the owner the moment it's booked</li>
               </ul>
             </div>
-            <div className="v2-module-visual v2-fade">
-              <div className="v2-mockup-wa">
-                <div className="v2-mockup-wa-head">
-                  <div className="v2-mockup-av">R</div>
-                  <div>
-                    <div className="v2-mockup-name">Riya Salon</div>
-                    <div className="v2-mockup-status">Fastrill AI · Online</div>
-                  </div>
+            <div className="v5-module-visual v5-fade">
+              <div className="v5-wa-mock">
+                <div className="v5-wa-head">
+                  <div className="v5-wa-av">R</div>
+                  <div><div className="v5-wa-name">Riya Salon</div><div className="v5-wa-st">Fastrill AI · Online</div></div>
                 </div>
-                <div className="v2-mockup-wa-body">
-                  <div className="v2-msg c">Hi, I want a haircut tomorrow around 3pm</div>
-                  <div className="v2-msg a">Tomorrow's great — 3 PM is available.{"\n\n"}Shall I confirm Haircut for tomorrow at 3:00 PM?</div>
-                  <div className="v2-msg c">Yes please!</div>
-                  <div className="v2-msg a">Booking confirmed.{"\n\n"}Haircut · Tomorrow · 3:00 PM</div>
+                <div className="v5-wa-body">
+                  <div className="v5-wm c">Hi, I want a haircut tomorrow around 3pm</div>
+                  <div className="v5-wm a">{"Tomorrow's great — 3 PM is available.\n\nShall I confirm Haircut for tomorrow at 3:00 PM?"}</div>
+                  <div className="v5-wm c">Yes please!</div>
+                  <div className="v5-wm a">{"Booking confirmed.\n\nHaircut · Tomorrow · 3:00 PM"}</div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Module 2 — Campaign dashboard */}
-          <div className="v2-module reverse">
-            <div className="v2-module-text v2-fade">
-              <div className="v2-module-tag">Campaigns</div>
-              <h3 className="v2-module-title">See exactly what each campaign earned.</h3>
-              <p className="v2-module-desc">Send approved WhatsApp templates to customer segments, and track delivery, replies and revenue attributed to that exact send.</p>
-              <ul className="v2-module-list">
-                <li><Icon name="check" size={15} />Segment by tag — new, returning, VIP, inactive</li>
-                <li><Icon name="check" size={15} />Real Meta delivery and read tracking</li>
-                <li><Icon name="check" size={15} />Revenue and ROI per campaign, not just opens</li>
+          <div className="v5-module rev">
+            <div className="v5-module-text v5-fade">
+              <div className="v5-module-tag">Campaigns</div>
+              <h3 className="v5-module-title">See exactly what each campaign earned.</h3>
+              <p className="v5-module-desc">Send approved WhatsApp templates to customer segments, and track delivery, replies and revenue attributed to that exact send.</p>
+              <ul className="v5-module-list">
+                <li><Icon name="check" size={14} />Segment by tag — new, returning, VIP, inactive</li>
+                <li><Icon name="check" size={14} />Real Meta delivery and read tracking</li>
+                <li><Icon name="check" size={14} />Revenue and ROI per campaign, not just opens</li>
               </ul>
             </div>
-            <div className="v2-module-visual v2-fade">
-              <div className="v2-mockup-dash-mini">
-                <div className="v2-mockup-dash-mini-head">
-                  <div className="v2-mockup-dash-mini-title">Winter offer — January</div>
-                  <span className="v2-mockup-badge">Done</span>
-                </div>
-                <div className="v2-mockup-stat-row">
-                  <div><div className="v2-mockup-stat-label">Sent</div><div className="v2-mockup-stat-val">412</div></div>
-                  <div><div className="v2-mockup-stat-label">Delivered</div><div className="v2-mockup-stat-val">404</div></div>
-                  <div><div className="v2-mockup-stat-label">Replied</div><div className="v2-mockup-stat-val signal">138</div></div>
-                </div>
-                <div className="v2-mockup-roi">
-                  <div className="v2-mockup-roi-label">Revenue impact</div>
-                  <div className="v2-mockup-roi-row">
-                    <span>Est. bookings</span><strong>82</strong>
+            <div className="v5-module-visual v5-fade">
+              <div className="v5-mock-dash">
+                <div className="v5-mock-bar"><span className="v5-mock-dot" /><span className="v5-mock-dot" /><span className="v5-mock-dot" /></div>
+                <div className="v5-mock-body">
+                  <div className="v5-mock-title">Winter offer — January</div>
+                  <div className="v5-mock-stat-row">
+                    <div><div className="v5-mock-stat-label">Sent</div><div className="v5-mock-stat-val">412</div></div>
+                    <div><div className="v5-mock-stat-label">Delivered</div><div className="v5-mock-stat-val">404</div></div>
+                    <div><div className="v5-mock-stat-label">Replied</div><div className="v5-mock-stat-val s">138</div></div>
                   </div>
-                  <div className="v2-mockup-roi-row">
-                    <span>Est. revenue</span><strong>₹98,400</strong>
-                  </div>
-                  <div className="v2-mockup-roi-row">
-                    <span>ROI</span><strong className="signal">+612%</strong>
+                  <div className="v5-mock-roi">
+                    <div className="v5-mock-roi-row"><span>Est. bookings</span><strong>82</strong></div>
+                    <div className="v5-mock-roi-row"><span>Est. revenue</span><strong>₹98,400</strong></div>
+                    <div className="v5-mock-roi-row"><span>ROI</span><strong className="s">+612%</strong></div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Module 3 — Conversations inbox */}
-          <div className="v2-module">
-            <div className="v2-module-text v2-fade">
-              <div className="v2-module-tag">Inbox</div>
-              <h3 className="v2-module-title">One inbox. Every conversation, every customer.</h3>
-              <p className="v2-module-desc">See every conversation live, take over manually whenever you want, and let the AI pick back up the moment you're done.</p>
-              <ul className="v2-module-list">
-                <li><Icon name="check" size={15} />Toggle AI off for any single conversation</li>
-                <li><Icon name="check" size={15} />Full customer history and tags in one view</li>
-                <li><Icon name="check" size={15} />Works across 10+ Indian languages</li>
+          <div className="v5-module">
+            <div className="v5-module-text v5-fade">
+              <div className="v5-module-tag">Inbox</div>
+              <h3 className="v5-module-title">One inbox. Every conversation, every customer.</h3>
+              <p className="v5-module-desc">See every conversation live, take over manually whenever you want, and let the AI pick back up the moment you're done.</p>
+              <ul className="v5-module-list">
+                <li><Icon name="check" size={14} />Toggle AI off for any single conversation</li>
+                <li><Icon name="check" size={14} />Full customer history and tags in one view</li>
+                <li><Icon name="check" size={14} />Works across 10+ Indian languages</li>
               </ul>
             </div>
-            <div className="v2-module-visual v2-fade">
-              <div className="v2-mockup-inbox">
+            <div className="v5-module-visual v5-fade">
+              <div className="v5-mock-inbox">
                 {[
                   { n: "Priya Nair", m: "Yes please, book me for 3 PM", t: "now", on: true },
                   { n: "Arjun Mehta", m: "Do you have dermatology also", t: "2m", on: true },
                   { n: "Sneha Reddy", m: "Thank you so much!", t: "14m", on: false },
                 ].map((c) => (
-                  <div key={c.n} className="v2-mockup-inbox-row">
-                    <div className="v2-mockup-inbox-av">{c.n.charAt(0)}</div>
-                    <div className="v2-mockup-inbox-mid">
-                      <div className="v2-mockup-inbox-name">{c.n}</div>
-                      <div className="v2-mockup-inbox-msg">{c.m}</div>
+                  <div key={c.n} className="v5-inbox-row">
+                    <div className="v5-inbox-av">{c.n.charAt(0)}</div>
+                    <div className="v5-inbox-mid">
+                      <div className="v5-inbox-name">{c.n}</div>
+                      <div className="v5-inbox-msg">{c.m}</div>
                     </div>
-                    <div className="v2-mockup-inbox-right">
-                      <div className="v2-mockup-inbox-time">{c.t}</div>
-                      <div className={`v2-mockup-ai-pill${c.on ? " on" : ""}`}>{c.on ? "AI on" : "Manual"}</div>
+                    <div className="v5-inbox-right">
+                      <div className="v5-inbox-time">{c.t}</div>
+                      <div className={`v5-ai-pill${c.on ? " on" : ""}`}>{c.on ? "AI on" : "Manual"}</div>
                     </div>
                   </div>
                 ))}
@@ -880,54 +718,95 @@ body {
         </div>
       </section>
 
-      {/* ── COMPARISON ── */}
-      <section className="v2-sec" id="customers">
-        <div className="v2-w">
-          <div className="v2-fade" style={{ textAlign: "center" }}>
-            <div className="v2-label" style={{ justifyContent: "center", display: "flex" }}>Why Fastrill</div>
-            <h2 className="v2-h2 v2-h2-c">Built for the gap other tools leave open.</h2>
-            <p className="v2-p v2-p-c">Manual replies don't scale. Generic WhatsApp tools don't book. Fastrill does both.</p>
+      {/* DEMO */}
+      <section className="v5-sec alt" id="demo">
+        <div className="v5-w">
+          <div className="v5-fade">
+            <div className="v5-label">Live demo</div>
+            <h2 className="v5-h2">See how a real customer gets<br /><em>converted in seconds.</em></h2>
+            <p className="v5-p" style={{ maxWidth: 480 }}>Click a scenario — instant replies, any language, any context.</p>
           </div>
-          <div className="v2-cmp v2-fade">
-            <div className="v2-cmp-row v2-cmp-head">
-              <div className="v2-cmp-cell" />
-              <div className="v2-cmp-cell">Manual</div>
-              <div className="v2-cmp-cell">Generic tools</div>
-              <div className="v2-cmp-cell">Fastrill</div>
+          <div className="v5-demo-layout">
+            <div className="v5-demo-tabs v5-fade">
+              {DEMO_META.map((s) => (
+                <div key={s.k} className={`v5-demo-tab${demoKey === s.k ? " on" : ""}`} onClick={() => setDemoKey(s.k)}>
+                  <div className="v5-dt-label">{s.label}</div>
+                  <div className="v5-dt-sub">{s.sub}</div>
+                </div>
+              ))}
             </div>
-            {COMPARISON_ROWS.map((row) => (
-              <div key={row[0]} className="v2-cmp-row">
-                <div className="v2-cmp-cell">{row[0]}</div>
-                <div className="v2-cmp-cell bad">{row[1]}</div>
-                <div className="v2-cmp-cell bad">{row[2]}</div>
-                <div className="v2-cmp-cell us"><Icon name="check" size={14} />{row[3]}</div>
+            <div className="v5-wa-mock v5-fade">
+              <div className="v5-wa-head">
+                <div className="v5-wa-av">R</div>
+                <div><div className="v5-wa-name">Riya Salon</div><div className="v5-wa-st">Fastrill AI · Online</div></div>
               </div>
-            ))}
+              <div className="v5-wa-body" ref={demoRef}>
+                {demoMsgs.map((m, i) => (<div key={i} className={`v5-wm ${m.r}`}>{m.m}</div>))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── TESTIMONIALS ── */}
-      <section className="v2-sec alt">
-        <div className="v2-w">
-          <div className="v2-fade" style={{ textAlign: "center" }}>
-            <div className="v2-label" style={{ justifyContent: "center", display: "flex" }}>Results</div>
-            <h2 className="v2-h2 v2-h2-c">Real revenue from real businesses.</h2>
+      {/* REVENUE BEFORE/AFTER */}
+      <section className="v5-sec">
+        <div className="v5-w">
+          <div className="v5-fade" style={{ textAlign: "center" }}>
+            <div className="v5-label" style={{ justifyContent: "center" }}>The difference</div>
+            <h2 className="v5-h2">Before Fastrill.<br /><em>After Fastrill.</em></h2>
+            <p className="v5-p" style={{ maxWidth: 400, margin: "0 auto" }}>Two businesses. Same ads. Same leads. Different results.</p>
           </div>
-          <div className="v2-test-grid">
+          <div className="v5-rev-viz v5-fade">
+            <div className="v5-rev-col">
+              <div className="v5-rev-col-label bad"><Icon name="x" size={12} /> Without Fastrill</div>
+              {[
+                ["Reply in 8 hours", "Lead already booked elsewhere"],
+                ["No reply after hours", "₹300 ad spend, zero return"],
+                ["Complaint ignored", "Google review: 2 stars"],
+                ["No visibility", "No idea which leads converted"],
+              ].map(([t, s]) => (
+                <div key={t} className="v5-rev-item">
+                  <div className="v5-rev-ico bad"><Icon name="x" size={13} /></div>
+                  <div><div className="v5-rev-item-t">{t}</div><div className="v5-rev-item-s">{s}</div></div>
+                </div>
+              ))}
+            </div>
+            <div className="v5-rev-arrow">
+              <div className="v5-rev-arrow-line" /><div className="v5-rev-arrow-ico"><Icon name="arrow" size={14} /></div><div className="v5-rev-arrow-line" />
+            </div>
+            <div className="v5-rev-col after">
+              <div className="v5-rev-col-label good"><Icon name="check" size={12} /> With Fastrill</div>
+              {[
+                ["Reply in 2 seconds", "Lead booked before competitor opens"],
+                ["Books at 2 AM", "You wake up to confirmed appointments"],
+                ["Complaint resolved instantly", "Customer retained, crisis avoided"],
+                ["Full revenue dashboard", "Every booking tracked to source"],
+              ].map(([t, s]) => (
+                <div key={t} className="v5-rev-item">
+                  <div className="v5-rev-ico good"><Icon name="check" size={13} /></div>
+                  <div><div className="v5-rev-item-t">{t}</div><div className="v5-rev-item-s">{s}</div></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* TESTIMONIALS */}
+      <section className="v5-sec alt">
+        <div className="v5-w">
+          <div className="v5-fade" style={{ textAlign: "center" }}>
+            <div className="v5-label" style={{ justifyContent: "center" }}>Results</div>
+            <h2 className="v5-h2">Real revenue from<br /><em>real Indian businesses</em></h2>
+          </div>
+          <div className="v5-test-grid">
             {TESTIMONIALS.map((t) => (
-              <div key={t.name} className="v2-test-card v2-fade">
-                <div className="v2-test-metric">
-                  <span className="v2-test-metric-num">{t.metric}</span>
-                  <span className="v2-test-metric-label">{t.metricLabel}</span>
-                </div>
-                <p className="v2-test-quote">"{t.quote}"</p>
-                <div className="v2-test-auth">
-                  <div className="v2-test-av">{t.name.charAt(0)}</div>
-                  <div>
-                    <div className="v2-test-name">{t.name}</div>
-                    <div className="v2-test-role">{t.role}</div>
-                  </div>
+              <div key={t.name} className="v5-tc v5-fade">
+                <div className="v5-tc-result">{t.result}</div>
+                <p className="v5-tc-quote">"{t.quote}"</p>
+                <div className="v5-tc-auth">
+                  <div className="v5-tc-av">{t.name.charAt(0)}</div>
+                  <div><div className="v5-tc-name">{t.name}</div><div className="v5-tc-biz">{t.biz}</div></div>
                 </div>
               </div>
             ))}
@@ -935,91 +814,140 @@ body {
         </div>
       </section>
 
-      {/* ── PRICING ── */}
-      <section className="v2-sec" id="pricing">
-        <div className="v2-w">
-          <div className="v2-fade" style={{ textAlign: "center" }}>
-            <div className="v2-label" style={{ justifyContent: "center", display: "flex" }}>Pricing</div>
-            <h2 className="v2-h2 v2-h2-c">Simple pricing. Pays for itself.</h2>
-            <p className="v2-p v2-p-c" style={{ marginBottom: 32 }}>No per-message fees. Cancel anytime.</p>
+      {/* FOUNDER */}
+      <section className="v5-sec">
+        <div className="v5-w">
+          <div className="v5-fade" style={{ textAlign: "center", marginBottom: 36 }}>
+            <div className="v5-label" style={{ justifyContent: "center" }}>Why we built this</div>
+            <h2 className="v5-h2">The story behind <em>Fastrill</em></h2>
           </div>
-          <div className="v2-fade" style={{ display: "flex", justifyContent: "center" }}>
-            <div className="v2-toggle">
-              <button className={`v2-toggle-btn${billing === "monthly" ? " on" : ""}`} onClick={() => setBilling("monthly")}>Monthly</button>
-              <button className={`v2-toggle-btn${billing === "annual" ? " on" : ""}`} onClick={() => setBilling("annual")}>
-                Annual <span className="v2-toggle-save">Save 17%</span>
-              </button>
+          <div className="v5-founder-card v5-fade">
+            <span className="v5-founder-qmark">"</span>
+            <p className="v5-founder-body">
+              I've spent years in digital marketing — running ads, building funnels, optimising campaigns for businesses across India. Every lead costs money. Real money.<br /><br />
+              And yet, the single most common thing I saw across <strong>every single client</strong> — salons, clinics, gyms, coaching centres — was this:<br /><br />
+              <em className="v5-founder-hl">Leads were arriving. And dying in the WhatsApp inbox.</em><br /><br />
+              A customer messages at 10 PM, ready to book. Nobody replies until morning. By then, they've moved on. You spent ₹300 on that click. It just evaporated.<br /><br />
+              I saw a salon owner in Hyderabad spending <strong>₹40,000/month on Instagram ads</strong>. Almost 60% of the leads who messaged never got a reply within the hour. Not because of bad ads — because of slow replies.<br /><br />
+              <strong>The problem was never the ads. It was always the follow-up.</strong><br /><br />
+              So we built Fastrill — not as another chatbot, but as a revenue recovery system that sits between your ad spend and your bank account, and makes sure every lead gets an instant reply, in their language, at any hour.
+            </p>
+            <div className="v5-founder-profile">
+              <div className="v5-founder-av">G</div>
+              <div>
+                <div className="v5-founder-name">Ganapathi</div>
+                <div className="v5-founder-role">Founder, Fastrill — Solvabil Pvt. Ltd.</div>
+              </div>
             </div>
           </div>
-          <div className="v2-pgrid">
-            {PRICING.map((plan) => {
-              const price = billing === "annual" ? annualPrice(plan.monthly) : plan.monthly
-              return (
-                <div key={plan.name} className={`v2-plan v2-fade${plan.popular ? " pop" : ""}`}>
-                  {plan.popular && <div className="v2-plan-badge">Most popular</div>}
-                  <div className="v2-plan-name">{plan.name}</div>
-                  <div className="v2-plan-desc">{plan.desc}</div>
-                  <div className="v2-plan-price">
-                    <span className="v2-plan-curr">₹</span>
-                    <span className="v2-plan-amt">{price.toLocaleString("en-IN")}</span>
-                    <span className="v2-plan-period">/month</span>
-                  </div>
-                  <div className="v2-plan-annual-note">
-                    {billing === "annual" ? `Billed ₹${(price * 12).toLocaleString("en-IN")} yearly` : "Billed monthly"}
-                  </div>
-                  <ul className="v2-plan-list">
-                    {plan.features.map((f) => (
-                      <li key={f}><Icon name="check" size={15} />{f}</li>
-                    ))}
-                  </ul>
-                  <a href="/signup" className={`v2-plan-btn ${plan.popular ? "go" : "out"}`}>{plan.cta}</a>
-                </div>
-              )
-            })}
+        </div>
+      </section>
+
+      {/* PRICING */}
+      <section className="v5-sec alt" id="pricing">
+        <div className="v5-w">
+          <div className="v5-fade" style={{ textAlign: "center" }}>
+            <div className="v5-label" style={{ justifyContent: "center" }}>Pricing</div>
+            <h2 className="v5-h2">Simple pricing.<br /><em>Pays for itself.</em></h2>
+            <p className="v5-p" style={{ maxWidth: 400, margin: "0 auto" }}>No per-message fees. Flat monthly.</p>
           </div>
-        </div>
-      </section>
-
-      {/* ── FINAL CTA ── */}
-      <section className="v2-fcta">
-        <h2 className="v2-fcta-h">Turn every WhatsApp conversation into revenue.</h2>
-        <p className="v2-fcta-p">Start automating replies, recovering leads, and booking customers today.</p>
-        <div className="v2-fcta-btns">
-          <a href="/signup" className="v2-btn-primary">Start free trial <Icon name="arrow" size={16} /></a>
-          <a href="https://wa.me/916309279265" className="v2-btn-secondary">Talk to us on WhatsApp</a>
-        </div>
-      </section>
-
-      {/* ── FOOTER ── */}
-      <footer className="v2-footer">
-        <div className="v2-footer-in">
-          <div className="v2-footer-top">
-            <div>
-              <div className="v2-logo">
-                <img src="/logo.png" alt="Fastrill" className="v2-logo-img" />
-                <span className="v2-logo-text">fast<em>rill</em></span>
+          <div className="v5-pgrid">
+            {[
+              { tier: "Starter", price: "999", tag: "Solo operators & new businesses", cta: "Get started", cs: "out", feats: [["inc", "1 WhatsApp number"], ["inc", "300 AI conversations / month"], ["inc", "Booking automation"], ["exc", "Lead recovery"], ["exc", "WhatsApp campaigns"]] },
+              { tier: "Growth", price: "1,999", tag: "For growing businesses", cta: "Start free trial", cs: "go", pop: true, feats: [["inc", "1 WhatsApp number"], ["inc", "Unlimited conversations"], ["inc", "Customer memory"], ["inc", "Lead recovery"], ["inc", "WhatsApp campaigns"]] },
+              { tier: "Pro", price: "4,999", tag: "Multi-branch teams", cta: "Contact sales", cs: "out", feats: [["inc", "Up to 5 WhatsApp numbers"], ["inc", "Everything in Growth"], ["inc", "Multi-branch management"], ["inc", "Custom AI playbook"], ["inc", "Dedicated onboarding"]] },
+            ].map((plan) => (
+              <div key={plan.tier} className={`v5-plan v5-fade${plan.pop ? " pop" : ""}`}>
+                {plan.pop && <div className="v5-plan-badge">Most popular</div>}
+                <div className="v5-plan-tier">{plan.tier}</div>
+                <div className="v5-plan-tag">{plan.tag}</div>
+                <div className="v5-plan-price"><span className="v5-plan-rs">₹</span><span className="v5-plan-amt">{plan.price}</span></div>
+                <div className="v5-plan-mo">per month + GST</div>
+                <hr className="v5-plan-hr" />
+                <ul className="v5-plan-list">
+                  {plan.feats.map(([c, t]) => (<li key={t} className={c}>{c === "inc" ? <Icon name="check" size={14} /> : <Icon name="x" size={14} />}{t}</li>))}
+                </ul>
+                <a href="/signup" className={`v5-plan-btn ${plan.cs}`}>{plan.cta}</a>
               </div>
-              <p className="v2-footer-tag">AI-powered WhatsApp automation for Indian service businesses. Built by Solvabil Pvt. Ltd.</p>
+            ))}
+          </div>
+          <p style={{ textAlign: "center", marginTop: 24, fontSize: 12.5, color: "var(--ink-faint)" }}>14-day free trial · No credit card · Cancel anytime</p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <FAQSection />
+
+      {/* CTA */}
+      <section className="v5-cta-sec">
+        <div className="v5-cta-card v5-fade">
+          <h2 className="v5-cta-h">Turn every WhatsApp conversation into <em>revenue.</em></h2>
+          <p className="v5-cta-p">Start automating replies, recovering leads, and booking customers today.</p>
+          <div className="v5-cta-btns">
+            <a href="/signup" className="v5-btn-primary">Start free — no card needed <Icon name="arrow" size={15} /></a>
+            <a href="https://wa.me/916309279265" className="v5-btn-secondary">Message us on WhatsApp</a>
+          </div>
+          <p className="v5-cta-note">14-day free trial · Setup in 10 minutes · Cancel anytime</p>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="v5-footer">
+        <div className="v5-ft">
+          <div className="v5-ft-top">
+            <div>
+              <a href="/" className="v5-logo">
+                <img src="/logo.png" alt="Fastrill" className="v5-logo-img" />
+                <span className="v5-logo-text">fast<em>rill</em></span>
+              </a>
+              <p className="v5-ft-tagline">AI-powered WhatsApp automation for Indian service businesses. Built by Solvabil Pvt. Ltd.</p>
             </div>
             {[
-              { h: "Product", links: [["Features", "#product"], ["Pricing", "#pricing"], ["Demo", "#demo"]] },
-              { h: "Company", links: [["About", "#"], ["Contact", "mailto:team@fastrill.com"], ["Call us", "tel:+916309279265"]] },
-              { h: "Legal", links: [["Privacy", "/privacy"], ["Terms", "/terms"]] },
+              { h: "Product", lks: [["How it works", "#how"], ["Pricing", "#pricing"], ["Demo", "#demo"]] },
+              { h: "Company", lks: [["Our story", "#"], ["Contact", "mailto:team@fastrill.com"], ["Call us", "tel:+916309279265"]] },
+              { h: "Legal", lks: [["Privacy", "/privacy"], ["Terms", "/terms"]] },
             ].map((col) => (
               <div key={col.h}>
-                <div className="v2-footer-head">{col.h}</div>
-                <ul className="v2-footer-links">
-                  {col.links.map(([n, h]) => (<li key={n}><a href={h}>{n}</a></li>))}
-                </ul>
+                <div className="v5-ft-hd">{col.h}</div>
+                <ul className="v5-ft-lks">{col.lks.map(([n, h]) => (<li key={n}><a href={h}>{n}</a></li>))}</ul>
               </div>
             ))}
           </div>
-          <div className="v2-footer-bot">
+          <div className="v5-ft-bot">
             <span>© 2026 Fastrill, a product by Solvabil Pvt. Ltd.</span>
             <span>Made in India</span>
           </div>
         </div>
       </footer>
     </>
+  )
+}
+
+function FAQSection() {
+  const [open, setOpen] = useState(null)
+  const faqs = [
+    { q: "Do I need to change my WhatsApp number?", a: "No. You keep your existing WhatsApp Business number. Fastrill connects via Meta's official Business API — customers message the same number they always have." },
+    { q: "How long does setup take?", a: "About 10 minutes from account creation to your first AI reply. Connect WhatsApp, add your services and hours, go live." },
+    { q: "Which Indian languages are supported?", a: "Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi and English — auto-detected per conversation." },
+    { q: "Can I take over and reply manually?", a: "Yes, always. Toggle AI off for any conversation — you reply manually, AI waits. Toggle back on when done." },
+    { q: "Is there a free trial?", a: "Yes — 14 days, full Growth plan access, no credit card required." },
+  ]
+  return (
+    <section className="v5-sec">
+      <div className="v5-w">
+        <div className="v5-fade" style={{ textAlign: "center" }}>
+          <div className="v5-label" style={{ justifyContent: "center" }}>FAQ</div>
+          <h2 className="v5-h2">Honest answers</h2>
+        </div>
+        <div className="v5-faq-box v5-fade">
+          {faqs.map((f, i) => (
+            <div key={i} className={`v5-fi${open === i ? " op" : ""}`}>
+              <button className="v5-fb" onClick={() => setOpen(open === i ? null : i)}>{f.q}<span className="v5-fp">+</span></button>
+              <div className="v5-fa">{f.a}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   )
 }
