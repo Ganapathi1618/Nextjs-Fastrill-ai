@@ -134,7 +134,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .fo{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.22,.8,.22,1),transform .7s cubic-bezier(.22,.8,.22,1)}
 .fo.fi{opacity:1;transform:none}
 
-/* ── NAV ── */
+/* NAV */
 .nav{position:fixed;top:0;left:0;right:0;z-index:100;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(16px,4vw,48px);transition:all .2s}
 .nav.scrolled{background:rgba(9,9,11,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--gray-800)}
 .logo{display:flex;align-items:center;gap:8px;text-decoration:none;font-weight:800;font-size:18px;color:var(--white);letter-spacing:-.03em}
@@ -159,7 +159,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .mob-drawer a:hover{color:var(--white);background:var(--gray-900)}
 @media(max-width:768px){.nav-links,.nav-signin{display:none}.hamburger{display:flex;align-items:center}}
 
-/* ── HERO ── */
+/* HERO */
 .hero{min-height:100vh;display:flex;align-items:center;padding:120px clamp(16px,4vw,48px) 80px;position:relative;overflow:hidden}
 .hero::before{content:'';position:absolute;top:-20%;left:50%;transform:translateX(-50%);width:800px;height:600px;background:radial-gradient(ellipse,rgba(16,185,129,.08),transparent 70%);pointer-events:none}
 .hero-inner{max-width:1200px;margin:0 auto;width:100%;position:relative;z-index:1}
@@ -190,16 +190,15 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .msg.c{background:var(--brand);color:#fff;align-self:flex-end;border-radius:10px 3px 10px 10px;font-weight:500}
 .msg.a{background:var(--gray-800);border:1px solid var(--gray-700);color:var(--gray-200);align-self:flex-start;border-radius:3px 10px 10px 10px}
 @keyframes msgin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-
 @media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:36px}}
 
-/* ── TRUST BAR ── */
+/* TRUST BAR */
 .trust{border-top:1px solid var(--gray-800);border-bottom:1px solid var(--gray-800);padding:20px clamp(16px,4vw,48px)}
 .trust-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:24px 40px}
 .trust-item{font-size:13px;font-weight:600;color:var(--gray-600);letter-spacing:.02em;display:flex;align-items:center;gap:6px}
 .trust-item::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--gray-700)}
 
-/* ── SECTIONS SHARED ── */
+/* SECTIONS SHARED */
 .section{padding:clamp(80px,10vw,120px) clamp(16px,4vw,48px)}
 .section.alt{background:var(--gray-900);border-top:1px solid var(--gray-800);border-bottom:1px solid var(--gray-800)}
 .section-inner{max-width:1200px;margin:0 auto}
@@ -208,7 +207,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .section-h em{color:var(--brand);font-style:normal}
 .section-p{font-size:15px;color:var(--gray-400);line-height:1.75;max-width:520px}
 
-/* ── PROBLEM ── */
+/* PROBLEM */
 .problem-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--gray-800);border:1px solid var(--gray-800);border-radius:var(--r-lg);overflow:hidden;margin-top:48px}
 .problem-card{background:var(--gray-950);padding:32px 28px}
 .problem-num{font-family:var(--mono);font-size:11px;color:var(--gray-600);margin-bottom:16px}
@@ -217,7 +216,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .problem-tag{display:inline-block;margin-top:16px;font-size:10px;font-weight:700;color:#ef4444;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:100px;padding:3px 10px}
 @media(max-width:768px){.problem-grid{grid-template-columns:1fr}}
 
-/* ── FEATURES / HOW IT WORKS ── */
+/* FEATURES */
 .features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:48px}
 .feature-card{background:var(--gray-900);border:1px solid var(--gray-800);border-radius:var(--r-lg);padding:28px 24px;transition:border-color .2s}
 .feature-card:hover{border-color:var(--gray-700)}
@@ -226,7 +225,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .feature-desc{font-size:13px;color:var(--gray-400);line-height:1.7}
 @media(max-width:768px){.features-grid{grid-template-columns:1fr}}
 
-/* ── PRODUCT MODULE ── */
+/* PRODUCT MODULE */
 .module{display:grid;grid-template-columns:1fr 1fr;gap:clamp(32px,5vw,64px);align-items:center;padding:64px 0;border-bottom:1px solid var(--gray-800)}
 .module:last-child{border-bottom:none}
 .module.rev .mod-text{order:2}
@@ -270,7 +269,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
   .module.rev .mod-visual{order:2}
 }
 
-/* ── DEMO ── */
+/* DEMO */
 .demo-layout{display:grid;grid-template-columns:180px 1fr;gap:16px;align-items:start;margin-top:40px}
 .demo-tabs{display:flex;flex-direction:column;gap:6px}
 .demo-tab{background:var(--gray-950);border:1px solid var(--gray-800);border-radius:10px;padding:12px 14px;cursor:pointer;transition:all .15s;text-align:left}
@@ -283,7 +282,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .wa-body::-webkit-scrollbar{display:none}
 @media(max-width:768px){.demo-layout{grid-template-columns:1fr}.demo-tabs{display:grid;grid-template-columns:repeat(3,1fr)}}
 
-/* ── METRICS ── */
+/* METRICS */
 .metrics-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:48px}
 .metric-card{background:var(--gray-900);border:1px solid var(--gray-800);border-radius:var(--r-lg);padding:28px 24px;text-align:center}
 .metric-val{font-family:var(--mono);font-size:clamp(28px,3.5vw,36px);font-weight:600;color:var(--white);margin-bottom:4px}
@@ -291,7 +290,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .metric-label{font-size:12px;color:var(--gray-500)}
 @media(max-width:768px){.metrics-row{grid-template-columns:repeat(2,1fr)}}
 
-/* ── TESTIMONIALS ── */
+/* TESTIMONIALS */
 .test-layout{display:grid;grid-template-columns:1.3fr 1fr;gap:clamp(32px,5vw,56px);align-items:start;margin-top:48px}
 .test-qmark{font-size:56px;line-height:.7;color:rgba(16,185,129,.15);margin-bottom:8px}
 .test-quote{font-size:clamp(18px,2.2vw,24px);font-weight:600;color:var(--white);line-height:1.5;letter-spacing:-.01em;margin-bottom:24px}
@@ -308,7 +307,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .test-rail-name{font-size:11px;color:var(--gray-600)}
 @media(max-width:768px){.test-layout{grid-template-columns:1fr;gap:24px}.test-rail{border-left:none;border-top:1px solid var(--gray-800);flex-direction:row;flex-wrap:wrap}.test-rail-item{border-left:none;border-top:2px solid transparent;margin:0;padding:12px 16px 12px 0}.test-rail-item.on{border-top-color:var(--brand)}}
 
-/* ── PRICING ── */
+/* PRICING */
 .billing-toggle{display:inline-flex;align-items:center;gap:3px;background:var(--gray-950);border:1px solid var(--gray-800);border-radius:100px;padding:3px;margin:24px auto 40px}
 .bt{padding:7px 16px;border-radius:100px;font-size:12px;font-weight:700;border:none;background:transparent;color:var(--gray-500);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;transition:all .15s}
 .bt.on{background:var(--brand);color:#fff}
@@ -339,7 +338,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .plan-btn.out:hover{border-color:var(--brand);color:var(--brand)}
 @media(max-width:768px){.pgrid{grid-template-columns:1fr}}
 
-/* ── FAQ ── */
+/* FAQ */
 .faq-list{max-width:640px;margin:40px auto 0}
 .faq-item{border-bottom:1px solid var(--gray-800)}
 .faq-item:first-child{border-top:1px solid var(--gray-800)}
@@ -349,7 +348,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .faq-item.open .faq-answer{max-height:200px;padding:0 0 16px}
 .faq-item.open .faq-plus{background:var(--brand-100);color:var(--brand);transform:rotate(45deg)}
 
-/* ── CTA ── */
+/* CTA */
 .cta-section{padding:clamp(80px,10vw,120px) clamp(16px,4vw,48px);text-align:center}
 .cta-card{max-width:640px;margin:0 auto;background:var(--gray-900);border:1px solid rgba(16,185,129,.25);border-radius:var(--r-xl);padding:clamp(40px,5vw,56px) clamp(24px,4vw,40px);position:relative;overflow:hidden}
 .cta-card::before{content:'';position:absolute;top:-50%;left:50%;transform:translateX(-50%);width:500px;height:300px;background:radial-gradient(ellipse,rgba(16,185,129,.06),transparent 70%);pointer-events:none}
@@ -359,7 +358,7 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
 .cta-btns{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;position:relative}
 .cta-note{margin-top:14px;font-size:11px;color:var(--gray-600);position:relative}
 
-/* ── FOOTER ── */
+/* FOOTER */
 .footer{background:var(--gray-900);border-top:1px solid var(--gray-800);padding:clamp(40px,6vw,56px) clamp(16px,4vw,48px) 24px}
 .ft-inner{max-width:1200px;margin:0 auto}
 .ft-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:clamp(20px,4vw,40px);margin-bottom:36px}
@@ -769,4 +768,54 @@ body{background:#09090b;color:#a1a1aa;font-family:'Inter',system-ui,sans-serif;f
           <p className="cta-p">Start automating replies, recovering leads, and booking customers today.</p>
           <div className="cta-btns">
             <a href="/signup" className="btn btn-brand btn-lg">Start free — no card needed <Ic name="arrow-right" size={15} /></a>
-           
+            <a href="#demo" className="btn btn-outline btn-lg">See demo first</a>
+          </div>
+          <p className="cta-note">14-day free trial · No credit card · Cancel anytime</p>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="footer">
+        <div className="ft-inner">
+          <div className="ft-top">
+            <div>
+              <a href="/" className="logo">
+                <img src="/logo.png" alt="Fastrill" />
+                <span>fast<em>rill</em></span>
+              </a>
+              <p className="ft-tagline">AI-powered WhatsApp automation for Indian service businesses. Reply instantly, book automatically, grow consistently.</p>
+            </div>
+            <div>
+              <div className="ft-hd">Product</div>
+              <ul className="ft-links">
+                <li><a href="#product">Features</a></li>
+                <li><a href="#pricing">Pricing</a></li>
+                <li><a href="#demo">Demo</a></li>
+                <li><a href="/signup">Start free</a></li>
+              </ul>
+            </div>
+            <div>
+              <div className="ft-hd">Company</div>
+              <ul className="ft-links">
+                <li><a href="#problem">Why Fastrill</a></li>
+                <li><a href="mailto:founders@fastrill.com">Contact</a></li>
+              </ul>
+            </div>
+            <div>
+              <div className="ft-hd">Legal</div>
+              <ul className="ft-links">
+                <li><a href="/privacy">Privacy Policy</a></li>
+                <li><a href="/terms">Terms of Service</a></li>
+                <li><a href="/refund">Refund Policy</a></li>
+              </ul>
+            </div>
+          </div>
+          <div className="ft-bot">
+            <span>© {new Date().getFullYear()} Solvabil Pvt. Ltd. All rights reserved.</span>
+            <span>Made in Hyderabad 🇮🇳</span>
+          </div>
+        </div>
+      </footer>
+    </>
+  )
+}
