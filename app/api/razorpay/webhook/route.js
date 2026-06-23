@@ -1,7 +1,7 @@
 // app/api/razorpay/webhook/route.js
-const { NextResponse } = require("next/server")
-const { createClient } = require("@supabase/supabase-js")
-const crypto = require("crypto")
+import { NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
+import crypto from "crypto"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -36,7 +36,8 @@ function verifySignature(body, signature) {
     .createHmac("sha256", secret)
     .update(body)
     .digest("hex")
-  return expected === signature
+  if (!signature || expected.length !== signature.length) return false
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
 }
 
 function getPlanFromId(planId) {
@@ -46,7 +47,7 @@ function getPlanFromId(planId) {
   return null
 }
 
-async function POST(req) {
+export async function POST(req) {
   try {
     const rawBody = await req.text()
     const signature = req.headers.get("x-razorpay-signature")
@@ -117,5 +118,3 @@ async function POST(req) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
-
-module.exports = { POST }
