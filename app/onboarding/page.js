@@ -504,8 +504,9 @@ export default function OnboardingPage() {
                   </div>
                   <button
                     onClick={()=>{
-                      const appId    = process.env.NEXT_PUBLIC_META_APP_ID    || "780799931531576"
-                      const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1090960043190718"
+                      const appId    = process.env.NEXT_PUBLIC_META_APP_ID
+                      const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID
+                      if (!appId || !configId) { alert("Meta App ID not configured"); return }
                       const appUrl   = process.env.NEXT_PUBLIC_APP_URL        || window.location.origin
                       const redirect = encodeURIComponent(appUrl+"/api/meta/callback")
                       window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirect}&response_type=code&config_id=${configId}&state=${userId}`
