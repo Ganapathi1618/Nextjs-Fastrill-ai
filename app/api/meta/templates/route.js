@@ -1,12 +1,7 @@
 // app/api/meta/templates/route.js
-// NEW FILE — fetches WhatsApp message templates server-side.
-// Replaces direct browser calls to Graph API that exposed access_token.
-//
-// Auth: derives userId from Supabase JWT (same pattern as your existing
-// /api/whatsapp/send route — never trusts a client-provided userId).
-
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
+const { decrypt } = require("@/lib/encryption")
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -37,10 +32,12 @@ async function GET(req) {
       return NextResponse.json({ error: "no_whatsapp" }, { status: 200 })
     }
 
+    const accessToken = decrypt(wa.access_token)
+
     let wabaId = wa.waba_id
     if (!wabaId) {
       const r = await fetch(
-        `https://graph.facebook.com/v18.0/${wa.phone_number_id}?fields=whatsapp_business_account&access_token=${wa.access_token}`
+        `https://graph.facebook.com/v18.0/${wa.phone_number_id}?fields=whatsapp_business_account&access_token=${accessToken}`
       )
       const d = await r.json()
       if (d.error) {
@@ -57,17 +54,16 @@ async function GET(req) {
     }
 
     const r2 = await fetch(
-      `https://graph.facebook.com/v18.0/${wabaId}/message_templates?limit=100&fields=id,name,category,language,components,status&access_token=${wa.access_token}`
+      `https://graph.facebook.com/v18.0/${wabaId}/message_templates?limit=100&fields=id,name,category,language,components,status&access_token=${accessToken}`
     )
     const data = await r2.json()
     if (data.error) {
       return NextResponse.json({ error: "Meta API error: " + data.error.message }, { status: 200 })
     }
 
-    // Only return template metadata — never the access_token itself
     return NextResponse.json({ templates: data.data || [] }, { status: 200 })
   } catch (err) {
-    console.error("❌ /api/meta/templates error:", err.message)
+    console.error("/api/meta/templates error:", err.message)
     return NextResponse.json({ error: "Server error" }, { status: 500 })
   }
 }
