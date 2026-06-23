@@ -1,10 +1,7 @@
 // app/api/meta/send-message/route.js
-// NEW FILE — sends a single WhatsApp message (template or test send) server-side.
-// Used by campaigns page for both "Send Test" and the bulk campaign loop —
-// access_token never leaves the server.
-
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
+const { decrypt } = require("@/lib/encryption")
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -42,6 +39,8 @@ async function POST(req) {
       return NextResponse.json({ error: "WhatsApp not connected" }, { status: 400 })
     }
 
+    const accessToken = decrypt(wa.access_token)
+
     const payload = {
       messaging_product: "whatsapp",
       to,
@@ -60,7 +59,7 @@ async function POST(req) {
       {
         method: "POST",
         headers: {
-          "Authorization": "Bearer " + wa.access_token,
+          "Authorization": "Bearer " + accessToken,
           "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)
@@ -75,7 +74,7 @@ async function POST(req) {
     const waMessageId = data?.messages?.[0]?.id || null
     return NextResponse.json({ ok: true, waMessageId }, { status: 200 })
   } catch (err) {
-    console.error("❌ /api/meta/send-message error:", err.message)
+    console.error("/api/meta/send-message error:", err.message)
     return NextResponse.json({ error: "Server error" }, { status: 500 })
   }
 }
