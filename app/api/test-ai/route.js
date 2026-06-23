@@ -58,10 +58,10 @@ Do not include any JSON, thinking tags, or meta-commentary. Just the reply.`
     }
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
         body: JSON.stringify({
           contents: [{ parts: [{ text: systemPrompt + "\n\nCustomer: " + message }] }],
           generationConfig: { temperature: 0.7, maxOutputTokens: 300 }
