@@ -36,7 +36,8 @@ function verifySignature(body, signature) {
     .createHmac("sha256", secret)
     .update(body)
     .digest("hex")
-  return expected === signature
+  if (!signature || expected.length !== signature.length) return false
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
 }
 
 function getPlanFromId(planId) {
