@@ -2,10 +2,10 @@
 export const dynamic = "force-dynamic"
 
 import { useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { createBrowserClient } from "@supabase/ssr"
 
 function getSupabase() {
-  return createClient(
+  return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )
@@ -15,8 +15,8 @@ export default function ConfirmPage() {
   useEffect(() => {
     async function exchange() {
       const params = new URLSearchParams(window.location.search)
-      const code = params.get("code")
-      const next = params.get("next") || "/dashboard"
+      const code   = params.get("code")
+      const next   = params.get("next") || "/dashboard"
 
       if (!code) {
         window.location.href = "/login?error=oauth"
@@ -26,10 +26,8 @@ export default function ConfirmPage() {
       try {
         const supabase = getSupabase()
         const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-
         if (error) throw error
 
-        // Check if new user — send to onboarding, existing to dashboard
         const { data: settings } = await supabase
           .from("business_settings")
           .select("id")
@@ -37,7 +35,6 @@ export default function ConfirmPage() {
           .single()
 
         if (!settings) {
-          // New Google user — init onboarding
           await fetch("/api/onboarding/init", {
             method: "POST",
             headers: {
@@ -54,7 +51,6 @@ export default function ConfirmPage() {
         window.location.href = "/login?error=oauth"
       }
     }
-
     exchange()
   }, [])
 
