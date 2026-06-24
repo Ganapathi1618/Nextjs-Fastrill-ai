@@ -14,6 +14,8 @@ const PUBLIC_API_ROUTES = [
   "/api/meta/webhook",
   "/api/razorpay/webhook",
   "/api/cron/",
+  "/api/onboarding/init",
+  "/api/health",
 ]
 
 export async function middleware(request) {
