@@ -1,75 +1,117 @@
-"use client"
+import { NextResponse } from "next/server"
+import { createServerClient } from "@supabase/ssr"
+
 export const dynamic = "force-dynamic"
 
-import { useEffect } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+export async function GET(request) {
+  const requestUrl = new URL(request.url)
+  const code = requestUrl.searchParams.get("code")
+  const error = requestUrl.searchParams.get("error")
+  const next = requestUrl.searchParams.get("next") || "/dashboard"
 
-function getSupabase() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
-}
+  if (error) {
+    return NextResponse.redirect(new URL("/login?error=oauth", requestUrl.origin))
+  }
 
-export default function ConfirmPage() {
-  useEffect(() => {
-    async function exchange() {
-      const params = new URLSearchParams(window.location.search)
-      const code   = params.get("code")
-      const next   = params.get("next") || "/dashboard"
+  if (code) {
+    const response = NextResponse.redirect(new URL(next, requestUrl.origin))
 
-      if (!code) {
-        window.location.href = "/login?error=oauth"
-        return
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options)
+            })
+          },
+        },
       }
+    )
 
-      try {
-        const supabase = getSupabase()
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-        if (error) throw error
+    const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
-        const { data: settings } = await supabase
+    if (exchangeError) {
+      console.error("OAuth code exchange failed:", exchangeError.message)
+      return NextResponse.redirect(new URL("/login?error=oauth", requestUrl.origin))
+    }
+
+    // Check if new user needs onboarding
+    if (data?.session) {
+      const { data: settings } = await supabase
+        .from("business_settings")
+        .select("id")
+        .eq("user_id", data.session.user.id)
+        .maybeSingle()
+
+      if (!settings) {
+        // New user — init their account server-side using admin client
+        const { createClient } = await import("@supabase/supabase-js")
+        const supabaseAdmin = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY
+        )
+
+        const userId = data.session.user.id
+        const { data: existing } = await supabaseAdmin
           .from("business_settings")
-          .select("id")
-          .eq("user_id", data.session.user.id)
-          .single()
+          .select("user_id")
+          .eq("user_id", userId)
+          .maybeSingle()
 
-        if (!settings) {
-          await fetch("/api/onboarding/init", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${data.session.access_token}`
-            }
+        if (!existing) {
+          const { data: configRow } = await supabaseAdmin
+            .from("app_config")
+            .select("value")
+            .eq("key", "early_access_count")
+            .single()
+          const { data: limitRow } = await supabaseAdmin
+            .from("app_config")
+            .select("value")
+            .eq("key", "early_access_limit")
+            .single()
+
+          const count = parseInt(configRow?.value || "0")
+          const limit = parseInt(limitRow?.value || "20")
+          const isEarlyAccess = count < limit
+
+          const expiry = new Date()
+          if (isEarlyAccess) {
+            expiry.setDate(expiry.getDate() + 30)
+          } else {
+            expiry.setDate(expiry.getDate() + 14)
+          }
+
+          await supabaseAdmin.from("business_settings").insert({
+            user_id: userId,
+            plan: isEarlyAccess ? "starter" : "trial",
+            plan_expires_at: expiry.toISOString(),
+            reminders_enabled: false,
+            lead_recovery_enabled: false,
+            campaigns_enabled: false,
+            created_at: new Date().toISOString(),
           })
-          window.location.href = "/onboarding"
-        } else {
-          window.location.href = next
+
+          if (isEarlyAccess) {
+            await supabaseAdmin
+              .from("app_config")
+              .update({ value: String(count + 1) })
+              .eq("key", "early_access_count")
+          }
         }
-      } catch (err) {
-        console.error("Confirm error:", err)
-        window.location.href = "/login?error=oauth"
+
+        return NextResponse.redirect(new URL("/onboarding", requestUrl.origin), {
+          headers: response.headers,
+        })
       }
     }
-    exchange()
-  }, [])
 
-  return (
-    <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "Inter,sans-serif"
-    }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{
-          width: "48px", height: "48px", border: "3px solid #00d4ff",
-          borderTopColor: "transparent", borderRadius: "50%",
-          animation: "spin 0.8s linear infinite", margin: "0 auto 16px"
-        }} />
-        <p style={{ color: "#888", fontSize: "14px" }}>Signing you in...</p>
-      </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-    </div>
-  )
+    return response
+  }
+
+  return NextResponse.redirect(new URL("/login", requestUrl.origin))
 }
