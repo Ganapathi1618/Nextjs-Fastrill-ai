@@ -54,7 +54,8 @@ export async function middleware(request) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getSession()
+  const user = session?.user
 
   if (!user && pathname.startsWith("/dashboard")) {
     const url = request.nextUrl.clone()
