@@ -2,14 +2,7 @@
 export const dynamic = "force-dynamic"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@supabase/supabase-js"
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
-}
+import { supabase } from "@/lib/supabase"
 
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
@@ -246,9 +239,9 @@ export default function SettingsPage() {
     const t = localStorage.getItem("fastrill-theme")
     if (t) setDark(t === "dark")
     async function load() {
-      const supabase = getSupabase()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { window.location.href = "/login"; return }
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { window.location.href = "/login"; return }
+      const user = session.user
       setUserId(user.id)
       setUserEmail(user.email || "")
       setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "")
@@ -295,7 +288,7 @@ export default function SettingsPage() {
   }, [])
 
   async function saveFeatureToggle(field, value) {
-    const supabase = getSupabase()
+
     await supabase.from("business_settings").update({ [field]: value }).eq("user_id", userId)
   }
 
@@ -303,7 +296,7 @@ export default function SettingsPage() {
     if (!userId) return
     setSubscribing(planId)
     try {
-      const { data: { session } } = await getSupabase().auth.getSession()
+      const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
       const res = await fetch("/api/razorpay/subscribe", {
         method: "POST",
@@ -343,7 +336,7 @@ export default function SettingsPage() {
     if (!business.business_name?.trim()) { showToast("Business name is required", "error"); return }
     setSaving(true); setSaveError("")
     try {
-      const supabase = getSupabase()
+  
       const { error } = await supabase.from("business_settings").upsert({
         ...business, user_id: userId,
         ai_language: ai.ai_language, ai_instructions: ai.ai_instructions,
@@ -359,7 +352,7 @@ export default function SettingsPage() {
   async function saveAI() {
     setSaving(true)
     try {
-      const supabase = getSupabase()
+  
       await Promise.all([
         supabase.from("business_settings").upsert({
           user_id: userId, ai_language: ai.ai_language,
@@ -381,7 +374,7 @@ export default function SettingsPage() {
     if (!newSvc.name.trim() || !newSvc.price) { showToast("Name and price required", "error"); return }
     setSaving(true)
     try {
-      const supabase = getSupabase()
+  
       const isPkg = newSvc.service_type === "package"
       const { data, error } = await supabase.from("services").insert({
         name: newSvc.name.trim(), price: parseFloat(newSvc.price),
@@ -399,14 +392,14 @@ export default function SettingsPage() {
   }
 
   async function toggleService(id, current) {
-    const supabase = getSupabase()
+
     await supabase.from("services").update({ is_active: !current }).eq("id", id)
     setServices(s => s.map(x => x.id === id ? { ...x, is_active: !current } : x))
   }
 
   async function deleteService(id) {
     if (!confirm("Delete this service?")) return
-    const supabase = getSupabase()
+
     const { error } = await supabase.from("services").delete().eq("id", id)
     if (error) { showToast("Delete failed: " + error.message, "error"); return }
     setServices(s => s.filter(x => x.id !== id))
@@ -414,7 +407,7 @@ export default function SettingsPage() {
   }
 
   async function saveService(svc) {
-    const supabase = getSupabase()
+
     await supabase.from("services").update({
       name: svc.name, price: parseFloat(svc.price),
       duration: svc.duration ? parseInt(svc.duration) : null,
@@ -429,7 +422,7 @@ export default function SettingsPage() {
     if (!testMsg.trim()) return
     setTesting(true); setTestReply("")
     try {
-      const { data: { session } } = await getSupabase().auth.getSession()
+      const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
       const res = await fetch("/api/test-ai", {
         method: "POST",
@@ -448,7 +441,7 @@ export default function SettingsPage() {
     if (newPassword !== confirmPassword) { showToast("Passwords don't match", "error"); return }
     setChangingPass(true)
     try {
-      const { error } = await getSupabase().auth.updateUser({ password: newPassword })
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) throw error
       showToast("Password updated ✓")
       setNewPassword(""); setConfirmPassword("")
@@ -457,7 +450,7 @@ export default function SettingsPage() {
   }
 
   async function handleLogout() {
-    await getSupabase().auth.signOut()
+    await supabase.auth.signOut()
     window.location.href = "/login"
   }
 
@@ -820,7 +813,7 @@ export default function SettingsPage() {
                         onClick={async()=>{
                           const newVal = business.ai_enabled===false ? true : false
                           setBusiness(b=>({...b,ai_enabled:newVal}))
-                          const supabase = getSupabase()
+                      
                           const { error } = await supabase.from("business_settings").update({ai_enabled:newVal}).eq("user_id",userId)
                           if (error) { showToast("Failed to update: "+error.message,"error"); setBusiness(b=>({...b,ai_enabled:!newVal})); return }
                           showToast(newVal?"AI turned ON ✓":"AI paused — no replies will be sent")
