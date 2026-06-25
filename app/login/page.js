@@ -2,30 +2,24 @@
 export const dynamic = "force-dynamic"
 
 import { useState, useEffect } from "react"
-import { createBrowserClient } from "@supabase/ssr"
-
-function getSupabase() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
-}
+import { supabase } from "@/lib/supabase"
 
 export default function LoginPage() {
-  const [email, setEmail]         = useState("")
-  const [password, setPassword]   = useState("")
-  const [loading, setLoading]     = useState(false)
-  const [error, setError]         = useState("")
-  const [showPass, setShowPass]   = useState(false)
+  const [email, setEmail]       = useState("")
+  const [password, setPassword] = useState("")
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState("")
+  const [showPass, setShowPass] = useState(false)
   const [signingIn, setSigningIn] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const hash   = window.location.hash
+    const hash = window.location.hash
 
+    // Google OAuth returns token in hash fragment — handle it here
     if (hash && hash.includes("access_token")) {
       setSigningIn(true)
-      const supabase = getSupabase()
+      // Small delay to let Supabase parse the hash
       setTimeout(async () => {
         const { data: { session } } = await supabase.auth.getSession()
         if (session) {
@@ -47,7 +41,7 @@ export default function LoginPage() {
     if (!password.trim()) { setError("Please enter your password"); return }
     setLoading(true); setError("")
     try {
-      const { data, error } = await getSupabase().auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email:    email.trim().toLowerCase(),
         password: password
       })
@@ -67,7 +61,7 @@ export default function LoginPage() {
   async function handleGoogle() {
     setLoading(true); setError("")
     try {
-      const { error } = await getSupabase().auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options:  { redirectTo: window.location.origin + "/auth/callback" }
       })
@@ -84,6 +78,7 @@ export default function LoginPage() {
     fontSize: "15px", outline: "none", boxSizing: "border-box"
   }
 
+  // Show spinner while processing Google OAuth token
   if (signingIn) {
     return (
       <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter,sans-serif" }}>
