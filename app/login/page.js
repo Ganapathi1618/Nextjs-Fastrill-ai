@@ -2,14 +2,7 @@
 export const dynamic = "force-dynamic"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
-}
+import { supabase } from "@/lib/supabase"
 
 export default function LoginPage() {
   const [email, setEmail]       = useState("")
@@ -26,7 +19,6 @@ export default function LoginPage() {
     // Google OAuth returns token in hash fragment — handle it here
     if (hash && hash.includes("access_token")) {
       setSigningIn(true)
-      const supabase = getSupabase()
       // Small delay to let Supabase parse the hash
       setTimeout(async () => {
         const { data: { session } } = await supabase.auth.getSession()
@@ -49,7 +41,7 @@ export default function LoginPage() {
     if (!password.trim()) { setError("Please enter your password"); return }
     setLoading(true); setError("")
     try {
-      const { data, error } = await getSupabase().auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email:    email.trim().toLowerCase(),
         password: password
       })
@@ -69,7 +61,7 @@ export default function LoginPage() {
   async function handleGoogle() {
     setLoading(true); setError("")
     try {
-      const { error } = await getSupabase().auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options:  { redirectTo: window.location.origin + "/auth/callback" }
       })
