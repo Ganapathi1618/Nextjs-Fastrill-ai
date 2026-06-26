@@ -73,9 +73,9 @@ export default function Conversations() {
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
     if (saved) setDark(saved === "dark")
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.user) router.push("/login")
-      else { setUserEmail(session.user.email || ""); setUserId(session.user.id) }
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data?.user) router.push("/login")
+      else { setUserEmail(data.user.email || ""); setUserId(data.user.id) }
     })
   }, [])
 

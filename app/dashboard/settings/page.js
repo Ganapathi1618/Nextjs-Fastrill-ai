@@ -239,9 +239,8 @@ export default function SettingsPage() {
     const t = localStorage.getItem("fastrill-theme")
     if (t) setDark(t === "dark")
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) { window.location.href = "/login"; return }
-      const user = session.user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { window.location.href = "/login"; return }
       setUserId(user.id)
       setUserEmail(user.email || "")
       setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "")
