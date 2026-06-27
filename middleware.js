@@ -1,15 +1,6 @@
 import { NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 
-const PUBLIC_ROUTES = [
-  "/login",
-  "/signup",
-  "/onboarding",
-  "/auth/callback",
-  "/auth/confirm",
-  "/",
-]
-
 const PUBLIC_API_ROUTES = [
   "/api/meta/webhook",
   "/api/razorpay/webhook",
@@ -22,12 +13,15 @@ export async function middleware(request) {
   const { pathname } = request.nextUrl
 
   if (
-    PUBLIC_ROUTES.some(r => pathname === r) ||
     PUBLIC_API_ROUTES.some(r => pathname.startsWith(r)) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.match(/\.(ico|png|jpg|jpeg|svg|css|js|woff2?)$/)
   ) {
+    return NextResponse.next()
+  }
+
+  if (!pathname.startsWith("/api/")) {
     return NextResponse.next()
   }
 
@@ -54,16 +48,10 @@ export async function middleware(request) {
     }
   )
 
- const { data: { session } } = await supabase.auth.getSession()
- const user = session?.user
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
 
-  if (!user && pathname.startsWith("/dashboard")) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/login"
-    return NextResponse.redirect(url)
-  }
-
-  if (!user && pathname.startsWith("/api/") && !pathname.startsWith("/api/meta/webhook") && !pathname.startsWith("/api/razorpay/webhook") && !pathname.startsWith("/api/cron/")) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -72,7 +60,6 @@ export async function middleware(request) {
 
 export const config = {
   matcher: [
-    "/dashboard/:path*",
     "/api/:path*",
   ],
 }
