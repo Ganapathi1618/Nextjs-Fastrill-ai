@@ -39,11 +39,23 @@ export default function Dashboard() {
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
     if (saved) setDark(saved === "dark")
-    supabase.auth.getUser().then(({ data }) => {
+    async function initAuth() {
+      const hash = window.location.hash
+      if (hash && hash.includes("access_token")) {
+        const params = new URLSearchParams(hash.substring(1))
+        const access_token = params.get("access_token")
+        const refresh_token = params.get("refresh_token")
+        if (access_token && refresh_token) {
+          await supabase.auth.setSession({ access_token, refresh_token })
+          window.history.replaceState(null, "", window.location.pathname)
+        }
+      }
+      const { data } = await supabase.auth.getUser()
       if (!data?.user) { router.push("/login"); return }
       setUserEmail(data.user.email || "")
       setUserId(data.user.id)
-    })
+    }
+    initAuth()
   }, [])
 
   useEffect(() => { if (userId) loadAll() }, [userId, period])

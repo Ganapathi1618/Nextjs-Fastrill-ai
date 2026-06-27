@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { createServerClient } from "@supabase/ssr"
+import { createClient } from "@supabase/supabase-js"
 
 export const dynamic = "force-dynamic"
 
@@ -13,10 +15,104 @@ export async function GET(request) {
   }
 
   if (code) {
-    const confirmUrl = new URL("/auth/confirm", requestUrl.origin)
-    confirmUrl.searchParams.set("code", code)
-    confirmUrl.searchParams.set("next", next)
-    return NextResponse.redirect(confirmUrl)
+    const response = NextResponse.next()
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options)
+            })
+          },
+        },
+      }
+    )
+
+    const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (exchangeError || !data?.session) {
+      console.error("OAuth exchange failed:", exchangeError?.message)
+      return NextResponse.redirect(new URL("/login?error=oauth", requestUrl.origin))
+    }
+
+    const session = data.session
+    const hashParams = new URLSearchParams({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      token_type: "bearer",
+      expires_in: String(session.expires_in || 3600),
+      type: "signup"
+    })
+
+    let dest = next
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
+
+    const { data: settings } = await supabaseAdmin
+      .from("business_settings")
+      .select("id")
+      .eq("user_id", session.user.id)
+      .maybeSingle()
+
+    if (!settings) {
+      const { data: existing } = await supabaseAdmin
+        .from("business_settings")
+        .select("user_id")
+        .eq("user_id", session.user.id)
+        .maybeSingle()
+
+      if (!existing) {
+        const { data: configRow } = await supabaseAdmin
+          .from("app_config")
+          .select("value")
+          .eq("key", "early_access_count")
+          .single()
+        const { data: limitRow } = await supabaseAdmin
+          .from("app_config")
+          .select("value")
+          .eq("key", "early_access_limit")
+          .single()
+
+        const count = parseInt(configRow?.value || "0")
+        const limit = parseInt(limitRow?.value || "20")
+        const isEarlyAccess = count < limit
+
+        const expiry = new Date()
+        expiry.setDate(expiry.getDate() + (isEarlyAccess ? 30 : 14))
+
+        await supabaseAdmin.from("business_settings").insert({
+          user_id: session.user.id,
+          plan: isEarlyAccess ? "starter" : "trial",
+          plan_expires_at: expiry.toISOString(),
+          reminders_enabled: false,
+          lead_recovery_enabled: false,
+          campaigns_enabled: false,
+          created_at: new Date().toISOString(),
+        })
+
+        if (isEarlyAccess) {
+          await supabaseAdmin
+            .from("app_config")
+            .update({ value: String(count + 1) })
+            .eq("key", "early_access_count")
+        }
+      }
+
+      dest = "/onboarding"
+    }
+
+    return NextResponse.redirect(
+      new URL(dest + "#" + hashParams.toString(), requestUrl.origin)
+    )
   }
 
   return NextResponse.redirect(new URL("/login", requestUrl.origin))
