@@ -1,15 +1,7 @@
 "use client"
-export const dynamic = "force-dynamic"
 
 import { useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
-}
+import { supabase } from "@/lib/supabase"
 
 export default function ConfirmPage() {
   useEffect(() => {
@@ -24,20 +16,17 @@ export default function ConfirmPage() {
       }
 
       try {
-        const supabase = getSupabase()
         const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
         if (error) throw error
 
-        // Check if new user — send to onboarding, existing to dashboard
         const { data: settings } = await supabase
           .from("business_settings")
           .select("id")
           .eq("user_id", data.session.user.id)
-          .single()
+          .maybeSingle()
 
         if (!settings) {
-          // New Google user — init onboarding
           await fetch("/api/onboarding/init", {
             method: "POST",
             headers: {
