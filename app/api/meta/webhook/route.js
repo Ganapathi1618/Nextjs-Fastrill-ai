@@ -1,9 +1,7 @@
 // app/api/meta/webhook/route.js
-// v10.0 — PHASE 3: Supabase rate limiting + Sentry error tracking
 //
 // CHANGES FROM v9.2:
 // 1. REPLACED in-memory Map rate limiter with Supabase RPC (survives restarts, works multi-instance)
-// 2. ADDED Sentry error capture for critical failures
 // 3. ADDED decrypt() for access_token (Phase 2 encryption)
 // Everything else — campaign flow, signature verification, dedup — unchanged.
 
@@ -17,7 +15,6 @@ const { isDuplicate, upsertCustomer, upsertConversation, saveInboundMessage, ups
 const { stopEnrollment }     = require("@/lib/sequences/sequence-engine")
 const { isRateLimited }      = require("@/lib/rate-limit/supabase-rate-limiter")
 const { decrypt }            = require("@/lib/encryption")
-const { captureException }   = require("@/lib/sentry/init")
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
