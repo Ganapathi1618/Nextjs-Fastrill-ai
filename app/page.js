@@ -708,4 +708,271 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
               </div>
             </div>
           </div>
-     
+
+          {/* Module 3: Inbox */}
+          <div className="fl-module">
+            <div className="fl-module-text fl-fade">
+              <div className="fl-module-tag"><Ic name="inbox" size={14} /> 03 / SMART INBOX</div>
+              <h3 className="fl-module-title">One inbox. Every conversation. Full control.</h3>
+              <p className="fl-module-desc">See every conversation live, take over manually whenever you want, and let the AI pick back up the moment you&apos;re done.</p>
+              <ul className="fl-module-list">
+                <li><Ic name="check" size={14} />Toggle AI off for any single conversation</li>
+                <li><Ic name="check" size={14} />Full customer history and tags in one view</li>
+                <li><Ic name="check" size={14} />Works across 10+ Indian languages</li>
+                <li><Ic name="check" size={14} />Real-time typing indicators</li>
+              </ul>
+            </div>
+            <div className="fl-module-vis fl-fade">
+              <div className="fl-inbox">
+                {[
+                  { n: "Priya Nair", m: "Yes please, book me for 3 PM", t: "now", on: true },
+                  { n: "Arjun Mehta", m: "Do you have dermatology also", t: "2m", on: true },
+                  { n: "Sneha Reddy", m: "Thank you so much!", t: "14m", on: false },
+                  { n: "Kiran Patel", m: "What time do you close?", t: "23m", on: true },
+                ].map(c => (
+                  <div key={c.n} className="fl-inbox-row">
+                    <div className="fl-inbox-av">{c.n.charAt(0)}</div>
+                    <div className="fl-inbox-mid"><div className="fl-inbox-name">{c.n}</div><div className="fl-inbox-msg">{c.m}</div></div>
+                    <div className="fl-inbox-right"><div className="fl-inbox-time">{c.t}</div><div className={`fl-ai-pill${c.on ? " on" : ""}`}>{c.on ? "AI on" : "Manual"}</div></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* DEMO */}
+      <section className="fl-section alt" id="demo">
+        <div className="fl-section-in">
+          <div className="fl-fade">
+            <div className="fl-label">Live demo</div>
+            <h2 className="fl-h2">See it convert in <em>real time.</em></h2>
+            <p className="fl-p">Pick a scenario and watch the AI handle the entire conversation &mdash; any language, any hour.</p>
+          </div>
+          <div className="fl-demo-layout">
+            <div className="fl-demo-tabs fl-fade">
+              {DEMO_META.map(s => (
+                <div key={s.k} className={`fl-demo-tab${demoKey === s.k ? " on" : ""}`} onClick={() => setDemoKey(s.k)}>
+                  <div className="fl-demo-tab-icon">{s.icon}</div>
+                  <div className="fl-demo-tab-label">{s.label}</div>
+                  <div className="fl-demo-tab-sub">{s.sub}</div>
+                </div>
+              ))}
+            </div>
+            <div className="fl-wa-mock fl-fade">
+              <div className="fl-wa-head">
+                <div className="fl-mock-av">R</div>
+                <div><div className="fl-mock-name">Riya Salon</div><div className="fl-mock-status">Online</div></div>
+              </div>
+              <div className="fl-wa-body" ref={demoRef}>
+                {demoMsgs.map((m, i) => <div key={`${demoKey}-${i}`} className={`fl-pm ${m.r}`}>{m.m}</div>)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* COMPARISON */}
+      <section className="fl-section" ref={cmpRef}>
+        <div className="fl-section-in">
+          <div className="fl-fade" style={{ textAlign: "center" }}>
+            <div className="fl-label center">The difference</div>
+            <h2 className="fl-h2 center">Before Fastrill. <em>After.</em></h2>
+          </div>
+          <div className="fl-cmp-list">
+            {[
+              { before: "Reply in 8 hours", after: "Reply in 2 seconds" },
+              { before: "No reply after hours", after: "Books appointments at 2 AM" },
+              { before: "Complaint ignored for hours", after: "Resolved instantly with empathy" },
+              { before: "No idea what converted", after: "Every booking tracked to source" },
+              { before: "Staff glued to phones", after: "Staff focused on customers" },
+            ].map((pair, i) => (
+              <div key={pair.before} className={`fl-cmp-row${cmpRevealed ? " show" : ""}`} style={{ transitionDelay: `${i * 0.12}s` }}>
+                <div className="fl-cmp-before">{pair.before}</div>
+                <div className="fl-cmp-arrow"><Ic name="arrow" size={16} /></div>
+                <div className="fl-cmp-after">{pair.after}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* TESTIMONIALS */}
+      <section className="fl-section alt">
+        <div className="fl-section-in">
+          <div className="fl-fade">
+            <div className="fl-label">What customers say</div>
+            <h2 className="fl-h2">Real businesses. <em>Real results.</em></h2>
+          </div>
+          <div className="fl-test-layout fl-fade">
+            <div>
+              <span className="fl-test-quote-mark">&ldquo;</span>
+              <p className="fl-test-quote">{TESTIMONIALS[activeTestimonial].quote}</p>
+              <div className="fl-test-auth">
+                <div className="fl-test-av">{TESTIMONIALS[activeTestimonial].initial}</div>
+                <div>
+                  <div className="fl-test-name">{TESTIMONIALS[activeTestimonial].name}</div>
+                  <div className="fl-test-biz">{TESTIMONIALS[activeTestimonial].biz}</div>
+                </div>
+              </div>
+            </div>
+            <div className="fl-test-rail">
+              {TESTIMONIALS.map((t, i) => (
+                <button key={t.name} className={`fl-test-rail-btn${i === activeTestimonial ? " on" : ""}`} onClick={() => setActiveTestimonial(i)}>
+                  <div className="fl-test-rail-result">{t.result}</div>
+                  <div className="fl-test-rail-label">{t.resultLabel}</div>
+                  <div className="fl-test-rail-name">{t.name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FOUNDER */}
+      <section className="fl-section">
+        <div className="fl-founder-in">
+          <div className="fl-fade">
+            <div className="fl-label center">Why we built this</div>
+            <h2 className="fl-h2 center">A letter from the <em>founder</em></h2>
+          </div>
+          <div className="fl-founder-letter fl-fade">
+            I&apos;ve spent years in digital marketing &mdash; running ads, building funnels, optimising campaigns for businesses across India. Every lead costs money. Real money.
+            <br /><br />
+            And yet, the single most common thing I saw across <strong>every single client</strong> &mdash; salons, clinics, gyms, coaching centres &mdash; was this:
+            <span className="fl-founder-pull">&ldquo;Leads were arriving. And dying in the WhatsApp inbox.&rdquo;</span>
+            A customer messages at 10 PM, ready to book. Nobody replies until morning. By then, they&apos;ve moved on. You spent &#8377;300 on that click. It just evaporated.
+            <br /><br />
+            I saw a salon owner in Hyderabad spending <strong>&#8377;40,000 a month on Instagram ads</strong>. Almost 60% of the leads who messaged never got a reply within the hour. Not because of bad ads &mdash; because of slow replies.
+            <br /><br />
+            <strong>The problem was never the ads. It was always the follow-up.</strong>
+            <br /><br />
+            So we built Fastrill &mdash; not as another chatbot, but as a revenue recovery system that sits between your ad spend and your bank account, and makes sure every lead gets an instant reply, in their language, at any hour.
+            <div className="fl-founder-sign">
+              <div className="fl-founder-av">G</div>
+              <div><div className="fl-founder-name">Ganapathi</div><div className="fl-founder-role">Founder, Fastrill &mdash; Solvabil Pvt. Ltd.</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* PRICING */}
+      <section className="fl-section alt" id="pricing">
+        <div className="fl-section-in">
+          <div className="fl-fade" style={{ textAlign: "center" }}>
+            <div className="fl-label center">Pricing</div>
+            <h2 className="fl-h2 center">Simple pricing.<br /><em>Pays for itself.</em></h2>
+            <p className="fl-p center">One missed booking costs more than a month of Fastrill.</p>
+          </div>
+          <div className="fl-fade" style={{ display: "flex", justifyContent: "center" }}>
+            <div className="fl-billing-toggle">
+              <button className={`fl-bt${billing === "monthly" ? " on" : ""}`} onClick={() => setBilling("monthly")}>Monthly</button>
+              <button className={`fl-bt${billing === "annual" ? " on" : ""}`} onClick={() => setBilling("annual")}>Annual <span className="fl-bt-save">Save 17%</span></button>
+            </div>
+          </div>
+          <div className="fl-pgrid">
+            {plans.map(plan => {
+              const price = billing === "annual" ? Math.round(plan.monthly * 0.83) : plan.monthly
+              return (
+                <div key={plan.tier} className={`fl-plan fl-fade${plan.pop ? " pop" : ""}`}>
+                  {plan.pop && <div className="fl-plan-badge">Most popular</div>}
+                  <div className="fl-plan-tier">{plan.tier}</div>
+                  <div className="fl-plan-tag">{plan.tag}</div>
+                  <div className="fl-plan-price"><span className="fl-plan-rs">&#8377;</span><span className="fl-plan-amt">{price.toLocaleString("en-IN")}</span></div>
+                  <div className="fl-plan-mo">per month + GST{billing === "annual" && <span className="fl-plan-billed"> &middot; billed &#8377;{(price * 12).toLocaleString("en-IN")}/yr</span>}</div>
+                  <hr className="fl-plan-hr" />
+                  <ul className="fl-plan-list">
+                    {plan.feats.map(([c, t]) => (
+                      <li key={t} className={c === "exc" ? "exc" : undefined}>
+                        {c === "inc" ? <Ic name="check" size={13} /> : <Ic name="x" size={13} />}{t}
+                      </li>
+                    ))}
+                  </ul>
+                  <a href="/login" className={`fl-plan-btn ${plan.cs}`}>{plan.cta}</a>
+                </div>
+              )
+            })}
+          </div>
+          <p className="fl-fade" style={{ textAlign: "center", marginTop: 28, fontSize: 12.5, color: "var(--ink4)" }}>14-day free trial &middot; No credit card &middot; Cancel anytime</p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <FAQSection />
+
+      {/* CTA */}
+      <section className="fl-section">
+        <div className="fl-cta-card fl-fade">
+          <h2 className="fl-h2 center">Turn every WhatsApp message into <em>revenue.</em></h2>
+          <p className="fl-p center">Start automating replies, recovering leads, and booking customers today.</p>
+          <div className="fl-cta-btns">
+            <a href="/login" className="fl-btn-p">Start free &mdash; no card needed <Ic name="arrow" size={15} /></a>
+            <a href="https://wa.me/916309279265" className="fl-btn-s"><Ic name="msg" size={14} /> Message us on WhatsApp</a>
+          </div>
+          <p className="fl-cta-note">14-day free trial &middot; Setup in 10 minutes &middot; Cancel anytime</p>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="fl-footer">
+        <div className="fl-ft">
+          <div className="fl-ft-top">
+            <div>
+              <a href="/" className="fl-logo">
+                <img src="/logo.png" alt="Fastrill" />
+                <span className="fl-logo-text">fast<em>rill</em></span>
+              </a>
+              <p className="fl-ft-tagline">AI-powered WhatsApp automation for Indian service businesses. Built by Solvabil Pvt. Ltd.</p>
+            </div>
+            {[
+              { h: "Product", lks: [["How it works", "#product"], ["Pricing", "#pricing"], ["Live demo", "#demo"]] },
+              { h: "Company", lks: [["Our story", "#"], ["Contact", "mailto:team@fastrill.com"], ["Call us", "tel:+916309279265"]] },
+              { h: "Legal", lks: [["Privacy policy", "/privacy"], ["Terms of service", "/terms"]] },
+            ].map(col => (
+              <div key={col.h}>
+                <div className="fl-ft-hd">{col.h}</div>
+                <ul className="fl-ft-lks">{col.lks.map(([n, h]) => <li key={n}><a href={h}>{n}</a></li>)}</ul>
+              </div>
+            ))}
+          </div>
+          <div className="fl-ft-bot">
+            <span>&copy; 2026 Fastrill, a product by Solvabil Pvt. Ltd.</span>
+            <span>Made with conviction in India</span>
+          </div>
+        </div>
+      </footer>
+    </>
+  )
+}
+
+function FAQSection() {
+  const [open, setOpen] = useState(null)
+  const faqs = [
+    { q: "Do I need to change my WhatsApp number?", a: "No. You keep your existing WhatsApp Business number. Fastrill connects via Meta’s official Business API — customers message the same number they always have." },
+    { q: "How long does setup take?", a: "About 10 minutes from account creation to your first AI reply. Connect WhatsApp, add your services and hours, go live." },
+    { q: "Which Indian languages does Fastrill support?", a: "Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi and English — auto-detected per conversation. No configuration needed." },
+    { q: "Can I take over and reply manually?", a: "Yes, always. Toggle AI off for any conversation — you reply manually, AI waits. Toggle back on when done. You’re always in control." },
+    { q: "Is there a free trial?", a: "Yes — 14 days, full Growth plan access, no credit card required. If it doesn’t pay for itself, you don’t pay." },
+    { q: "How is Fastrill different from a chatbot?", a: "Chatbots follow scripts. Fastrill understands context — it reads the customer’s intent, checks your real availability, books the slot, and follows up if they go quiet. It’s a revenue system, not a decision tree." },
+  ]
+  return (
+    <section className="fl-section">
+      <div className="fl-section-in">
+        <div className="fl-fade" style={{ textAlign: "center" }}>
+          <div className="fl-label center">FAQ</div>
+          <h2 className="fl-h2 center">Honest answers</h2>
+        </div>
+        <div className="fl-faq-list fl-fade">
+          {faqs.map((f, i) => (
+            <div key={i} className={`fl-fi${open === i ? " op" : ""}`}>
+              <button className="fl-fb" onClick={() => setOpen(open === i ? null : i)}>{f.q}<span className="fl-fp">+</span></button>
+              <div className="fl-fa">{f.a}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+        
