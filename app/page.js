@@ -708,6 +708,4 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
               </div>
             </div>
           </div>
-
-          {/* Module 3: Inbox */}
      
