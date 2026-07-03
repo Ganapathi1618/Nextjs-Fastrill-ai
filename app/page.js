@@ -1,1470 +1,688 @@
-"use client"
+"use client";
+import { useEffect } from "react";
 
-import { useState, useEffect, useRef } from "react"
+/* ============================================================
+   FASTRILL — MARKETING PAGE (final)
+   Drop-in replacement for app/page.js
+   TODO before deploy:
+   1. Replace 91XXXXXXXXXX in WA_LINK with your demo number
+   2. Confirm plan prices below match your Razorpay plans
+   ============================================================ */
 
-// ─── CHAT DEMO SEQUENCE ───────────────────────────────────────
-const CHAT_SEQUENCE = [
-  { role: "customer", text: "Hi, I want a haircut tomorrow 3pm", delay: 0 },
-  { role: "typing", delay: 800 },
-  { role: "ai", text: "Tomorrow 3 PM works! Shall I confirm Haircut for Saturday, 29 March at 3:00 PM? ✅", delay: 1600 },
-  { role: "customer", text: "Yes please!", delay: 3200 },
-  { role: "typing", delay: 3800 },
-  { role: "ai", text: "Booking confirmed 🎉\n\nHaircut · 29 March · 3:00 PM\nSee you then!", delay: 4400 },
-]
-
-const STATS = [
-  { value: "1.8s", label: "avg reply time" },
-  { value: "99%", label: "delivery rate" },
-  { value: "3,200+", label: "bookings / month" },
-  { value: "10+", label: "languages" },
-]
-
-const FEATURES = [
-  {
-    tag: "Booking Engine",
-    title: "Books appointments end-to-end",
-    desc: "Service, date, time, confirmation — collected naturally and checked against real availability. No human needed.",
-    detail: ["Understands mixed-language messages", "Checks real slot availability", "Instant owner notification"],
-  },
-  {
-    tag: "Campaigns",
-    title: "Know exactly what each campaign earned",
-    desc: "Send WhatsApp templates to customer segments. Track delivery, replies, and revenue attributed to every send.",
-    detail: ["Segment by tag — new, VIP, inactive", "Real Meta delivery tracking", "Revenue & ROI per campaign"],
-  },
-  {
-    tag: "Smart Inbox",
-    title: "One inbox. Every conversation.",
-    desc: "See all conversations live. Take over manually anytime. AI picks back up the moment you're done.",
-    detail: ["Toggle AI per conversation", "Full customer history", "Works in 10+ Indian languages"],
-  },
-]
-
-const TESTIMONIALS = [
-  { name: "Priya Nair", biz: "Glow Parlour, Hyderabad", stat: "+43%", statLabel: "bookings", quote: "Customers now book at midnight and wake up to a confirmation. Paid for itself in the first week." },
-  { name: "Dr. Ravi Sharma", biz: "Skin First Clinic, Vijayawada", stat: "₹22k", statLabel: "saved / month", quote: "My patients message in Telugu and the AI replies in Telugu. I had to see it to believe it wasn't a person." },
-  { name: "Sneha Reddy", biz: "Studio S, Bangalore", stat: "0", statLabel: "missed messages", quote: "Two branches, both inboxes handled at once. Staff stopped checking phones and started focusing on customers." },
-]
+const WA_LINK =
+  "https://wa.me/91XXXXXXXXXX?text=Hi%2C%20show%20me%20a%20Fastrill%20demo";
 
 const PLANS = [
-  { name: "Starter", price: 999, desc: "Solo operators", features: ["1 WhatsApp number", "300 AI conversations / mo", "Booking automation", "10+ Indian languages"], missing: ["Lead recovery", "Campaigns"] },
-  { name: "Growth", price: 1999, desc: "Growing businesses", features: ["Unlimited conversations", "Lead recovery", "WhatsApp campaigns", "Revenue analytics", "Customer memory"], pop: true },
-  { name: "Pro", price: 4999, desc: "Multi-branch teams", features: ["Up to 5 numbers", "Everything in Growth", "Multi-branch management", "Custom AI playbook", "Dedicated onboarding"] },
-]
+  {
+    name: "Starter",
+    price: "999", // TODO: confirm against Razorpay plan
+    tag: "For one location getting started",
+    features: [
+      "AI receptionist on WhatsApp",
+      "Appointment booking + reminders",
+      "Missed-call to WhatsApp recovery",
+      "Dashboard with all chats & bookings",
+    ],
+    featured: false,
+  },
+  {
+    name: "Growth",
+    price: "1,999", // TODO: confirm against Razorpay plan
+    tag: "For busy businesses that live on bookings",
+    features: [
+      "Everything in Starter",
+      "UPI payment collection in chat",
+      "Campaigns — offers to your customer list",
+      "Lead recovery follow-ups",
+      "10 languages incl. Telugu & Hindi",
+    ],
+    featured: true,
+  },
+  {
+    name: "Pro",
+    price: "3,999", // TODO: confirm against Razorpay plan
+    tag: "For teams and multiple staff calendars",
+    features: [
+      "Everything in Growth",
+      "Multiple staff / resource calendars",
+      "Priority support & setup",
+      "Early access to voice agent",
+    ],
+    featured: false,
+  },
+];
 
-const FAQS = [
-  { q: "Do I need to change my WhatsApp number?", a: "No. You keep your existing WhatsApp Business number. Fastrill connects via Meta's official Business API." },
-  { q: "How long does setup take?", a: "About 10 minutes from account creation to your first AI reply." },
-  { q: "Which languages does Fastrill support?", a: "Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi and English — auto-detected per conversation." },
-  { q: "Can I reply manually?", a: "Yes, always. Toggle AI off for any conversation, reply yourself, toggle back. You're always in control." },
-  { q: "Is there a free trial?", a: "14 days, full Growth plan access, no credit card required." },
-]
+const CHAT = [
+  {
+    dir: "in",
+    delay: 600,
+    text: "Sir, my back pain is worse. Any slot with doctor tomorrow?",
+    time: "11:47 PM",
+  },
+  {
+    dir: "out",
+    delay: 2300,
+    text:
+      "Sorry to hear that! Dr. Meena has 10:30 AM and 6:15 PM open tomorrow. Consultation is ₹500. Which works for you?",
+    time: "11:47 PM",
+  },
+  { dir: "in", delay: 3900, text: "10.30 pls", time: "11:48 PM" },
+  {
+    dir: "out",
+    delay: 5500,
+    text:
+      "Booked ✅ Physio consultation, tomorrow 10:30 AM with Dr. Meena. You'll get a reminder at 9:30 AM. Feel better soon! 🙏",
+    time: "11:48 PM",
+  },
+];
 
-function useInView(threshold = 0.15) {
-  const ref = useRef(null)
-  const [inView, setInView] = useState(false)
+const LEDGER = [
+  {
+    time: "9:15 AM",
+    what: "\u201CAny appointment today?\u201D — clinic front desk busy, patient booked elsewhere",
+    loss: "–₹500",
+  },
+  {
+    time: "1:40 PM",
+    what: "Missed call at the salon during a client session",
+    loss: "–₹650",
+  },
+  {
+    time: "6:20 PM",
+    what: "\u201CFees for weekend batch?\u201D — coaching centre replied next day, parent moved on",
+    loss: "–₹4,000",
+  },
+  {
+    time: "11:47 PM",
+    what: "Late-night enquiry at the gym — nobody awake to answer",
+    loss: "–₹1,200",
+  },
+];
+
+const WaIcon = () => (
+  <svg className="wa-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M17.5 14.4c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.5 0 1.47 1.07 2.9 1.22 3.1.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.7.63.71.22 1.36.19 1.87.12.57-.09 1.76-.72 2.01-1.42.25-.7.25-1.29.17-1.42-.07-.12-.27-.2-.57-.35M12.05 21.79h-.01a9.87 9.87 0 0 1-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.82 9.82 0 0 1-1.51-5.26c0-5.44 4.43-9.87 9.89-9.87 2.64 0 5.12 1.03 6.99 2.9a9.82 9.82 0 0 1 2.89 6.98c0 5.45-4.43 9.88-9.88 9.88m8.4-18.28A11.8 11.8 0 0 0 12.05 0C5.5 0 .16 5.34.15 11.9c0 2.1.55 4.14 1.59 5.95L.05 24l6.3-1.65a11.9 11.9 0 0 0 5.68 1.45h.01c6.55 0 11.89-5.34 11.9-11.9 0-3.18-1.24-6.17-3.49-8.42" />
+  </svg>
+);
+
+export default function Home() {
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setInView(true); io.disconnect() } }, { threshold })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [threshold])
-  return [ref, inView]
-}
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function ChatDemo() {
-  const [messages, setMessages] = useState([])
-  const [showTyping, setShowTyping] = useState(false)
-  const [ref, inView] = useInView(0.3)
-  const bodyRef = useRef(null)
-  const started = useRef(false)
-
-  useEffect(() => {
-    if (!inView || started.current) return
-    started.current = true
-    CHAT_SEQUENCE.forEach(step => {
-      setTimeout(() => {
-        if (step.role === "typing") { setShowTyping(true); return }
-        setShowTyping(false)
-        if (step.role !== "typing") {
-          setMessages(p => [...p, step])
-          setTimeout(() => { if (bodyRef.current) bodyRef.current.scrollTop = 9999 }, 50)
+    /* Chat animation */
+    const msgs = document.querySelectorAll("#chat .msg");
+    const typing = document.getElementById("typing");
+    const timers = [];
+    if (reduced) {
+      msgs.forEach((m) => m.classList.add("show"));
+    } else {
+      msgs.forEach((m) => {
+        const d = parseInt(m.dataset.delay, 10);
+        if (m.classList.contains("msg-out")) {
+          timers.push(setTimeout(() => typing && typing.classList.add("show"), d - 1100));
+          timers.push(
+            setTimeout(() => {
+              typing && typing.classList.remove("show");
+              m.classList.add("show");
+            }, d)
+          );
+        } else {
+          timers.push(setTimeout(() => m.classList.add("show"), d));
         }
-      }, step.delay)
-    })
-  }, [inView])
+      });
+    }
 
-  return (
-    <div ref={ref} className="chat-demo">
-      <div className="chat-header">
-        <div className="chat-avatar">R</div>
-        <div>
-          <div className="chat-name">Riya Salon</div>
-          <div className="chat-online"><span className="online-dot" />AI Active</div>
-        </div>
-        <div className="chat-badge">fastrill</div>
-      </div>
-      <div className="chat-body" ref={bodyRef}>
-        {messages.map((m, i) => (
-          <div key={i} className={`chat-msg ${m.role}`} style={{ animationDelay: "0ms" }}>
-            {m.text}
-          </div>
-        ))}
-        {showTyping && (
-          <div className="chat-typing">
-            <span /><span /><span />
-          </div>
-        )}
-      </div>
-      <div className="chat-footer">
-        <div className="chat-tag">⚡ Replied in 1.8 seconds</div>
-      </div>
-    </div>
-  )
-}
+    /* Scroll reveals */
+    const els = document.querySelectorAll(".reveal");
+    let io;
+    if (reduced || !("IntersectionObserver" in window)) {
+      els.forEach((e) => e.classList.add("in"));
+    } else {
+      io = new IntersectionObserver(
+        (entries) =>
+          entries.forEach((en) => {
+            if (en.isIntersecting) {
+              en.target.classList.add("in");
+              io.unobserve(en.target);
+            }
+          }),
+        { threshold: 0.15 }
+      );
+      els.forEach((e) => io.observe(e));
+    }
 
-function FeatureCard({ feature, index }) {
-  const [ref, inView] = useInView(0.1)
-  const [hovered, setHovered] = useState(false)
-  return (
-    <div
-      ref={ref}
-      className={`feature-card${inView ? " visible" : ""}${hovered ? " hovered" : ""}`}
-      style={{ transitionDelay: `${index * 100}ms` }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <div className="feature-card-inner">
-        <div className="feature-tag">{feature.tag}</div>
-        <h3 className="feature-title">{feature.title}</h3>
-        <p className="feature-desc">{feature.desc}</p>
-        <ul className="feature-list">
-          {feature.detail.map(d => (
-            <li key={d}><CheckIcon />{d}</li>
-          ))}
-        </ul>
-      </div>
-      <div className="feature-glow" />
-    </div>
-  )
-}
-
-function StatCard({ value, label, index }) {
-  const [ref, inView] = useInView(0.3)
-  return (
-    <div ref={ref} className={`stat-card${inView ? " visible" : ""}`} style={{ transitionDelay: `${index * 80}ms` }}>
-      <div className="stat-value">{value}</div>
-      <div className="stat-label">{label}</div>
-    </div>
-  )
-}
-
-function FAQ({ q, a, index }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className={`faq-item${open ? " open" : ""}`}>
-      <button className="faq-q" onClick={() => setOpen(p => !p)}>
-        {q}
-        <span className="faq-icon">{open ? "−" : "+"}</span>
-      </button>
-      <div className="faq-a">{a}</div>
-    </div>
-  )
-}
-
-function CheckIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 6L9 17l-5-5" />
-    </svg>
-  )
-}
-
-function ArrowIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 12h14M13 6l6 6-6 6" />
-    </svg>
-  )
-}
-
-export default function Page() {
-  const [scrolled, setScrolled] = useState(false)
-  const [mobOpen, setMobOpen] = useState(false)
-  const [billing, setBilling] = useState("monthly")
-  const [activeT, setActiveT] = useState(0)
-  const [heroRef, heroInView] = useInView(0.1)
-
-  useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 30)
-    window.addEventListener("scroll", fn, { passive: true })
-    return () => window.removeEventListener("scroll", fn)
-  }, [])
-
-  useEffect(() => {
-    const t = setInterval(() => setActiveT(p => (p + 1) % TESTIMONIALS.length), 5000)
-    return () => clearInterval(t)
-  }, [])
+    return () => {
+      timers.forEach(clearTimeout);
+      if (io) io.disconnect();
+    };
+  }, []);
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&family=JetBrains+Mono:wght@400;500&display=swap');
+      <style>{css}</style>
 
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
-
-        :root {
-          --bg: #080A0F;
-          --bg1: #0D1017;
-          --bg2: #121620;
-          --border: rgba(255,255,255,0.06);
-          --border2: rgba(255,255,255,0.10);
-          --border3: rgba(255,255,255,0.16);
-          --ink: #F1F3F7;
-          --ink2: #B8BFCC;
-          --ink3: #717A8C;
-          --ink4: #404855;
-          --teal: #39D3BB;
-          --teal-dim: rgba(57,211,187,0.12);
-          --teal-glow: rgba(57,211,187,0.08);
-          --red: #E2574C;
-          --sans: 'Inter', system-ui, sans-serif;
-          --mono: 'JetBrains Mono', monospace;
-          --ease: cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        body {
-          background: var(--bg);
-          color: var(--ink2);
-          font-family: var(--sans);
-          font-size: 15px;
-          line-height: 1.6;
-          -webkit-font-smoothing: antialiased;
-          overflow-x: hidden;
-        }
-
-        /* ── NOISE TEXTURE ── */
-        body::before {
-          content: '';
-          position: fixed;
-          inset: 0;
-          z-index: 0;
-          pointer-events: none;
-          opacity: 0.025;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-          background-size: 128px 128px;
-        }
-
-        /* ── REVEAL ANIMATIONS ── */
-        .reveal {
-          opacity: 0;
-          transform: translateY(24px);
-          transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
-        }
-        .reveal.visible {
-          opacity: 1;
-          transform: none;
-        }
-
-        /* ── NAV ── */
-        .nav {
-          position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-          height: 60px;
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 0 clamp(16px, 4vw, 48px);
-          transition: background 0.3s, border-color 0.3s;
-          border-bottom: 1px solid transparent;
-        }
-        .nav.scrolled {
-          background: rgba(8,10,15,0.85);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border-bottom-color: var(--border);
-        }
-        .nav-logo {
-          display: flex; align-items: center; gap: 8px;
-          text-decoration: none;
-          font-weight: 800; font-size: 17px; letter-spacing: -0.03em;
-          color: var(--ink);
-        }
-        .nav-logo img { width: 26px; height: 26px; object-fit: contain; }
-        .nav-logo em { color: var(--teal); font-style: normal; }
-        .nav-links { display: flex; gap: 2px; list-style: none; }
-        .nav-links a {
-          font-size: 13px; font-weight: 500; color: var(--ink3);
-          text-decoration: none; padding: 6px 12px; border-radius: 6px;
-          transition: color 0.15s, background 0.15s;
-        }
-        .nav-links a:hover { color: var(--ink); background: rgba(255,255,255,0.04); }
-        .nav-right { display: flex; align-items: center; gap: 8px; }
-        .nav-signin {
-          font-size: 13px; font-weight: 500; color: var(--ink3);
-          text-decoration: none; padding: 6px 12px;
-          transition: color 0.15s;
-        }
-        .nav-signin:hover { color: var(--ink); }
-        .btn-primary {
-          display: inline-flex; align-items: center; gap: 6px;
-          background: var(--teal); color: #04120D;
-          padding: 8px 18px; border-radius: 8px;
-          font-weight: 700; font-size: 13px; text-decoration: none;
-          border: none; cursor: pointer; font-family: var(--sans);
-          transition: all 0.2s;
-          box-shadow: 0 0 0 1px rgba(57,211,187,0.3), 0 2px 8px rgba(57,211,187,0.15);
-        }
-        .btn-primary:hover {
-          background: #2FC4AE;
-          box-shadow: 0 0 0 1px rgba(57,211,187,0.5), 0 4px 20px rgba(57,211,187,0.25);
-          transform: translateY(-1px);
-        }
-        .btn-ghost {
-          display: inline-flex; align-items: center; gap: 7px;
-          background: transparent; color: var(--ink);
-          padding: 8px 18px; border-radius: 8px;
-          font-weight: 600; font-size: 13px; text-decoration: none;
-          border: 1px solid var(--border2); cursor: pointer; font-family: var(--sans);
-          transition: all 0.2s;
-        }
-        .btn-ghost:hover { border-color: var(--border3); background: rgba(255,255,255,0.03); }
-        .nav-hbg {
-          display: none; background: none; border: 1px solid var(--border2);
-          border-radius: 6px; padding: 5px 9px; cursor: pointer;
-          color: var(--ink3); font-size: 15px;
-        }
-        .mob-drawer {
-          position: fixed; top: 60px; left: 0; right: 0; z-index: 99;
-          background: rgba(8,10,15,0.97); backdrop-filter: blur(20px);
-          border-bottom: 1px solid var(--border);
-          padding: 8px 16px 20px;
-          display: flex; flex-direction: column; gap: 2px;
-          transform: translateY(-110%); transition: transform 0.25s var(--ease);
-        }
-        .mob-drawer.open { transform: none; }
-        .mob-drawer a {
-          color: var(--ink3); text-decoration: none; font-size: 14px;
-          font-weight: 500; padding: 11px 12px; border-radius: 8px;
-          transition: color 0.15s, background 0.15s;
-        }
-        .mob-drawer a:hover { color: var(--ink); background: rgba(255,255,255,0.04); }
-        @media(max-width:768px) {
-          .nav-links, .nav-signin { display: none; }
-          .nav-hbg { display: flex; align-items: center; }
-        }
-
-        /* ── HERO ── */
-        .hero {
-          min-height: 100vh;
-          display: flex; align-items: center;
-          padding: clamp(100px,14vw,160px) clamp(16px,4vw,48px) clamp(64px,8vw,100px);
-          position: relative; overflow: hidden;
-        }
-
-        /* dot grid */
-        .hero-grid {
-          position: absolute; inset: 0; pointer-events: none;
-          background-image: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
-          background-size: 32px 32px;
-          mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, black 30%, transparent 80%);
-        }
-
-        /* glow orbs */
-        .hero-orb {
-          position: absolute; border-radius: 50%;
-          filter: blur(100px); pointer-events: none; will-change: transform;
-        }
-        .hero-orb-1 {
-          width: 500px; height: 400px; top: -10%; left: -5%;
-          background: radial-gradient(circle, rgba(57,211,187,0.12), transparent 70%);
-          animation: drift1 20s ease-in-out infinite;
-        }
-        .hero-orb-2 {
-          width: 400px; height: 300px; top: 0; right: -10%;
-          background: radial-gradient(circle, rgba(100,80,255,0.07), transparent 70%);
-          animation: drift2 25s ease-in-out infinite;
-        }
-        @keyframes drift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(40px,30px)} }
-        @keyframes drift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-30px,20px)} }
-
-        .hero-inner {
-          max-width: 1200px; margin: 0 auto;
-          position: relative; z-index: 1; width: 100%;
-        }
-
-        .hero-badge {
-          display: inline-flex; align-items: center; gap: 8px;
-          border: 1px solid var(--border2);
-          border-radius: 100px; padding: 5px 14px 5px 8px;
-          margin-bottom: 28px;
-          font-family: var(--mono); font-size: 11px; color: var(--ink3);
-          letter-spacing: 0.04em;
-          background: rgba(255,255,255,0.02);
-        }
-        .hero-badge-dot {
-          width: 6px; height: 6px; border-radius: 50%; background: var(--teal);
-          box-shadow: 0 0 6px var(--teal);
-          animation: blink 2s ease-in-out infinite;
-        }
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
-
-        .hero-h1 {
-          font-size: clamp(40px, 6.5vw, 84px);
-          font-weight: 900;
-          line-height: 0.95;
-          letter-spacing: -0.05em;
-          color: var(--ink);
-          max-width: 820px;
-          margin-bottom: 24px;
-        }
-        .hero-h1 .dim { color: var(--ink4); }
-        .hero-h1 .accent {
-          background: linear-gradient(135deg, #39D3BB, #7AE8DA);
-          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-
-        .hero-layout {
-          display: grid; grid-template-columns: 1fr 420px;
-          gap: clamp(32px,5vw,72px); align-items: center;
-          margin-top: 12px;
-        }
-
-        .hero-sub {
-          font-size: clamp(15px,1.3vw,17px); color: var(--ink3);
-          line-height: 1.75; max-width: 420px; margin-bottom: 32px;
-        }
-        .hero-sub strong { color: var(--ink2); font-weight: 600; }
-
-        .hero-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-
-        .btn-hero {
-          display: inline-flex; align-items: center; gap: 8px;
-          background: var(--teal); color: #04120D;
-          padding: 13px 28px; border-radius: 9px;
-          font-weight: 700; font-size: 15px; text-decoration: none;
-          transition: all 0.2s;
-          box-shadow: 0 0 0 1px rgba(57,211,187,0.4), 0 4px 24px rgba(57,211,187,0.2);
-          position: relative; overflow: hidden;
-        }
-        .btn-hero::after {
-          content: '';
-          position: absolute; inset: 0;
-          background: linear-gradient(to bottom, rgba(255,255,255,0.12), transparent);
-          border-radius: inherit;
-        }
-        .btn-hero:hover {
-          background: #2FC4AE;
-          transform: translateY(-2px);
-          box-shadow: 0 0 0 1px rgba(57,211,187,0.6), 0 8px 36px rgba(57,211,187,0.3);
-        }
-
-        .btn-hero-ghost {
-          display: inline-flex; align-items: center; gap: 8px;
-          background: transparent; color: var(--ink2);
-          padding: 13px 22px; border-radius: 9px;
-          font-weight: 600; font-size: 15px; text-decoration: none;
-          border: 1px solid var(--border2);
-          transition: all 0.2s;
-        }
-        .btn-hero-ghost:hover {
-          color: var(--ink); border-color: rgba(57,211,187,0.3);
-          background: rgba(57,211,187,0.04);
-        }
-
-        .hero-trust {
-          display: flex; align-items: center; gap: 20px;
-          margin-top: 24px; flex-wrap: wrap;
-        }
-        .hero-trust-item {
-          display: flex; align-items: center; gap: 6px;
-          font-size: 12px; color: var(--ink4);
-        }
-        .hero-trust-item::before {
-          content: '';
-          width: 5px; height: 5px; border-radius: 50%;
-          background: var(--teal); opacity: 0.6;
-          flex-shrink: 0;
-        }
-
-        @media(max-width:900px) {
-          .hero-layout { grid-template-columns: 1fr; gap: 40px; }
-        }
-
-        /* ── CHAT DEMO ── */
-        .chat-demo {
-          background: var(--bg1);
-          border: 1px solid var(--border2);
-          border-radius: 16px;
-          overflow: hidden;
-          box-shadow: 0 0 0 1px rgba(57,211,187,0.06),
-                      0 20px 60px rgba(0,0,0,0.5),
-                      0 0 80px rgba(57,211,187,0.04);
-          position: relative;
-        }
-        .chat-demo::before {
-          content: '';
-          position: absolute; inset: -1px; border-radius: 17px;
-          padding: 1px;
-          background: linear-gradient(135deg, rgba(57,211,187,0.2) 0%, transparent 40%, transparent 60%, rgba(100,80,255,0.1) 100%);
-          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-          mask-composite: exclude;
-          -webkit-mask-composite: xor;
-          pointer-events: none; z-index: 1;
-        }
-        .chat-header {
-          background: var(--bg2); border-bottom: 1px solid var(--border);
-          padding: 12px 16px;
-          display: flex; align-items: center; gap: 10px;
-        }
-        .chat-avatar {
-          width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
-          background: linear-gradient(135deg, #39D3BB, #2A9D8F);
-          display: flex; align-items: center; justify-content: center;
-          font-weight: 800; font-size: 12px; color: #04120D;
-        }
-        .chat-name { font-size: 13px; font-weight: 700; color: var(--ink); }
-        .chat-online {
-          font-size: 10px; color: var(--teal);
-          display: flex; align-items: center; gap: 4px;
-        }
-        .online-dot {
-          display: inline-block; width: 5px; height: 5px;
-          border-radius: 50%; background: var(--teal);
-          animation: blink 1.5s infinite;
-        }
-        .chat-badge {
-          margin-left: auto;
-          font-family: var(--mono); font-size: 9px; font-weight: 500;
-          color: var(--teal); background: var(--teal-dim);
-          padding: 3px 8px; border-radius: 4px; letter-spacing: 0.04em;
-        }
-        .chat-body {
-          padding: 16px; min-height: 220px;
-          display: flex; flex-direction: column; gap: 8px;
-          overflow-y: auto; scrollbar-width: none;
-        }
-        .chat-body::-webkit-scrollbar { display: none; }
-        .chat-msg {
-          max-width: 85%; padding: 9px 13px; border-radius: 12px;
-          font-size: 12.5px; line-height: 1.55; white-space: pre-wrap;
-          animation: msg-in 0.3s var(--ease) both;
-        }
-        @keyframes msg-in {
-          from { opacity: 0; transform: translateY(8px) scale(0.96); }
-          to { opacity: 1; transform: none; }
-        }
-        .chat-msg.customer {
-          background: var(--teal); color: #04120D; font-weight: 500;
-          align-self: flex-end; border-radius: 12px 3px 12px 12px;
-        }
-        .chat-msg.ai {
-          background: var(--bg2); border: 1px solid var(--border);
-          color: var(--ink2); align-self: flex-start;
-          border-radius: 3px 12px 12px 12px;
-        }
-        .chat-typing {
-          align-self: flex-start;
-          display: flex; gap: 4px; padding: 12px 14px;
-          background: var(--bg2); border: 1px solid var(--border);
-          border-radius: 3px 12px 12px 12px;
-          animation: msg-in 0.2s var(--ease) both;
-        }
-        .chat-typing span {
-          width: 5px; height: 5px; border-radius: 50%;
-          background: var(--ink4);
-          animation: typing 1.2s ease-in-out infinite;
-        }
-        .chat-typing span:nth-child(2) { animation-delay: 0.2s; }
-        .chat-typing span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes typing {
-          0%,80%,100% { opacity: 0.3; transform: translateY(0); }
-          40% { opacity: 1; transform: translateY(-4px); }
-        }
-        .chat-footer {
-          padding: 10px 16px; border-top: 1px solid var(--border);
-          background: var(--bg2);
-        }
-        .chat-tag {
-          font-family: var(--mono); font-size: 10px; color: var(--teal);
-          opacity: 0.8;
-        }
-
-        /* ── STATS ── */
-        .stats-section {
-          border-top: 1px solid var(--border);
-          border-bottom: 1px solid var(--border);
-          background: var(--bg1);
-          padding: 36px clamp(16px,4vw,48px);
-        }
-        .stats-inner {
-          max-width: 1000px; margin: 0 auto;
-          display: grid; grid-template-columns: repeat(4,1fr);
-          gap: 1px; background: var(--border);
-        }
-        .stat-card {
-          background: var(--bg1); padding: 28px 24px; text-align: center;
-          opacity: 0; transform: translateY(16px);
-          transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
-        }
-        .stat-card.visible { opacity: 1; transform: none; }
-        .stat-value {
-          font-family: var(--mono); font-size: 32px; font-weight: 500;
-          color: var(--ink); letter-spacing: -0.02em; margin-bottom: 4px;
-        }
-        .stat-label { font-size: 12px; color: var(--ink4); }
-        @media(max-width:640px) { .stats-inner { grid-template-columns: repeat(2,1fr); } }
-
-        /* ── SECTION SHARED ── */
-        .section { padding: clamp(80px,10vw,120px) clamp(16px,4vw,48px); }
-        .section.alt { background: var(--bg1); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-        .section-inner { max-width: 1200px; margin: 0 auto; }
-        .eyebrow {
-          font-family: var(--mono); font-size: 11px; font-weight: 500;
-          color: var(--teal); letter-spacing: 0.08em; text-transform: uppercase;
-          margin-bottom: 14px; opacity: 0.85;
-        }
-        .section-h {
-          font-size: clamp(28px,3.5vw,44px); font-weight: 900;
-          color: var(--ink); letter-spacing: -0.035em; line-height: 1.1;
-          margin-bottom: 16px;
-        }
-        .section-h em {
-          font-style: normal;
-          background: linear-gradient(135deg, #39D3BB, #7AE8DA);
-          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-        .section-p { font-size: 14.5px; color: var(--ink3); line-height: 1.75; max-width: 480px; }
-
-        /* ── TIMELINE ── */
-        .timeline { margin-top: 56px; border-top: 1px solid var(--border); }
-        .tl-row {
-          display: grid; grid-template-columns: 120px 1fr;
-          gap: 24px; padding: 28px 0; border-bottom: 1px solid var(--border);
-          opacity: 0; transform: translateX(-12px);
-          transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
-        }
-        .tl-row.visible { opacity: 1; transform: none; }
-        .tl-row.danger .tl-time { color: var(--red); }
-        .tl-row.danger .tl-event { color: var(--red); }
-        .tl-time { font-family: var(--mono); font-size: 20px; font-weight: 500; color: var(--ink4); }
-        .tl-event { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
-        .tl-desc { font-size: 13px; color: var(--ink3); line-height: 1.65; }
-        @media(max-width:540px) { .tl-row { grid-template-columns: 1fr; gap: 4px; } }
-
-        /* ── PAIN CARDS ── */
-        .pain-grid {
-          display: grid; grid-template-columns: repeat(3,1fr);
-          gap: 1px; background: var(--border);
-          border: 1px solid var(--border);
-          border-radius: 12px; overflow: hidden; margin-top: 48px;
-        }
-        .pain-card {
-          background: var(--bg); padding: 32px 28px;
-          transition: background 0.25s;
-          opacity: 0; transform: translateY(20px);
-          transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), background 0.25s;
-        }
-        .pain-card.visible { opacity: 1; transform: none; }
-        .pain-card:hover { background: var(--bg1); }
-        .pain-num {
-          font-family: var(--mono); font-size: 11px; color: var(--ink4);
-          margin-bottom: 20px; letter-spacing: 0.05em;
-        }
-        .pain-title { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
-        .pain-desc { font-size: 13px; color: var(--ink3); line-height: 1.7; }
-        .pain-tag {
-          display: inline-block; margin-top: 18px;
-          font-size: 10.5px; font-weight: 700; color: var(--red);
-          background: rgba(226,87,76,0.07); border: 1px solid rgba(226,87,76,0.2);
-          border-radius: 5px; padding: 3px 10px;
-        }
-        @media(max-width:768px) { .pain-grid { grid-template-columns: 1fr; } }
-
-        /* ── FEATURES ── */
-        .features-grid {
-          display: grid; grid-template-columns: repeat(3,1fr);
-          gap: 16px; margin-top: 52px;
-        }
-        .feature-card {
-          background: var(--bg); border: 1px solid var(--border);
-          border-radius: 14px; padding: 28px 24px;
-          position: relative; overflow: hidden; cursor: default;
-          opacity: 0; transform: translateY(24px);
-          transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), border-color 0.25s;
-        }
-        .feature-card.visible { opacity: 1; transform: none; }
-        .feature-card:hover { border-color: var(--border3); }
-        .feature-card-inner { position: relative; z-index: 1; }
-        .feature-glow {
-          position: absolute; bottom: -40px; right: -40px;
-          width: 160px; height: 160px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(57,211,187,0.07), transparent 70%);
-          transition: opacity 0.3s;
-          opacity: 0;
-        }
-        .feature-card:hover .feature-glow { opacity: 1; }
-        .feature-tag {
-          font-family: var(--mono); font-size: 10px; font-weight: 500;
-          color: var(--teal); letter-spacing: 0.06em; text-transform: uppercase;
-          margin-bottom: 14px; opacity: 0.8;
-        }
-        .feature-title {
-          font-size: 16px; font-weight: 700; color: var(--ink);
-          line-height: 1.3; margin-bottom: 10px; letter-spacing: -0.01em;
-        }
-        .feature-desc { font-size: 13px; color: var(--ink3); line-height: 1.7; margin-bottom: 20px; }
-        .feature-list { list-style: none; display: flex; flex-direction: column; gap: 9px; }
-        .feature-list li { display: flex; align-items: flex-start; gap: 9px; font-size: 12.5px; color: var(--ink3); }
-        .feature-list li svg { color: var(--teal); flex-shrink: 0; margin-top: 2px; }
-        @media(max-width:768px) { .features-grid { grid-template-columns: 1fr; } }
-
-        /* ── DEMO SECTION ── */
-        .demo-wrap {
-          display: grid; grid-template-columns: 200px 1fr;
-          gap: 20px; align-items: start; margin-top: 48px;
-        }
-        .demo-tabs { display: flex; flex-direction: column; gap: 6px; }
-        .demo-tab {
-          background: var(--bg); border: 1px solid var(--border);
-          border-radius: 10px; padding: 14px 16px; cursor: pointer;
-          transition: all 0.2s; text-align: left;
-        }
-        .demo-tab:hover { background: var(--bg1); border-color: var(--border2); }
-        .demo-tab.active { border-color: rgba(57,211,187,0.35); background: rgba(57,211,187,0.05); }
-        .demo-tab-icon { font-size: 15px; margin-bottom: 5px; }
-        .demo-tab-label { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
-        .demo-tab-sub { font-size: 11px; color: var(--ink4); }
-        .demo-chat-wrap {
-          background: var(--bg1); border: 1px solid var(--border2);
-          border-radius: 16px; overflow: hidden;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-        }
-        @media(max-width:640px) {
-          .demo-wrap { grid-template-columns: 1fr; }
-          .demo-tabs { display: grid; grid-template-columns: repeat(3,1fr); }
-        }
-
-        /* ── BEFORE / AFTER ── */
-        .ba-list { margin-top: 56px; border-top: 1px solid var(--border); }
-        .ba-row {
-          display: grid; grid-template-columns: 1fr 40px 1fr;
-          gap: 16px; align-items: center; padding: 22px 0;
-          border-bottom: 1px solid var(--border);
-          opacity: 0; transform: translateY(12px);
-          transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
-        }
-        .ba-row.visible { opacity: 1; transform: none; }
-        .ba-before {
-          font-size: 14px; color: var(--ink4);
-          text-decoration: line-through; text-decoration-color: var(--red);
-          text-align: right;
-        }
-        .ba-arrow { color: var(--ink4); text-align: center; font-size: 16px; }
-        .ba-row.visible .ba-arrow { color: var(--teal); }
-        .ba-after { font-size: 15px; font-weight: 600; color: var(--ink); }
-        @media(max-width:540px) {
-          .ba-row { grid-template-columns: 1fr; }
-          .ba-before { text-align: left; }
-          .ba-arrow { display: none; }
-        }
-
-        /* ── TESTIMONIALS ── */
-        .test-wrap {
-          display: grid; grid-template-columns: 1.4fr 1fr;
-          gap: clamp(32px,5vw,64px); align-items: start; margin-top: 52px;
-        }
-        .test-quote-mark { font-size: 80px; line-height: 0.6; color: rgba(57,211,187,0.1); margin-bottom: 10px; display: block; }
-        .test-quote {
-          font-size: clamp(18px,2.2vw,23px); font-weight: 600; color: var(--ink);
-          line-height: 1.5; letter-spacing: -0.01em; margin-bottom: 28px; min-height: 100px;
-        }
-        .test-author { display: flex; align-items: center; gap: 12px; padding-top: 20px; border-top: 1px solid var(--border); }
-        .test-av {
-          width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
-          background: linear-gradient(135deg, var(--teal), #2A4FD4);
-          display: flex; align-items: center; justify-content: center;
-          font-weight: 700; font-size: 14px; color: #fff;
-        }
-        .test-name { font-size: 13px; font-weight: 700; color: var(--ink); }
-        .test-biz { font-size: 11.5px; color: var(--ink4); }
-        .test-rail { display: flex; flex-direction: column; border-left: 1px solid var(--border); }
-        .test-btn {
-          text-align: left; background: none; border: none; cursor: pointer; font-family: var(--sans);
-          border-left: 2px solid transparent; margin-left: -1px;
-          padding: 18px 0 18px 22px; transition: all 0.2s;
-        }
-        .test-btn.active { border-left-color: var(--teal); background: linear-gradient(90deg, rgba(57,211,187,0.06), transparent 70%); }
-        .test-stat { font-family: var(--mono); font-size: 22px; color: var(--ink4); margin-bottom: 3px; transition: color 0.2s; }
-        .test-btn.active .test-stat { color: var(--teal); }
-        .test-stat-label { font-size: 10.5px; color: var(--ink4); margin-bottom: 5px; }
-        .test-person { font-size: 11px; color: var(--ink4); }
-        @media(max-width:640px) {
-          .test-wrap { grid-template-columns: 1fr; gap: 28px; }
-          .test-rail { border-left: none; border-top: 1px solid var(--border); flex-direction: row; flex-wrap: wrap; }
-          .test-btn { border-left: none; border-top: 2px solid transparent; margin: 0; padding: 14px 18px 14px 0; }
-          .test-btn.active { border-top-color: var(--teal); background: none; }
-        }
-
-        /* ── FOUNDER ── */
-        .founder-inner { max-width: 640px; margin: 0 auto; }
-        .founder-body {
-          margin-top: 40px; font-size: clamp(16px,1.7vw,18px);
-          color: var(--ink3); line-height: 1.9; font-style: italic;
-        }
-        .founder-body strong { color: var(--ink2); font-weight: 600; font-style: normal; }
-        .founder-pull {
-          display: block; margin: 28px 0; color: var(--teal);
-          font-size: clamp(18px,2.2vw,22px); line-height: 1.5;
-        }
-        .founder-sig { margin-top: 44px; display: flex; align-items: center; gap: 14px; }
-        .founder-av {
-          width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
-          background: linear-gradient(135deg, var(--teal), #2A4FD4);
-          display: flex; align-items: center; justify-content: center;
-          font-weight: 800; font-size: 15px; color: #fff;
-        }
-        .founder-name { font-size: 14px; font-weight: 700; color: var(--ink); font-style: normal; }
-        .founder-role { font-size: 11.5px; color: var(--ink4); font-style: normal; }
-
-        /* ── PRICING ── */
-        .billing-toggle {
-          display: inline-flex; align-items: center; gap: 2px;
-          background: var(--bg1); border: 1px solid var(--border2);
-          border-radius: 100px; padding: 3px;
-          margin: 24px auto 44px;
-        }
-        .bill-btn {
-          padding: 8px 18px; border-radius: 100px; border: none; cursor: pointer;
-          font-family: var(--sans); font-size: 13px; font-weight: 700;
-          background: transparent; color: var(--ink4); transition: all 0.2s;
-          display: flex; align-items: center; gap: 6px;
-        }
-        .bill-btn.active { background: var(--teal); color: #04120D; }
-        .bill-save {
-          font-size: 9.5px; font-weight: 800; padding: 1px 7px; border-radius: 100px;
-        }
-        .bill-btn.active .bill-save { background: rgba(0,0,0,0.12); }
-        .bill-btn:not(.active) .bill-save { background: var(--teal-dim); color: var(--teal); }
-
-        .plan-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; align-items: start; }
-        .plan-card {
-          background: var(--bg); border: 1px solid var(--border);
-          border-radius: 16px; padding: clamp(22px,3vw,30px);
-          position: relative; transition: all 0.25s;
-          opacity: 0; transform: translateY(20px);
-          transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), border-color 0.25s, box-shadow 0.25s;
-        }
-        .plan-card.visible { opacity: 1; transform: none; }
-        .plan-card:hover { border-color: var(--border2); }
-        .plan-card.pop {
-          border-color: rgba(57,211,187,0.25);
-          box-shadow: 0 0 60px rgba(57,211,187,0.06), 0 20px 60px rgba(0,0,0,0.3);
-        }
-        .plan-badge {
-          position: absolute; top: -1px; left: 20px;
-          transform: translateY(-50%);
-          background: var(--teal); color: #04120D;
-          font-size: 9.5px; font-weight: 800; padding: 3px 12px;
-          border-radius: 100px;
-        }
-        .plan-name { font-size: 10px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink4); margin-bottom: 4px; }
-        .plan-desc { font-size: 12px; color: var(--ink4); margin-bottom: 20px; }
-        .plan-price { display: flex; align-items: baseline; gap: 1px; margin-bottom: 3px; }
-        .plan-rs { font-size: 16px; font-weight: 700; color: var(--ink); }
-        .plan-amt { font-family: var(--mono); font-size: clamp(32px,4vw,40px); font-weight: 500; color: var(--ink); letter-spacing: -0.02em; }
-        .plan-card.pop .plan-amt, .plan-card.pop .plan-rs { color: var(--teal); }
-        .plan-mo { font-size: 11px; color: var(--ink4); margin-bottom: 20px; }
-        .plan-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
-        .plan-features { list-style: none; display: flex; flex-direction: column; gap: 9px; margin-bottom: 22px; }
-        .plan-features li { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--ink3); }
-        .plan-features li.miss { color: var(--ink4); text-decoration: line-through; }
-        .plan-features li svg { color: var(--teal); flex-shrink: 0; margin-top: 2px; }
-        .plan-features li.miss svg { color: var(--ink4); opacity: 0.4; }
-        .plan-cta {
-          display: block; text-align: center; padding: 11px;
-          border-radius: 9px; font-weight: 700; font-size: 13.5px;
-          text-decoration: none; transition: all 0.2s; cursor: pointer;
-          border: none; font-family: var(--sans); width: 100%;
-        }
-        .plan-cta.primary { background: var(--teal); color: #04120D; box-shadow: 0 2px 12px rgba(57,211,187,0.2); }
-        .plan-cta.primary:hover { background: #2FC4AE; box-shadow: 0 4px 20px rgba(57,211,187,0.3); transform: translateY(-1px); }
-        .plan-cta.secondary { background: transparent; color: var(--ink); border: 1px solid var(--border2); }
-        .plan-cta.secondary:hover { border-color: var(--border3); background: rgba(255,255,255,0.03); }
-        @media(max-width:768px) { .plan-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; } }
-
-        /* ── FAQ ── */
-        .faq-list { max-width: 640px; margin: 44px auto 0; }
-        .faq-item { border-bottom: 1px solid var(--border); }
-        .faq-item:first-child { border-top: 1px solid var(--border); }
-        .faq-q {
-          width: 100%; background: none; border: none; padding: 20px 0;
-          text-align: left; font-size: 14.5px; font-weight: 600; color: var(--ink);
-          cursor: pointer; display: flex; justify-content: space-between;
-          align-items: center; gap: 12px; font-family: var(--sans);
-          transition: color 0.2s;
-        }
-        .faq-q:hover { color: var(--teal); }
-        .faq-icon {
-          width: 22px; height: 22px; border-radius: 50%;
-          background: var(--bg2); display: flex; align-items: center;
-          justify-content: center; font-size: 15px; color: var(--ink4);
-          flex-shrink: 0; transition: all 0.25s;
-        }
-        .faq-item.open .faq-icon { background: var(--teal-dim); color: var(--teal); transform: rotate(45deg); }
-        .faq-a {
-          font-size: 14px; color: var(--ink3); line-height: 1.8;
-          max-height: 0; overflow: hidden;
-          transition: max-height 0.35s ease, padding 0.35s ease;
-        }
-        .faq-item.open .faq-a { max-height: 200px; padding-bottom: 20px; }
-
-        /* ── CTA SECTION ── */
-        .cta-card {
-          max-width: 700px; margin: 0 auto;
-          background: var(--bg1); border: 1px solid rgba(57,211,187,0.15);
-          border-radius: 20px; padding: clamp(44px,6vw,72px) clamp(24px,4vw,56px);
-          text-align: center; position: relative; overflow: hidden;
-        }
-        .cta-card::before {
-          content: ''; position: absolute; bottom: 0; left: 50%;
-          transform: translateX(-50%);
-          width: 400px; height: 200px;
-          background: radial-gradient(ellipse, rgba(57,211,187,0.07), transparent 70%);
-          pointer-events: none;
-        }
-        .cta-h {
-          font-size: clamp(26px,3vw,38px); font-weight: 900; color: var(--ink);
-          letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 14px;
-          position: relative;
-        }
-        .cta-h em {
-          font-style: normal;
-          background: linear-gradient(135deg, #39D3BB, #7AE8DA);
-          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-        .cta-p { font-size: 14.5px; color: var(--ink3); margin-bottom: 28px; position: relative; }
-        .cta-btns { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; position: relative; }
-        .cta-note { margin-top: 16px; font-size: 11.5px; color: var(--ink4); position: relative; }
-
-        /* ── FOOTER ── */
-        .footer {
-          background: var(--bg1); border-top: 1px solid var(--border);
-          padding: clamp(44px,6vw,60px) clamp(16px,4vw,48px) 28px;
-        }
-        .footer-inner { max-width: 1200px; margin: 0 auto; }
-        .footer-top {
-          display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
-          gap: clamp(24px,4vw,48px); margin-bottom: 40px;
-        }
-        .footer-tagline { font-size: 12.5px; color: var(--ink4); line-height: 1.8; margin-top: 14px; max-width: 240px; }
-        .footer-col-h { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink4); margin-bottom: 14px; }
-        .footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-        .footer-links a { font-size: 13px; color: var(--ink3); text-decoration: none; transition: color 0.15s; }
-        .footer-links a:hover { color: var(--teal); }
-        .footer-bot {
-          padding-top: 20px; border-top: 1px solid var(--border);
-          display: flex; justify-content: space-between; align-items: center;
-          font-size: 11.5px; color: var(--ink4); flex-wrap: wrap; gap: 8px;
-        }
-        @media(max-width:640px) { .footer-top { grid-template-columns: 1fr; } }
-
-        /* ── SCROLL ANIMATIONS HELPER ── */
-        @media(prefers-reduced-motion: reduce) {
-          .reveal, .stat-card, .pain-card, .feature-card, .tl-row, .ba-row, .plan-card {
-            opacity: 1 !important; transform: none !important; transition: none !important;
-          }
-        }
-      `}</style>
-
-      {/* NAV */}
-      <nav className={`nav${scrolled ? " scrolled" : ""}`}>
-        <a href="/" className="nav-logo">
-          <img src="/logo.png" alt="Fastrill" />
-          fast<em>rill</em>
-        </a>
-        <ul className="nav-links">
-          {[["#problem","Problem"],["#product","Product"],["#demo","Demo"],["#pricing","Pricing"]].map(([h,l]) => (
-            <li key={h}><a href={h}>{l}</a></li>
-          ))}
-        </ul>
-        <div className="nav-right">
-          <a href="/login" className="nav-signin">Sign in</a>
-          <a href="/login" className="btn-primary">Start free</a>
-          <button className="nav-hbg" onClick={() => setMobOpen(p => !p)}>&#9776;</button>
+      <nav className="nav">
+        <div className="wrap nav-inner">
+          <a href="#" className="logo">
+            <span className="logo-dot" />
+            Fastrill
+          </a>
+          <div className="nav-links">
+            <a href="#how">How it works</a>
+            <a href="#features">What it handles</a>
+            <a href="#pricing">Pricing</a>
+            <a className="btn btn-nav" href="/signup">
+              Start free trial
+            </a>
+          </div>
         </div>
       </nav>
-      <div className={`mob-drawer${mobOpen ? " open" : ""}`}>
-        {[["#problem","Problem"],["#product","Product"],["#demo","Demo"],["#pricing","Pricing"],["/login","Sign in"]].map(([h,l]) => (
-          <a key={h} href={h} onClick={() => setMobOpen(false)}>{l}</a>
-        ))}
-      </div>
 
-      {/* HERO */}
-      <section className="hero">
-        <div className="hero-grid" />
-        <div className="hero-orb hero-orb-1" />
-        <div className="hero-orb hero-orb-2" />
-        <div className="hero-inner">
-          <div className="hero-badge">
-            <span className="hero-badge-dot" />
-            WhatsApp AI for Indian businesses
-          </div>
-          <h1 className="hero-h1">
-            <span className="dim">Leads are messaging.</span><br />
-            <span className="accent">Nobody is replying.</span>
-          </h1>
-          <div className="hero-layout">
-            <div>
-              <p className="hero-sub">
-                Most businesses reply in <strong>hours</strong> — or never.
-                Fastrill replies in <strong>under 2 seconds</strong>, qualifies the lead,
-                and books the appointment. Automatically.
-              </p>
-              <div className="hero-actions">
-                <a href="/login" className="btn-hero">Start free trial <ArrowIcon /></a>
-                <a href="#demo" className="btn-hero-ghost">See it live</a>
-              </div>
-              <div className="hero-trust">
-                <span className="hero-trust-item">No credit card</span>
-                <span className="hero-trust-item">Setup in 10 min</span>
-                <span className="hero-trust-item">10+ Indian languages</span>
-                <span className="hero-trust-item">14-day free trial</span>
-              </div>
+      {/* ---------- HERO ---------- */}
+      <header className="hero">
+        <div className="wrap hero-grid">
+          <div>
+            <span className="eyebrow">AI receptionist · lives inside WhatsApp</span>
+            <h1>
+              You close at 9.
+              <br />
+              <span className="accent">Your bookings don&apos;t.</span>
+            </h1>
+            <p className="hero-sub">
+              Fastrill answers every WhatsApp message your business gets — books
+              appointments, collects payment, sends reminders. In seconds, in 10
+              languages, at any hour. Built for clinics, salons, gyms, coaching
+              centres — any business that runs on appointments.
+            </p>
+            <div className="hero-ctas">
+              <a className="btn btn-green" href="/signup">
+                Start free 14-day trial
+              </a>
+              <a className="btn btn-ghost" href={WA_LINK} target="_blank" rel="noopener noreferrer">
+                <WaIcon /> See the live demo
+              </a>
             </div>
-            <ChatDemo />
+            <p className="cta-note">
+              The demo is Fastrill itself, answering you on WhatsApp.{" "}
+              <strong>No signup, no call, 60 seconds.</strong>
+            </p>
           </div>
-        </div>
-      </section>
 
-      {/* STATS */}
-      <div className="stats-section">
-        <div className="stats-inner">
-          {STATS.map((s, i) => <StatCard key={s.label} value={s.value} label={s.label} index={i} />)}
-        </div>
-      </div>
-
-      {/* STORY */}
-      <section className="section">
-        <div className="section-inner">
-          <RevealBlock>
-            <div className="eyebrow">What happens every night</div>
-            <h2 className="section-h" style={{maxWidth:520}}>You spend ₹40,000 on ads.<br /><em>Leads die in your inbox.</em></h2>
-          </RevealBlock>
-          <TimelineSection />
-          <RevealBlock style={{marginTop:44, textAlign:"center"}}>
-            <p style={{fontSize:14, color:"var(--ink4)", marginBottom:22}}>This happens across thousands of Indian businesses every single day.</p>
-            <a href="/login" className="btn-hero" style={{margin:"0 auto"}}>Fix this now <ArrowIcon /></a>
-          </RevealBlock>
-        </div>
-      </section>
-
-      {/* PROBLEM */}
-      <section className="section alt" id="problem">
-        <div className="section-inner">
-          <RevealBlock style={{maxWidth:520}}>
-            <div className="eyebrow">The real problem</div>
-            <h2 className="section-h">Your ads are working.<br /><em>Your follow-up isn&apos;t.</em></h2>
-            <p className="section-p">You spend thousands getting leads to message you. The money walks out in the WhatsApp inbox.</p>
-          </RevealBlock>
-          <PainSection />
-        </div>
-      </section>
-
-      {/* PRODUCT */}
-      <section className="section" id="product">
-        <div className="section-inner">
-          <RevealBlock>
-            <div className="eyebrow">What&apos;s inside</div>
-            <h2 className="section-h">Not a chatbot.<br /><em>A revenue system.</em></h2>
-            <p className="section-p">Three modules that work together to turn every WhatsApp message into a booking.</p>
-          </RevealBlock>
-          <div className="features-grid" style={{marginTop:52}}>
-            {FEATURES.map((f, i) => <FeatureCard key={f.tag} feature={f} index={i} />)}
-          </div>
-        </div>
-      </section>
-
-      {/* DEMO */}
-      <section className="section alt" id="demo">
-        <div className="section-inner">
-          <RevealBlock>
-            <div className="eyebrow">Live demo</div>
-            <h2 className="section-h">See it handle a real conversation.</h2>
-            <p className="section-p">Watch the AI book an appointment, reply in Hindi, and recover a lapsed customer.</p>
-          </RevealBlock>
-          <DemoSection />
-        </div>
-      </section>
-
-      {/* BEFORE / AFTER */}
-      <section className="section">
-        <div className="section-inner">
-          <RevealBlock style={{textAlign:"center"}}>
-            <div className="eyebrow">The difference</div>
-            <h2 className="section-h" style={{textAlign:"center"}}>Before. <em>After.</em></h2>
-          </RevealBlock>
-          <BeforeAfterSection />
-        </div>
-      </section>
-
-      {/* TESTIMONIALS */}
-      <section className="section alt">
-        <div className="section-inner">
-          <RevealBlock>
-            <div className="eyebrow">Results</div>
-            <h2 className="section-h">Real businesses. <em>Real numbers.</em></h2>
-          </RevealBlock>
-          <div className="test-wrap">
-            <div>
-              <span className="test-quote-mark">&ldquo;</span>
-              <p className="test-quote">{TESTIMONIALS[activeT].quote}</p>
-              <div className="test-author">
-                <div className="test-av">{TESTIMONIALS[activeT].name[0]}</div>
-                <div>
-                  <div className="test-name">{TESTIMONIALS[activeT].name}</div>
-                  <div className="test-biz">{TESTIMONIALS[activeT].biz}</div>
-                </div>
-              </div>
-            </div>
-            <div className="test-rail">
-              {TESTIMONIALS.map((t,i) => (
-                <button key={t.name} className={`test-btn${i===activeT?" active":""}`} onClick={() => setActiveT(i)}>
-                  <div className="test-stat">{t.stat}</div>
-                  <div className="test-stat-label">{t.statLabel}</div>
-                  <div className="test-person">{t.name}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FOUNDER */}
-      <section className="section">
-        <div className="section-inner">
-          <RevealBlock style={{textAlign:"center"}}>
-            <div className="eyebrow">Why we built this</div>
-            <h2 className="section-h" style={{textAlign:"center"}}>A letter from the <em>founder</em></h2>
-          </RevealBlock>
-          <RevealBlock>
-            <div className="founder-inner">
-              <div className="founder-body">
-                I&apos;ve spent years in digital marketing — running ads, building funnels, optimising campaigns for businesses across India. Every lead costs real money.
-                <br /><br />
-                And the single most common thing I saw across <strong>every single client</strong> — salons, clinics, gyms, coaching centres — was this:
-                <span className="founder-pull">&ldquo;Leads were arriving. And dying in the WhatsApp inbox.&rdquo;</span>
-                A salon owner in Hyderabad spending <strong>₹40,000 a month on Instagram ads</strong>. Almost 60% of those leads never got a reply within the hour. Not bad ads — slow replies.
-                <br /><br />
-                <strong>The problem was never the ads. It was always the follow-up.</strong>
-                <br /><br />
-                So we built Fastrill — not as another chatbot, but as a revenue recovery system that sits between your ad spend and your bank account.
-                <div className="founder-sig">
-                  <div className="founder-av">G</div>
+          <div className="phone-wrap">
+            <span className="late-tag">11:47 PM — you&apos;re asleep</span>
+            <div
+              className="phone"
+              aria-label="Example WhatsApp conversation where Fastrill books an appointment late at night"
+            >
+              <div className="screen">
+                <div className="chat-header">
+                  <div className="avatar">C</div>
                   <div>
-                    <div className="founder-name">Ganapathi</div>
-                    <div className="founder-role">Founder, Fastrill — Solvabil Pvt. Ltd.</div>
+                    <div className="chat-name">CityCare Physio Clinic</div>
+                    <div className="chat-status">online</div>
+                  </div>
+                </div>
+                <div className="chat-body" id="chat">
+                  <span className="day-chip">Today</span>
+                  {CHAT.map((m, i) => (
+                    <div key={i} className={`msg msg-${m.dir}`} data-delay={m.delay}>
+                      {m.text}
+                      <span className="msg-time">
+                        {m.time} {m.dir === "out" && <span className="ticks">✓✓</span>}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="typing" id="typing">
+                    <span />
+                    <span />
+                    <span />
                   </div>
                 </div>
               </div>
             </div>
-          </RevealBlock>
-        </div>
-      </section>
-
-      {/* PRICING */}
-      <section className="section alt" id="pricing">
-        <div className="section-inner">
-          <RevealBlock style={{textAlign:"center"}}>
-            <div className="eyebrow">Pricing</div>
-            <h2 className="section-h" style={{textAlign:"center"}}>Simple pricing.<br /><em>Pays for itself.</em></h2>
-            <p className="section-p" style={{textAlign:"center",margin:"0 auto"}}>One missed booking costs more than a month of Fastrill.</p>
-          </RevealBlock>
-          <div style={{display:"flex",justifyContent:"center"}}>
-            <div className="billing-toggle">
-              <button className={`bill-btn${billing==="monthly"?" active":""}`} onClick={() => setBilling("monthly")}>Monthly</button>
-              <button className={`bill-btn${billing==="annual"?" active":""}`} onClick={() => setBilling("annual")}>Annual <span className="bill-save">Save 17%</span></button>
-            </div>
-          </div>
-          <div className="plan-grid">
-            {PLANS.map((plan, i) => {
-              const price = billing === "annual" ? Math.round(plan.price * 0.83) : plan.price
-              return <PlanCard key={plan.name} plan={plan} price={price} billing={billing} index={i} />
-            })}
-          </div>
-          <p style={{textAlign:"center",marginTop:24,fontSize:12,color:"var(--ink4)"}}>14-day free trial · No credit card · Cancel anytime</p>
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section className="section">
-        <div className="section-inner">
-          <RevealBlock style={{textAlign:"center"}}>
-            <div className="eyebrow">FAQ</div>
-            <h2 className="section-h" style={{textAlign:"center"}}>Honest answers</h2>
-          </RevealBlock>
-          <div className="faq-list">
-            {FAQS.map((f,i) => <FAQ key={i} q={f.q} a={f.a} index={i} />)}
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* CTA */}
-      <section className="section">
-        <RevealBlock>
-          <div className="cta-card">
-            <h2 className="cta-h">Turn every WhatsApp message<br />into <em>revenue.</em></h2>
-            <p className="cta-p">Start automating replies, recovering leads, and booking customers today.</p>
-            <div className="cta-btns">
-              <a href="/login" className="btn-hero">Start free — no card needed <ArrowIcon /></a>
-              <a href="https://wa.me/916309279265" className="btn-hero-ghost">Message us on WhatsApp</a>
-            </div>
-            <p className="cta-note">14-day free trial · Setup in 10 minutes · Cancel anytime</p>
+      {/* ---------- VERTICALS STRIP ---------- */}
+      <div className="verticals">
+        <div className="wrap verticals-inner">
+          <span className="verticals-label">Running on appointments?</span>
+          <span>Clinics</span>
+          <span>Salons &amp; spas</span>
+          <span>Gyms &amp; fitness</span>
+          <span>Coaching centres</span>
+          <span>Dental &amp; physio</span>
+          <span>Home services</span>
+        </div>
+      </div>
+
+      {/* ---------- LEAK ---------- */}
+      <section className="leak">
+        <div className="wrap leak-grid">
+          <div className="reveal">
+            <h2>
+              Every message you miss is money{" "}
+              <em>walking to the business next door.</em>
+            </h2>
+            <p>
+              Customers don&apos;t wait anymore. If you don&apos;t reply in a few
+              minutes, they message your competitor. You&apos;re not losing them
+              because your service is bad — you&apos;re losing them because you were
+              busy doing the service.
+            </p>
           </div>
-        </RevealBlock>
-      </section>
-
-      {/* FOOTER */}
-      <footer className="footer">
-        <div className="footer-inner">
-          <div className="footer-top">
-            <div>
-              <a href="/" className="nav-logo">
-                <img src="/logo.png" alt="Fastrill" />fast<em>rill</em>
-              </a>
-              <p className="footer-tagline">AI-powered WhatsApp automation for Indian service businesses. Built by Solvabil Pvt. Ltd.</p>
-            </div>
-            {[
-              {h:"Product", lks:[["How it works","#product"],["Pricing","#pricing"],["Live demo","#demo"]]},
-              {h:"Company", lks:[["Our story","#"],["Contact","mailto:team@fastrill.com"],["Call us","tel:+916309279265"]]},
-              {h:"Legal", lks:[["Privacy policy","/privacy"],["Terms of service","/terms"]]},
-            ].map(col => (
-              <div key={col.h}>
-                <div className="footer-col-h">{col.h}</div>
-                <ul className="footer-links">
-                  {col.lks.map(([n,h]) => <li key={n}><a href={h}>{n}</a></li>)}
-                </ul>
+          <div
+            className="ledger reveal"
+            aria-label="Example of revenue lost from unanswered messages in one day"
+          >
+            {LEDGER.map((r, i) => (
+              <div key={i} className="ledger-row">
+                <span className="ledger-time">{r.time}</span>
+                <span className="ledger-what">{r.what}</span>
+                <span className="ledger-loss">{r.loss}</span>
               </div>
             ))}
           </div>
-          <div className="footer-bot">
-            <span>© 2026 Fastrill, a product by Solvabil Pvt. Ltd.</span>
-            <span>Made with conviction in India</span>
+        </div>
+      </section>
+
+      {/* ---------- HOW ---------- */}
+      <section className="section" id="how">
+        <div className="wrap">
+          <div className="section-head reveal">
+            <p className="kicker">How it works</p>
+            <h2 className="title">Live on your number in one day. We do the setup with you.</h2>
           </div>
+          <div className="steps">
+            <div className="step reveal">
+              <h3>Connect your WhatsApp number</h3>
+              <p>
+                Your existing business number, or a new one — your choice. Customers
+                see your business name, not ours.
+              </p>
+              <span className="step-note">~20 minutes</span>
+            </div>
+            <div className="step reveal">
+              <h3>Fastrill learns your business</h3>
+              <p>
+                Your services, prices, timings, staff, languages. You review its
+                answers before it goes live — nothing reaches customers without your
+                sign-off.
+              </p>
+              <span className="step-note">Same day</span>
+            </div>
+            <div className="step reveal">
+              <h3>Customers book while you work</h3>
+              <p>
+                Fastrill answers, books, collects payment and reminds. You watch
+                everything from one dashboard and jump into any chat whenever you
+                want.
+              </p>
+              <span className="step-note">From day 1</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- FEATURES ---------- */}
+      <section className="section pt-0" id="features">
+        <div className="wrap">
+          <div className="section-head reveal">
+            <p className="kicker">What it handles</p>
+            <h2 className="title">
+              A full-time receptionist&apos;s job. Minus the salary, leaves and lunch
+              breaks.
+            </h2>
+          </div>
+          <div className="bento">
+            <div className="cell cell-big reveal">
+              <span className="pill">Bookings — the specialty</span>
+              <h3>Books, reschedules and cancels real appointments</h3>
+              <p>
+                Fastrill checks your actual calendar, offers open slots, confirms the
+                booking and blocks the time. Reschedules and cancellations handled in
+                chat too — with reminders before every appointment so no-shows drop.
+              </p>
+            </div>
+            <div className="cell cell-tall reveal">
+              <span className="pill">Why owners switch</span>
+              <h3>Speaks your customer&apos;s language</h3>
+              <p>
+                Telugu, Hindi, English and 7 more — including the Hinglish mix people
+                actually type. No &quot;press 1 for services&quot; menus.
+              </p>
+              <div className="mini-quote">
+                &quot;It replied to a patient at midnight and I woke up to a booked
+                slot with advance paid.&quot;
+                <small>— the moment it clicks for every owner</small>
+              </div>
+            </div>
+            <div className="cell cell-sm reveal">
+              <span className="pill">Payments</span>
+              <h3>Collects advance payment</h3>
+              <p>UPI payment links inside the chat. Advance-paid customers actually show up.</p>
+            </div>
+            <div className="cell cell-sm reveal">
+              <span className="pill">Missed calls</span>
+              <h3>Recovers missed calls</h3>
+              <p>
+                Can&apos;t pick up? The caller instantly gets a WhatsApp message and
+                books there instead.
+              </p>
+            </div>
+            <div className="cell cell-sm reveal">
+              <span className="pill">Campaigns</span>
+              <h3>Handles offer replies</h3>
+              <p>
+                Send a festival offer to your customer list — Fastrill handles the
+                flood of replies and converts them into bookings.
+              </p>
+            </div>
+            <div className="cell cell-sm reveal">
+              <span className="pill">You stay in control</span>
+              <h3>Hands over when needed</h3>
+              <p>
+                Complex question or upset customer? It alerts you and steps aside. You
+                can take over any chat, any time.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- PRICING ---------- */}
+      <section className="section pricing" id="pricing">
+        <div className="wrap">
+          <div className="section-head reveal">
+            <p className="kicker">Pricing</p>
+            <h2 className="title">Start free for 14 days. Pick a plan when it&apos;s earning for you.</h2>
+            <p>
+              No per-message charges that surprise you at month end. Cancel anytime
+              from the dashboard.
+            </p>
+          </div>
+          <div className="plans">
+            {PLANS.map((p) => (
+              <div key={p.name} className={`plan reveal${p.featured ? " plan-featured" : ""}`}>
+                {p.featured && <span className="plan-badge">Most popular</span>}
+                <h3>{p.name}</h3>
+                <p className="plan-tag">{p.tag}</p>
+                <div className="plan-price">
+                  ₹{p.price}
+                  <small> /month</small>
+                </div>
+                <ul>
+                  {p.features.map((f) => (
+                    <li key={f}>
+                      <span className="check">✓</span> {f}
+                    </li>
+                  ))}
+                </ul>
+                <a className={`btn ${p.featured ? "btn-marigold" : "btn-ghost"} plan-cta`} href="/signup">
+                  Start free trial
+                </a>
+              </div>
+            ))}
+          </div>
+          <p className="roi reveal">
+            <strong>It pays for itself with 4–5 saved bookings a month.</strong> Most
+            businesses lose more than that in unanswered messages every single week.
+          </p>
+        </div>
+      </section>
+
+      {/* ---------- FAQ ---------- */}
+      <section className="section">
+        <div className="wrap">
+          <div className="section-head reveal">
+            <p className="kicker">Questions owners actually ask</p>
+            <h2 className="title">Before you ask —</h2>
+          </div>
+          <div className="faq reveal">
+            <details>
+              <summary>Will customers know it&apos;s not me replying?</summary>
+              <p>
+                It replies as your business, in your tone, with your real prices and
+                timings. Most customers just notice they finally got an instant
+                answer. And you can jump into any conversation yourself whenever you
+                want.
+              </p>
+            </details>
+            <details>
+              <summary>What if it says something wrong?</summary>
+              <p>
+                It only answers from the business information you approve during
+                setup — it doesn&apos;t invent prices or promises. Anything it&apos;s
+                unsure about, it politely takes the customer&apos;s details and
+                alerts you to follow up.
+              </p>
+            </details>
+            <details>
+              <summary>I&apos;m not technical. How hard is setup?</summary>
+              <p>
+                You answer questions about your business — services, prices,
+                timings. We handle everything technical and you&apos;re live the same
+                day. If you can use WhatsApp, you can use Fastrill.
+              </p>
+            </details>
+            <details>
+              <summary>Does it work with my existing WhatsApp number?</summary>
+              <p>
+                Yes — we move your number to WhatsApp Business API (your chats and
+                customers stay intact), or you can run Fastrill on a fresh number and
+                keep your personal one separate.
+              </p>
+            </details>
+            <details>
+              <summary>What happens after the free trial?</summary>
+              <p>
+                If it booked appointments for you, you&apos;ll want to keep it — pick
+                a plan from your dashboard, cancel anytime. If it didn&apos;t, walk
+                away. No lock-in, no awkward calls.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- FINAL CTA ---------- */}
+      <section className="final">
+        <div className="wrap">
+          <h2>
+            Don&apos;t take our word for it.
+            <br />
+            Take Fastrill&apos;s.
+          </h2>
+          <p>
+            The demo <strong>is</strong> the product — message it right now and try
+            to stump it. Ask prices, book a slot, cancel it, ask in Telugu. See what
+            your customers would see.
+          </p>
+          <a className="btn btn-white" href={WA_LINK} target="_blank" rel="noopener noreferrer">
+            <WaIcon /> Message Fastrill on WhatsApp
+          </a>
+        </div>
+      </section>
+
+      <footer className="footer">
+        <div className="wrap footer-inner">
+          <span>
+            <strong>Fastrill</strong> · Solvabil Pvt. Ltd. · Hyderabad, India
+          </span>
+          <span>hello@fastrill.com</span>
         </div>
       </footer>
     </>
-  )
+  );
 }
 
-// ─── SUB-COMPONENTS ───────────────────────────────────────────
+/* ============================================================ CSS */
+const css = `
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
-function RevealBlock({ children, style }) {
-  const [ref, inView] = useInView(0.1)
-  return <div ref={ref} className={`reveal${inView ? " visible" : ""}`} style={style}>{children}</div>
+:root{
+  --ink:#14201B; --ink-soft:#3D4A44; --paper:#FBFAF6; --card:#FFFFFF;
+  --teal:#075E54; --wa-green:#25D366; --marigold:#F2A007; --marigold-soft:#FDF3DC;
+  --line:#E4E1D6; --bubble-out:#D9FDD3; --radius:14px;
+  --display:'Bricolage Grotesque',sans-serif; --body:'IBM Plex Sans',sans-serif;
+  --chat:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 }
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--body);background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+:focus-visible{outline:3px solid var(--marigold);outline-offset:3px;border-radius:4px}
+.pt-0{padding-top:0!important}
 
-function TimelineSection() {
-  const rows = [
-    { time: "9:02 PM", event: "Customer messages you", desc: "Ready to book. Service: keratin treatment. Budget: ₹2,800." },
-    { time: "9:45 PM", event: "You finally reply", desc: "Too late — they already messaged your competitor." },
-    { time: "10:12 PM", event: "Customer booked elsewhere", desc: "Competitor replied in 2 minutes. Same price. Same service." },
-    { time: "—", event: "Your loss", desc: "₹2,800 + lifetime value + referrals ≈ ₹12,000+", danger: true },
-  ]
-  return (
-    <div className="timeline">
-      {rows.map((r, i) => <TLRow key={r.event} row={r} index={i} />)}
-    </div>
-  )
+.nav{position:sticky;top:0;z-index:50;background:rgba(251,250,246,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{font-family:var(--display);font-weight:800;font-size:1.35rem;letter-spacing:-.02em;text-decoration:none;display:flex;align-items:center;gap:8px}
+.logo-dot{width:10px;height:10px;border-radius:50%;background:var(--wa-green);box-shadow:0 0 0 4px rgba(37,211,102,.18)}
+.nav-links{display:flex;align-items:center;gap:28px;font-size:.92rem;font-weight:500}
+.nav-links a{text-decoration:none;color:var(--ink-soft)}
+.nav-links a:hover{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:10px;font-family:var(--body);font-weight:600;text-decoration:none;border-radius:999px;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn-green{background:var(--teal);color:#fff;padding:12px 24px;box-shadow:0 4px 14px rgba(7,94,84,.25)}
+.btn-green:hover{box-shadow:0 6px 20px rgba(7,94,84,.32)}
+.btn-nav{background:var(--teal);color:#fff;padding:9px 18px;font-size:.9rem}
+.btn-ghost{border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:12px 24px}
+.wa-icon{width:18px;height:18px;flex-shrink:0}
+
+.hero{padding:72px 0 88px;position:relative;overflow:hidden}
+.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.8rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);background:#EAF4F1;border:1px solid #CFE5DF;padding:6px 14px;border-radius:999px;margin-bottom:22px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(2.4rem,4.6vw,3.6rem);line-height:1.06;letter-spacing:-.025em}
+h1 .accent{color:var(--teal);position:relative;white-space:nowrap}
+h1 .accent::after{content:'';position:absolute;left:0;right:0;bottom:4px;height:10px;background:var(--marigold-soft);z-index:-1;border-radius:3px}
+.hero-sub{font-size:1.13rem;color:var(--ink-soft);margin:22px 0 30px;max-width:33rem}
+.hero-ctas{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.cta-note{font-size:.88rem;color:var(--ink-soft);margin-top:14px}
+.cta-note strong{color:var(--ink)}
+
+.phone-wrap{display:flex;justify-content:center;position:relative}
+.late-tag{position:absolute;top:-14px;right:6%;background:var(--ink);color:var(--marigold);font-family:var(--display);font-weight:700;font-size:.85rem;padding:8px 16px;border-radius:999px;transform:rotate(3deg);z-index:5;box-shadow:0 6px 18px rgba(20,32,27,.25)}
+.phone{width:330px;background:#111B21;border-radius:38px;padding:12px;box-shadow:0 30px 60px -18px rgba(20,32,27,.4)}
+.screen{background:#EFEAE2;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;height:560px}
+.chat-header{background:var(--teal);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;font-family:var(--chat)}
+.avatar{width:38px;height:38px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--ink);font-size:1rem}
+.chat-name{font-size:.95rem;font-weight:600;line-height:1.2}
+.chat-status{font-size:.74rem;opacity:.85}
+.chat-body{flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:10px;font-family:var(--chat);overflow:hidden}
+.day-chip{align-self:center;background:#fff;border-radius:8px;padding:4px 12px;font-size:.72rem;color:#54656F;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+.msg{max-width:82%;padding:8px 12px;border-radius:10px;font-size:.85rem;line-height:1.45;box-shadow:0 1px 1px rgba(0,0,0,.08);opacity:0;transform:translateY(8px)}
+.msg.show{animation:pop .35s ease forwards}
+@keyframes pop{to{opacity:1;transform:translateY(0)}}
+.msg-in{align-self:flex-start;background:#fff;border-top-left-radius:2px}
+.msg-out{align-self:flex-end;background:var(--bubble-out);border-top-right-radius:2px}
+.msg-time{display:block;font-size:.64rem;color:#667781;text-align:right;margin-top:3px}
+.ticks{color:#53BDEB}
+.typing{align-self:flex-end;background:var(--bubble-out);border-radius:10px;padding:12px 16px;display:none;gap:4px}
+.typing.show{display:flex}
+.typing span{width:6px;height:6px;border-radius:50%;background:#7A8B84;animation:blink 1.2s infinite}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+
+.verticals{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--card)}
+.verticals-inner{display:flex;gap:26px;align-items:center;justify-content:center;flex-wrap:wrap;padding:18px 0;font-size:.9rem;color:var(--ink-soft);font-weight:500}
+.verticals-label{font-family:var(--display);font-weight:700;color:var(--ink);font-size:.92rem}
+
+.leak{background:var(--ink);color:var(--paper);padding:76px 0}
+.leak-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:56px;align-items:center}
+.leak h2{font-family:var(--display);font-weight:800;font-size:clamp(1.8rem,3.2vw,2.5rem);line-height:1.12;letter-spacing:-.02em}
+.leak h2 em{font-style:normal;color:var(--marigold)}
+.leak p{color:#B9C4BE;margin-top:18px;font-size:1.02rem;max-width:26rem}
+.ledger{border:1px solid #2B3833;border-radius:var(--radius);overflow:hidden}
+.ledger-row{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;padding:18px 22px;border-bottom:1px solid #2B3833;font-size:.95rem}
+.ledger-row:last-child{border-bottom:none;background:#1D2B25}
+.ledger-time{font-family:var(--display);font-weight:600;color:#8A9992;font-size:.85rem;min-width:74px}
+.ledger-loss{font-family:var(--display);font-weight:700;color:#E86A5E}
+.ledger-row:last-child .ledger-loss{color:var(--marigold);font-size:1.05rem}
+.ledger-what{color:#DDE4E0}
+
+.section{padding:88px 0}
+.section-head{max-width:40rem;margin-bottom:48px}
+.kicker{font-size:.8rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);margin-bottom:12px}
+h2.title{font-family:var(--display);font-weight:800;font-size:clamp(1.7rem,3vw,2.4rem);letter-spacing:-.02em;line-height:1.12}
+.section-head p{color:var(--ink-soft);margin-top:14px;font-size:1.02rem}
+
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;counter-reset:step}
+.step{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:30px 26px;position:relative;counter-increment:step}
+.step::before{content:counter(step);font-family:var(--display);font-weight:800;font-size:2.6rem;color:var(--marigold);line-height:1;display:block;margin-bottom:16px}
+.step h3{font-family:var(--display);font-weight:700;font-size:1.15rem;margin-bottom:8px;letter-spacing:-.01em}
+.step p{font-size:.94rem;color:var(--ink-soft)}
+.step .step-note{display:inline-block;margin-top:14px;font-size:.8rem;font-weight:600;color:var(--teal);background:#EAF4F1;padding:4px 10px;border-radius:6px}
+
+.bento{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}
+.cell{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px 26px}
+.cell h3{font-family:var(--display);font-weight:700;font-size:1.12rem;margin-bottom:8px;letter-spacing:-.01em}
+.cell p{font-size:.93rem;color:var(--ink-soft)}
+.cell-big{grid-column:span 4;background:linear-gradient(135deg,#EAF4F1 0%,var(--card) 60%)}
+.cell-big h3{font-size:1.35rem}
+.cell-big p{max-width:32rem;font-size:1rem}
+.cell-tall{grid-column:span 2;grid-row:span 2;background:var(--marigold-soft);border-color:#EFD9A8;display:flex;flex-direction:column;justify-content:space-between}
+.cell-tall .mini-quote{font-family:var(--display);font-weight:600;font-size:1.05rem;line-height:1.4;margin-top:24px}
+.cell-tall .mini-quote small{display:block;font-family:var(--body);font-weight:500;font-size:.8rem;color:var(--ink-soft);margin-top:10px}
+.cell-sm{grid-column:span 2}
+.pill{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);background:#EAF4F1;padding:4px 10px;border-radius:6px;margin-bottom:14px}
+.cell-tall .pill{background:#fff}
+
+.pricing{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch}
+.plan{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:34px 28px;display:flex;flex-direction:column;position:relative}
+.plan-featured{background:var(--ink);color:var(--paper);border-color:var(--ink);transform:scale(1.03)}
+.plan-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--marigold);color:var(--ink);font-family:var(--display);font-weight:700;font-size:.78rem;padding:5px 14px;border-radius:999px;white-space:nowrap}
+.plan h3{font-family:var(--display);font-weight:800;font-size:1.3rem;letter-spacing:-.01em}
+.plan-tag{font-size:.88rem;color:var(--ink-soft);margin-top:4px;min-height:2.6em}
+.plan-featured .plan-tag{color:#9FB0A9}
+.plan-price{font-family:var(--display);font-weight:800;font-size:2.4rem;letter-spacing:-.03em;margin:16px 0 20px;line-height:1}
+.plan-price small{font-size:.95rem;font-weight:600;color:var(--ink-soft);letter-spacing:0}
+.plan-featured .plan-price small{color:#9FB0A9}
+.plan ul{list-style:none;display:grid;gap:11px;margin-bottom:28px;flex:1}
+.plan li{display:flex;gap:10px;align-items:flex-start;font-size:.92rem}
+.plan-featured li{color:#DDE4E0}
+.check{color:var(--wa-green);font-weight:700;flex-shrink:0}
+.plan-cta{justify-content:center;width:100%;padding:13px 24px}
+.btn-marigold{background:var(--marigold);color:var(--ink);font-weight:700}
+.roi{margin-top:36px;text-align:center;color:var(--ink-soft);font-size:.98rem}
+.roi strong{font-family:var(--display);color:var(--ink)}
+
+.faq{max-width:44rem}
+.faq details{border-bottom:1px solid var(--line);padding:6px 0}
+.faq summary{font-family:var(--display);font-weight:600;font-size:1.05rem;padding:18px 36px 18px 0;cursor:pointer;list-style:none;position:relative;letter-spacing:-.01em}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:'+';position:absolute;right:4px;top:14px;font-size:1.5rem;font-weight:400;color:var(--teal);transition:transform .2s}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq details p{padding:0 0 20px;color:var(--ink-soft);font-size:.96rem;max-width:40rem}
+
+.final{background:var(--teal);color:#fff;padding:88px 0;text-align:center;position:relative;overflow:hidden}
+.final::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 80% 20%,rgba(242,160,7,.18),transparent 45%)}
+.final h2{font-family:var(--display);font-weight:800;font-size:clamp(1.9rem,3.6vw,2.8rem);letter-spacing:-.02em;line-height:1.1;position:relative}
+.final p{margin:16px auto 32px;max-width:30rem;color:#CBE3DE;position:relative}
+.btn-white{background:#fff;color:var(--teal);padding:15px 32px;font-weight:700;font-size:1.02rem;position:relative}
+.footer{padding:36px 0;border-top:1px solid var(--line)}
+.footer-inner{display:flex;justify-content:space-between;align-items:center;font-size:.85rem;color:var(--ink-soft);flex-wrap:wrap;gap:12px}
+
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .5s ease,transform .5s ease}
+.reveal.in{opacity:1;transform:none}
+
+@media (prefers-reduced-motion:reduce){
+  .msg,.typing span,.reveal,.btn{animation:none!important;transition:none!important;opacity:1!important;transform:none!important}
+  .typing{display:none!important}
+  html{scroll-behavior:auto}
 }
-
-function TLRow({ row, index }) {
-  const [ref, inView] = useInView(0.2)
-  return (
-    <div ref={ref} className={`tl-row${inView ? " visible" : ""}${row.danger ? " danger" : ""}`}
-      style={{ transitionDelay: `${index * 80}ms` }}>
-      <div className="tl-time">{row.time}</div>
-      <div>
-        <div className="tl-event">{row.event}</div>
-        <div className="tl-desc">{row.desc}</div>
-      </div>
-    </div>
-  )
+@media (max-width:900px){
+  .hero-grid,.leak-grid{grid-template-columns:1fr;gap:44px}
+  .steps,.plans{grid-template-columns:1fr}
+  .plan-featured{transform:none}
+  .bento{grid-template-columns:1fr 1fr}
+  .cell-big,.cell-tall,.cell-sm{grid-column:span 2;grid-row:auto}
+  .nav-links a:not(.btn){display:none}
+  .hero{padding:48px 0 64px}
+  .phone{width:300px}
+  .screen{height:520px}
 }
-
-function PainSection() {
-  const cards = [
-    { n: "01", t: "Leads die after hours", d: "Customer messages at 10 PM about your bridal package. You see it at 9 AM — she's already booked someone who replied in 2 minutes.", tag: "Revenue lost nightly" },
-    { n: "02", t: "Speed wins the booking", d: "Your competitor replies in 2 seconds. You reply in 2 hours. Same service, same price — they win every time.", tag: "Competitive loss" },
-    { n: "03", t: "Silence becomes a review", d: "Upset customer messages at peak hour. Staff is busy. No reply for 3 hours. The 1-star review doesn't wait.", tag: "Reputation at risk" },
-  ]
-  return (
-    <div className="pain-grid">
-      {cards.map((c, i) => <PainCard key={c.n} card={c} index={i} />)}
-    </div>
-  )
-}
-
-function PainCard({ card, index }) {
-  const [ref, inView] = useInView(0.15)
-  return (
-    <div ref={ref} className={`pain-card${inView ? " visible" : ""}`} style={{ transitionDelay: `${index * 100}ms` }}>
-      <div className="pain-num">{card.n}</div>
-      <div className="pain-title">{card.t}</div>
-      <p className="pain-desc">{card.d}</p>
-      <div className="pain-tag">{card.tag}</div>
-    </div>
-  )
-}
-
-function DemoSection() {
-  const [active, setActive] = useState("booking")
-  const [msgs, setMsgs] = useState([])
-  const [typing, setTyping] = useState(false)
-  const bodyRef = useRef(null)
-  const timerRefs = useRef([])
-
-  const DEMOS = {
-    booking: [
-      { role: "customer", text: "Hi, I want a haircut tomorrow around 3pm", delay: 0 },
-      { role: "typing", delay: 800 },
-      { role: "ai", text: "Tomorrow 3 PM works! Shall I confirm Haircut for Saturday, 29 March at 3:00 PM? ✅", delay: 1600 },
-      { role: "customer", text: "Yes please!", delay: 3200 },
-      { role: "typing", delay: 4000 },
-      { role: "ai", text: "Booking confirmed! 🎉\n\nHaircut · 29 March · 3:00 PM\nSee you then!", delay: 4800 },
-    ],
-    hindi: [
-      { role: "customer", text: "Bhai facial karwa sakte hai kal?", delay: 0 },
-      { role: "typing", delay: 700 },
-      { role: "ai", text: "Haan bilkul! 😊\n\nFacial ₹1,200 mein available hai (60 min).\n\nKis time aana chahenge?", delay: 1400 },
-      { role: "customer", text: "Shaam 6 baje", delay: 2800 },
-      { role: "typing", delay: 3400 },
-      { role: "ai", text: "Confirm karu Facial kal shaam 6:00 PM ke liye? ✅", delay: 4000 },
-      { role: "customer", text: "Haan kar do", delay: 5200 },
-      { role: "typing", delay: 5800 },
-      { role: "ai", text: "Booking ho gayi! ✅\n\nFacial · ₹1,200\nKal, 6:00 PM\n\nMilenge!", delay: 6400 },
-    ],
-    winback: [
-      { role: "ai", text: "Hi Anita! 👋 It's been a while since your last visit at Riya Salon.\n\nYour favourite Keratin Treatment is available this week — want to book?", delay: 0 },
-      { role: "customer", text: "Oh yes! What's the price now?", delay: 1800 },
-      { role: "typing", delay: 2400 },
-      { role: "ai", text: "Keratin Treatment is ₹2,800 (90 min). 10% off this week — just ₹2,520! 🎉", delay: 3000 },
-      { role: "customer", text: "That's great, book me Saturday morning", delay: 4400 },
-      { role: "typing", delay: 5000 },
-      { role: "ai", text: "Booking confirmed! ✅\n\nKeratin Treatment · ₹2,520\nSaturday · 10:00 AM", delay: 5600 },
-    ],
-  }
-
-  const TABS = [
-    { k: "booking", label: "Booking flow", sub: "End-to-end in 4 msgs", icon: "📅" },
-    { k: "hindi", label: "Hindi support", sub: "Auto-detected", icon: "🇮🇳" },
-    { k: "winback", label: "Win-back", sub: "Inactive customer", icon: "🔄" },
-  ]
-
-  useEffect(() => {
-    setMsgs([])
-    setTyping(false)
-    timerRefs.current.forEach(clearTimeout)
-    timerRefs.current = []
-    DEMOS[active].forEach(step => {
-      const t = setTimeout(() => {
-        if (step.role === "typing") { setTyping(true); return }
-        setTyping(false)
-        setMsgs(p => [...p, step])
-        setTimeout(() => { if (bodyRef.current) bodyRef.current.scrollTop = 9999 }, 50)
-      }, step.delay)
-      timerRefs.current.push(t)
-    })
-    return () => timerRefs.current.forEach(clearTimeout)
-  }, [active])
-
-  return (
-    <div className="demo-wrap">
-      <div className="demo-tabs">
-        {TABS.map(tab => (
-          <div key={tab.k} className={`demo-tab${active===tab.k?" active":""}`} onClick={() => setActive(tab.k)}>
-            <div className="demo-tab-icon">{tab.icon}</div>
-            <div className="demo-tab-label">{tab.label}</div>
-            <div className="demo-tab-sub">{tab.sub}</div>
-          </div>
-        ))}
-      </div>
-      <div className="demo-chat-wrap">
-        <div className="chat-header">
-          <div className="chat-avatar">R</div>
-          <div>
-            <div className="chat-name">Riya Salon</div>
-            <div className="chat-online"><span className="online-dot" />AI Active</div>
-          </div>
-          <div className="chat-badge">fastrill</div>
-        </div>
-        <div className="chat-body" ref={bodyRef} style={{minHeight:260,maxHeight:320}}>
-          {msgs.map((m, i) => (
-            <div key={`${active}-${i}`} className={`chat-msg ${m.role}`}>{m.text}</div>
-          ))}
-          {typing && <div className="chat-typing"><span /><span /><span /></div>}
-        </div>
-        <div className="chat-footer">
-          <div className="chat-tag">⚡ Average reply time: 1.8 seconds</div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function BeforeAfterSection() {
-  const pairs = [
-    { before: "Reply in 8 hours", after: "Reply in 2 seconds, automatically" },
-    { before: "No reply after 9 PM", after: "Books appointments at 2 AM" },
-    { before: "Complaint ignored", after: "Resolved instantly with empathy" },
-    { before: "No idea what converted", after: "Every booking tracked to source" },
-    { before: "Staff glued to phones", after: "Staff focused on customers in front of them" },
-  ]
-  return (
-    <div className="ba-list">
-      {pairs.map((p, i) => <BARow key={p.before} pair={p} index={i} />)}
-    </div>
-  )
-}
-
-function BARow({ pair, index }) {
-  const [ref, inView] = useInView(0.3)
-  return (
-    <div ref={ref} className={`ba-row${inView ? " visible" : ""}`} style={{ transitionDelay: `${index * 100}ms` }}>
-      <div className="ba-before">{pair.before}</div>
-      <div className="ba-arrow">→</div>
-      <div className="ba-after">{pair.after}</div>
-    </div>
-  )
-}
-
-function PlanCard({ plan, price, billing, index }) {
-  const [ref, inView] = useInView(0.1)
-  return (
-    <div ref={ref} className={`plan-card${inView ? " visible" : ""}${plan.pop ? " pop" : ""}`}
-      style={{ transitionDelay: `${index * 100}ms` }}>
-      {plan.pop && <div className="plan-badge">Most popular</div>}
-      <div className="plan-name">{plan.name}</div>
-      <div className="plan-desc">{plan.desc}</div>
-      <div className="plan-price">
-        <span className="plan-rs">₹</span>
-        <span className="plan-amt">{price.toLocaleString("en-IN")}</span>
-      </div>
-      <div className="plan-mo">per month + GST{billing==="annual" && ` · billed ₹${(price*12).toLocaleString("en-IN")}/yr`}</div>
-      <hr className="plan-divider" />
-      <ul className="plan-features">
-        {plan.features.map(f => (
-          <li key={f}><CheckIcon />{f}</li>
-        ))}
-        {(plan.missing||[]).map(f => (
-          <li key={f} className="miss"><CheckIcon />{f}</li>
-        ))}
-      </ul>
-      <a href="/login" className={`plan-cta${plan.pop ? " primary" : " secondary"}`}>
-        {plan.pop ? "Start free trial" : plan.name === "Pro" ? "Contact sales" : "Get started"}
-      </a>
-    </div>
-  )
-}
+`;
