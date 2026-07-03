@@ -1,82 +1,34 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 const WA_LINK = "https://wa.me/916309279265?text=Hi%2C%20show%20me%20a%20Fastrill%20demo";
 
 const PLANS = [
   {
-    name: "Starter",
-    price: "999",
-    tag: "For one location getting started",
-    features: [
-      "1 WhatsApp number",
-      "300 AI conversations / month",
-      "Appointment booking & calendar sync",
-      "Automated reminders (24hr & 2hr)",
-      "Missed-call to WhatsApp recovery",
-      "10+ Indian languages (auto-detected)",
-      "Unified inbox dashboard",
-      "Customer profile & history",
-      "Basic analytics",
-    ],
-    missing: [
-      "Lead recovery sequences",
-      "Bulk WhatsApp campaigns",
-      "Campaign revenue tracking",
-      "UPI payment collection",
-      "Multi-staff calendars",
-    ],
+    name: "Starter", price: "999", tag: "For one location getting started",
+    features: ["1 WhatsApp number","300 AI conversations / month","Appointment booking & calendar sync","Automated reminders (24hr & 2hr)","Missed-call to WhatsApp recovery","10+ Indian languages (auto-detected)","Unified inbox dashboard","Customer profile & history","Basic analytics"],
+    missing: ["Lead recovery sequences","Bulk WhatsApp campaigns","Campaign revenue tracking","UPI payment collection","Multi-staff calendars"],
     featured: false,
   },
   {
-    name: "Growth",
-    price: "1,999",
-    tag: "For busy businesses that live on bookings",
-    features: [
-      "1 WhatsApp number",
-      "Unlimited AI conversations",
-      "Everything in Starter",
-      "Lead recovery — auto follow-up sequences",
-      "Bulk WhatsApp campaigns (send offers to your list)",
-      "Campaign revenue & ROI tracking",
-      "UPI payment collection inside chat",
-      "Customer segmentation (new / returning / VIP / inactive)",
-      "Win-back sequences for inactive customers",
-      "Advanced analytics & booking trends",
-      "Priority support",
-    ],
-    missing: [
-      "Multiple staff / resource calendars",
-      "Voice agent (early access)",
-    ],
+    name: "Growth", price: "1,999", tag: "For busy businesses that live on bookings",
+    features: ["1 WhatsApp number","Unlimited AI conversations","Everything in Starter","Lead recovery — auto follow-up sequences","Bulk WhatsApp campaigns (send offers to your list)","Campaign revenue & ROI tracking","UPI payment collection inside chat","Customer segmentation (new / returning / VIP / inactive)","Win-back sequences for inactive customers","Advanced analytics & booking trends","Priority support"],
+    missing: ["Multiple staff / resource calendars","Voice agent (early access)"],
     featured: true,
   },
   {
-    name: "Pro",
-    price: "4,999",
-    tag: "For teams and multiple locations",
-    features: [
-      "Up to 5 WhatsApp numbers",
-      "Unlimited AI conversations",
-      "Everything in Growth",
-      "Multiple staff & resource calendars",
-      "Multi-branch management dashboard",
-      "Custom AI playbook & tone",
-      "Voice agent — early access",
-      "Dedicated onboarding & setup support",
-      "Priority response SLA",
-      "Custom integrations on request",
-    ],
+    name: "Pro", price: "4,999", tag: "For teams and multiple locations",
+    features: ["Up to 5 WhatsApp numbers","Unlimited AI conversations","Everything in Growth","Multiple staff & resource calendars","Multi-branch management dashboard","Custom AI playbook & tone","Voice agent — early access","Dedicated onboarding & setup support","Priority response SLA","Custom integrations on request"],
     missing: [],
     featured: false,
   },
 ];
 
 const CHAT = [
-  { dir: "in",  delay: 600,  text: "Sir, my back pain is worse. Any slot with doctor tomorrow?", time: "11:47 PM" },
-  { dir: "out", delay: 2300, text: "Sorry to hear that! Dr. Meena has 10:30 AM and 6:15 PM open tomorrow. Consultation is ₹500. Which works for you?", time: "11:47 PM" },
-  { dir: "in",  delay: 3900, text: "10.30 pls", time: "11:48 PM" },
-  { dir: "out", delay: 5500, text: "Booked ✅ Physio consultation, tomorrow 10:30 AM with Dr. Meena. You'll get a reminder at 9:30 AM. Feel better soon! 🙏", time: "11:48 PM" },
+  { dir: "in",  delay: 800,  text: "Sir, my back pain is worse. Any slot with doctor tomorrow?", time: "11:47 PM" },
+  { dir: "out", delay: 2600, text: "Sorry to hear that! Dr. Meena has 10:30 AM and 6:15 PM open tomorrow. Consultation is ₹500. Which works for you?", time: "11:47 PM" },
+  { dir: "in",  delay: 4200, text: "10.30 pls", time: "11:48 PM" },
+  { dir: "out", delay: 5900, text: "Booked ✅ Physio consultation, tomorrow 10:30 AM with Dr. Meena. Reminder at 9:30 AM. Feel better soon! 🙏", time: "11:48 PM" },
 ];
 
 const LEDGER = [
@@ -107,19 +59,107 @@ const WaIcon = () => (
   </svg>
 );
 
+// ── ANIMATED COUNTER ────────────────────────────────────────────
+function Counter({ value, duration = 1800 }) {
+  const [display, setDisplay] = useState("0");
+  const ref = useRef(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started.current) {
+        started.current = true;
+        io.disconnect();
+        // parse number
+        const isPercent = value.includes("%");
+        const isRupee = value.startsWith("₹");
+        const isPlus = value.startsWith("+");
+        const numStr = value.replace(/[^0-9]/g, "");
+        const end = parseInt(numStr, 10);
+        if (!end) { setDisplay(value); return; }
+        const steps = 50;
+        let step = 0;
+        const timer = setInterval(() => {
+          step++;
+          const progress = step / steps;
+          const ease = 1 - Math.pow(1 - progress, 3);
+          const current = Math.floor(ease * end);
+          let disp = current.toLocaleString("en-IN");
+          if (isPlus) disp = "+" + disp;
+          if (isRupee) disp = "₹" + disp;
+          if (isPercent) disp = disp + "%";
+          setDisplay(disp);
+          if (step >= steps) { clearInterval(timer); setDisplay(value); }
+        }, duration / steps);
+      }
+    }, { threshold: 0.5 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [value, duration]);
+
+  return <span ref={ref}>{display}</span>;
+}
+
+// ── SCROLL REVEAL ────────────────────────────────────────────────
+function useReveal(options = {}) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { setVisible(true); io.disconnect(); }
+    }, { threshold: options.threshold || 0.12, ...options });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return [ref, visible];
+}
+
+function Reveal({ children, dir = "up", delay = 0, className = "", style = {} }) {
+  const [ref, visible] = useReveal();
+  const transforms = { up: "translateY(32px)", left: "translateX(-32px)", right: "translateX(32px)", down: "translateY(-20px)" };
+  return (
+    <div ref={ref} className={className} style={{
+      opacity: visible ? 1 : 0,
+      transform: visible ? "none" : transforms[dir],
+      transition: `opacity 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
+      ...style
+    }}>
+      {children}
+    </div>
+  );
+}
+
 export default function Home() {
   const [mobOpen, setMobOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [activeT, setActiveT] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
+  const chatStarted = useRef(false);
+  const chatRef = useRef(null);
 
   useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 30);
+    window.addEventListener("scroll", fn, { passive: true });
+    return () => window.removeEventListener("scroll", fn);
+  }, []);
+
+  // Chat animation triggered by scroll
+  useEffect(() => {
+    const chatEl = document.getElementById("chat-wrap");
+    if (!chatEl) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const msgs = document.querySelectorAll("#chat .msg");
-    const typing = document.getElementById("typing");
     const timers = [];
-    if (reduced) {
-      msgs.forEach(m => m.classList.add("show"));
-    } else {
+
+    const startChat = () => {
+      if (chatStarted.current) return;
+      chatStarted.current = true;
+      const msgs = document.querySelectorAll("#chat .msg");
+      const typing = document.getElementById("typing");
+      if (reduced) { msgs.forEach(m => m.classList.add("show")); return; }
       msgs.forEach(m => {
         const d = parseInt(m.dataset.delay, 10);
         if (m.classList.contains("msg-out")) {
@@ -129,17 +169,16 @@ export default function Home() {
           timers.push(setTimeout(() => m.classList.add("show"), d));
         }
       });
-    }
-    const els = document.querySelectorAll(".reveal");
-    let io;
-    if (reduced || !("IntersectionObserver" in window)) {
-      els.forEach(e => e.classList.add("in"));
-    } else {
-      io = new IntersectionObserver(entries => entries.forEach(en => { if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); } }), { threshold: 0.12 });
-      els.forEach(e => io.observe(e));
-    }
-    const tInterval = setInterval(() => setActiveT(p => (p + 1) % TESTIMONIALS.length), 5500);
-    return () => { timers.forEach(clearTimeout); if (io) io.disconnect(); clearInterval(tInterval); };
+    };
+
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) startChat(); }, { threshold: 0.3 });
+    io.observe(chatEl);
+    return () => { timers.forEach(clearTimeout); io.disconnect(); };
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => setActiveT(p => (p + 1) % TESTIMONIALS.length), 5500);
+    return () => clearInterval(t);
   }, []);
 
   return (
@@ -147,7 +186,7 @@ export default function Home() {
       <style>{CSS}</style>
 
       {/* NAV */}
-      <nav className="nav">
+      <nav className={`nav${scrolled ? " nav-sc" : ""}`}>
         <div className="wrap nav-inner">
           <a href="/" className="logo">
             <img src="/logo.png" alt="Fastrill" className="logo-img" />
@@ -158,10 +197,10 @@ export default function Home() {
             <a href="#features">Features</a>
             <a href="#pricing">Pricing</a>
             <a href="/login" className="nav-signin">Sign in</a>
-            <a className="btn btn-teal btn-nav" href="/signup">Start free trial</a>
+            <a className="btn btn-primary btn-nav" href="/signup">Start free trial</a>
           </div>
           <button className="hbg" onClick={() => setMobOpen(p => !p)} aria-label="Menu">
-            <span /><span /><span />
+            <span className={mobOpen ? "hbg-open" : ""} /><span className={mobOpen ? "hbg-open" : ""} /><span className={mobOpen ? "hbg-open" : ""} />
           </button>
         </div>
       </nav>
@@ -175,46 +214,68 @@ export default function Home() {
       <header className="hero">
         <div className="wrap hero-grid">
           <div>
-            <span className="eyebrow">AI receptionist · lives inside WhatsApp</span>
-            <h1>You close at 9.<br /><span className="accent">Your bookings don't.</span></h1>
-            <p className="hero-sub">Fastrill answers every WhatsApp message — books the appointment, collects payment, sends reminders. In seconds, in 10 languages, at any hour.</p>
-            <div className="hero-ctas">
-              <a className="btn btn-teal btn-lg" href="/signup">Start free 14-day trial</a>
-              <a className="btn btn-ghost btn-lg" href={WA_LINK} target="_blank" rel="noopener noreferrer"><WaIcon /> See live demo</a>
-            </div>
-            <p className="cta-note">The demo is Fastrill itself, answering you on WhatsApp. <strong>No signup. 60 seconds.</strong></p>
-            <div className="trust-row">
-              <span className="trust-item">✓ No credit card</span>
-              <span className="trust-item">✓ Setup in 10 min</span>
-              <span className="trust-item">✓ 200+ Indian businesses</span>
-            </div>
+            <Reveal dir="up" delay={0}>
+              <span className="eyebrow">AI receptionist · lives inside WhatsApp</span>
+            </Reveal>
+            <Reveal dir="up" delay={80}>
+              <h1>You close at 9.<br /><span className="accent">Your bookings don't.</span></h1>
+            </Reveal>
+            <Reveal dir="up" delay={160}>
+              <p className="hero-sub">Fastrill answers every WhatsApp message — books the appointment, collects payment, sends reminders. In seconds, in 10 languages, at any hour.</p>
+            </Reveal>
+            <Reveal dir="up" delay={240}>
+              <div className="hero-ctas">
+                <a className="btn btn-primary btn-lg" href="/signup">Start free 14-day trial</a>
+                <a className="btn btn-ghost btn-lg" href={WA_LINK} target="_blank" rel="noopener noreferrer"><WaIcon /> See live demo</a>
+              </div>
+              <p className="cta-note">The demo is Fastrill itself, answering you on WhatsApp. <strong>No signup. 60 seconds.</strong></p>
+              <div className="trust-row">
+                <span className="trust-item">✓ No credit card</span>
+                <span className="trust-item">✓ Setup in 10 min</span>
+                <span className="trust-item">✓ 200+ Indian businesses</span>
+              </div>
+            </Reveal>
           </div>
-          <div className="phone-wrap">
-            <span className="late-tag">11:47 PM — you're asleep</span>
-            <div className="phone">
-              <div className="screen">
-                <div className="chat-header">
-                  <div className="avatar">C</div>
-                  <div>
-                    <div className="chat-name">CityCare Physio Clinic</div>
-                    <div className="chat-status">online</div>
-                  </div>
-                </div>
-                <div className="chat-body" id="chat">
-                  <span className="day-chip">Today</span>
-                  {CHAT.map((m, i) => (
-                    <div key={i} className={`msg msg-${m.dir}`} data-delay={m.delay}>
-                      {m.text}
-                      <span className="msg-time">{m.time}{m.dir === "out" && <span className="ticks"> ✓✓</span>}</span>
+          <Reveal dir="right" delay={100}>
+            <div className="phone-wrap" id="chat-wrap">
+              <span className="late-tag">11:47 PM — you're asleep</span>
+              <div className="phone">
+                <div className="screen">
+                  <div className="chat-header">
+                    <div className="avatar">C</div>
+                    <div>
+                      <div className="chat-name">CityCare Physio Clinic</div>
+                      <div className="chat-status">online</div>
                     </div>
-                  ))}
-                  <div className="typing" id="typing"><span /><span /><span /></div>
+                  </div>
+                  <div className="chat-body" id="chat">
+                    <span className="day-chip">Today</span>
+                    {CHAT.map((m, i) => (
+                      <div key={i} className={`msg msg-${m.dir}`} data-delay={m.delay}>
+                        {m.text}
+                        <span className="msg-time">{m.time}{m.dir === "out" && <span className="ticks"> ✓✓</span>}</span>
+                      </div>
+                    ))}
+                    <div className="typing" id="typing"><span /><span /><span /></div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </Reveal>
         </div>
       </header>
+
+      {/* STATS BAR */}
+      <div className="stats-bar">
+        <div className="wrap stats-grid">
+          {[["1.8s","avg reply time"],["3,200+","bookings / month"],["99%","delivery rate"],["10+","Indian languages"]].map(([v,l]) => (
+            <div key={l} className="stat-item">
+              <div className="stat-val"><Counter value={v} /></div>
+              <div className="stat-label">{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* VERTICALS */}
       <div className="verticals">
@@ -227,45 +288,51 @@ export default function Home() {
       {/* LEAK */}
       <section className="leak">
         <div className="wrap leak-grid">
-          <div className="reveal">
+          <Reveal dir="left">
             <h2>Every message you miss is money <em>walking to the business next door.</em></h2>
             <p>Customers don't wait anymore. If you don't reply in minutes, they message your competitor. You're not losing them because your service is bad — you're losing them because you were busy doing the service.</p>
-          </div>
-          <div className="ledger reveal">
-            {LEDGER.map((r, i) => (
-              <div key={i} className={`ledger-row${i === LEDGER.length - 1 ? " ledger-last" : ""}`}>
-                <span className="ledger-time">{r.time}</span>
-                <span className="ledger-what">{r.what}</span>
-                <span className="ledger-loss">{r.loss}</span>
+          </Reveal>
+          <Reveal dir="right" delay={100}>
+            <div className="ledger">
+              {LEDGER.map((r, i) => (
+                <div key={i} className={`ledger-row${i === LEDGER.length - 1 ? " ledger-last" : ""}`}>
+                  <span className="ledger-time">{r.time}</span>
+                  <span className="ledger-what">{r.what}</span>
+                  <span className="ledger-loss">{r.loss}</span>
+                </div>
+              ))}
+              <div className="ledger-total">
+                <span className="ledger-total-label">Lost today</span>
+                <span className="ledger-total-val">–₹6,350</span>
               </div>
-            ))}
-            <div className="ledger-total">
-              <span className="ledger-total-label">Lost today</span>
-              <span className="ledger-total-val">–₹6,350</span>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* HOW */}
       <section className="section" id="how">
         <div className="wrap">
-          <div className="section-head reveal">
-            <p className="kicker">How it works</p>
-            <h2 className="title">Live on your number in one day. We do the setup with you.</h2>
-          </div>
+          <Reveal dir="up">
+            <div className="section-head">
+              <p className="kicker">How it works</p>
+              <h2 className="title">Live on your number in one day. We do the setup with you.</h2>
+            </div>
+          </Reveal>
           <div className="steps">
             {[
               { h:"Connect your WhatsApp number", p:"Your existing business number, or a new one. Customers see your business name, not ours.", note:"~20 minutes" },
               { h:"Fastrill learns your business", p:"Your services, prices, timings, staff, languages. You review its answers before it goes live — nothing reaches customers without your sign-off.", note:"Same day" },
               { h:"Customers book while you work", p:"Fastrill answers, books, collects payment and reminds. You watch everything from one dashboard and jump into any chat whenever you want.", note:"From day 1" },
-            ].map((s,i) => (
-              <div key={i} className="step reveal">
-                <div className="step-num">{String(i+1).padStart(2,"0")}</div>
-                <h3>{s.h}</h3>
-                <p>{s.p}</p>
-                <span className="step-note">{s.note}</span>
-              </div>
+            ].map((s, i) => (
+              <Reveal key={i} dir="up" delay={i * 100}>
+                <div className="step">
+                  <div className="step-num">{String(i+1).padStart(2,"0")}</div>
+                  <h3>{s.h}</h3>
+                  <p>{s.p}</p>
+                  <span className="step-note">{s.note}</span>
+                </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -274,52 +341,30 @@ export default function Home() {
       {/* FEATURES */}
       <section className="section pt-0" id="features">
         <div className="wrap">
-          <div className="section-head reveal">
-            <p className="kicker">What it handles</p>
-            <h2 className="title">A full-time receptionist's job. Minus the salary, leaves and lunch breaks.</h2>
-          </div>
+          <Reveal dir="up">
+            <div className="section-head">
+              <p className="kicker">What it handles</p>
+              <h2 className="title">A full-time receptionist's job. Minus the salary, leaves and lunch breaks.</h2>
+            </div>
+          </Reveal>
           <div className="bento">
-            <div className="cell cell-big reveal">
-              <span className="pill">Bookings — the core</span>
-              <h3>Books, reschedules and cancels real appointments</h3>
-              <p>Fastrill checks your actual calendar, offers open slots, confirms the booking and blocks the time. Reschedules and cancellations handled in chat too — with reminders before every appointment so no-shows drop.</p>
-            </div>
-            <div className="cell cell-tall reveal">
-              <span className="pill">Languages</span>
-              <h3>Speaks your customer's language</h3>
-              <p>Telugu, Hindi, English and 7 more — including the Hinglish mix people actually type. Auto-detected per conversation.</p>
-              <div className="mini-quote">"It replied to a patient at midnight and I woke up to a booked slot with advance paid."<small>— the moment it clicks for every owner</small></div>
-            </div>
-            <div className="cell cell-sm reveal">
-              <span className="pill">Campaigns</span>
-              <h3>Bulk WhatsApp campaigns</h3>
-              <p>Send festival offers or re-engagement messages to your entire customer list. Fastrill handles the flood of replies and converts them into bookings — with full revenue tracking.</p>
-            </div>
-            <div className="cell cell-sm reveal">
-              <span className="pill">Lead recovery</span>
-              <h3>Wins back lost leads automatically</h3>
-              <p>Customer went quiet after enquiring? Fastrill follows up with a sequence of messages over 24–48 hours and brings them back — without you lifting a finger.</p>
-            </div>
-            <div className="cell cell-sm reveal">
-              <span className="pill">Payments</span>
-              <h3>Collects advance payment in chat</h3>
-              <p>UPI payment links sent inside WhatsApp. Advance-paid customers actually show up. No-shows drop dramatically.</p>
-            </div>
-            <div className="cell cell-sm reveal">
-              <span className="pill">Missed calls</span>
-              <h3>Recovers missed calls instantly</h3>
-              <p>Can't pick up? The caller instantly gets a WhatsApp message from Fastrill and books there instead. Zero lost leads from busy hours.</p>
-            </div>
-            <div className="cell cell-sm reveal">
-              <span className="pill">Analytics</span>
-              <h3>Revenue per campaign & booking trends</h3>
-              <p>See which campaigns drove bookings, which services are trending, peak hours, and customer lifetime value — all from one dashboard.</p>
-            </div>
-            <div className="cell cell-sm reveal">
-              <span className="pill">Control</span>
-              <h3>You stay in control, always</h3>
-              <p>Complex question or upset customer? Fastrill alerts you and steps aside. Take over any chat, any time, then hand back to AI when you're done.</p>
-            </div>
+            {[
+              { size:"big", pill:"Bookings — the core", h:"Books, reschedules and cancels real appointments", p:"Fastrill checks your actual calendar, offers open slots, confirms the booking and blocks the time. Reschedules and cancellations handled in chat too — with reminders before every appointment so no-shows drop.", dir:"left" },
+              { size:"tall", pill:"Languages", h:"Speaks your customer's language", p:"Telugu, Hindi, English and 7 more — including the Hinglish mix people actually type. Auto-detected per conversation.", quote:'"It replied to a patient at midnight and I woke up to a booked slot with advance paid."', quoteNote:"— the moment it clicks for every owner", dir:"right" },
+              { size:"sm", pill:"Campaigns", h:"Bulk WhatsApp campaigns", p:"Send festival offers to your entire customer list. Fastrill handles the flood of replies and converts them into bookings — with full revenue tracking.", dir:"up" },
+              { size:"sm", pill:"Lead recovery", h:"Wins back lost leads automatically", p:"Customer went quiet after enquiring? Fastrill follows up over 24–48 hours and brings them back — without you lifting a finger.", dir:"up" },
+              { size:"sm", pill:"Payments", h:"Collects advance payment in chat", p:"UPI payment links sent inside WhatsApp. Advance-paid customers actually show up. No-shows drop dramatically.", dir:"up" },
+              { size:"sm", pill:"Missed calls", h:"Recovers missed calls instantly", p:"Can't pick up? The caller instantly gets a WhatsApp message from Fastrill and books there instead.", dir:"up" },
+              { size:"sm", pill:"Analytics", h:"Revenue per campaign & booking trends", p:"See which campaigns drove bookings, which services are trending, peak hours, and customer lifetime value.", dir:"up" },
+              { size:"sm", pill:"Control", h:"You stay in control, always", p:"Complex question or upset customer? Fastrill alerts you and steps aside. Take over any chat, any time.", dir:"up" },
+            ].map((c, i) => (
+              <Reveal key={i} dir={c.dir} delay={c.size === "sm" ? (i % 3) * 80 : 0} className={`cell cell-${c.size}`}>
+                <span className="pill">{c.pill}</span>
+                <h3>{c.h}</h3>
+                <p>{c.p}</p>
+                {c.quote && <div className="mini-quote">{c.quote}<small>{c.quoteNote}</small></div>}
+              </Reveal>
+            ))}
           </div>
         </div>
       </section>
@@ -327,31 +372,37 @@ export default function Home() {
       {/* TESTIMONIALS */}
       <section className="section testimonials-section">
         <div className="wrap">
-          <div className="section-head reveal">
-            <p className="kicker">Results</p>
-            <h2 className="title">Real businesses. Real numbers.</h2>
-          </div>
-          <div className="test-grid reveal">
-            <div className="test-main">
-              <div className="test-qmark">"</div>
-              <p className="test-quote">{TESTIMONIALS[activeT].quote}</p>
-              <div className="test-auth">
-                <div className="test-av">{TESTIMONIALS[activeT].name[0]}</div>
-                <div>
-                  <div className="test-name">{TESTIMONIALS[activeT].name}</div>
-                  <div className="test-biz">{TESTIMONIALS[activeT].biz}</div>
+          <Reveal dir="up">
+            <div className="section-head">
+              <p className="kicker">Results</p>
+              <h2 className="title">Real businesses. Real numbers.</h2>
+            </div>
+          </Reveal>
+          <div className="test-grid">
+            <Reveal dir="left">
+              <div className="test-main">
+                <div className="test-qmark">"</div>
+                <p className="test-quote" key={activeT} style={{animation:"fadeQ .4s ease"}}>{TESTIMONIALS[activeT].quote}</p>
+                <div className="test-auth">
+                  <div className="test-av">{TESTIMONIALS[activeT].name[0]}</div>
+                  <div>
+                    <div className="test-name">{TESTIMONIALS[activeT].name}</div>
+                    <div className="test-biz">{TESTIMONIALS[activeT].biz}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="test-rail">
-              {TESTIMONIALS.map((t,i) => (
-                <button key={t.name} className={`test-btn${i===activeT?" active":""}`} onClick={() => setActiveT(i)}>
-                  <div className="test-stat">{t.stat}</div>
-                  <div className="test-stat-label">{t.statLabel}</div>
-                  <div className="test-person">{t.name}</div>
-                </button>
-              ))}
-            </div>
+            </Reveal>
+            <Reveal dir="right" delay={100}>
+              <div className="test-rail">
+                {TESTIMONIALS.map((t, i) => (
+                  <button key={t.name} className={`test-btn${i === activeT ? " active" : ""}`} onClick={() => setActiveT(i)}>
+                    <div className="test-stat">{t.stat}</div>
+                    <div className="test-stat-label">{t.statLabel}</div>
+                    <div className="test-person">{t.name}</div>
+                  </button>
+                ))}
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -359,60 +410,72 @@ export default function Home() {
       {/* PRICING */}
       <section className="section pricing" id="pricing">
         <div className="wrap">
-          <div className="section-head reveal">
-            <p className="kicker">Pricing</p>
-            <h2 className="title">Start free for 14 days. Pick a plan when it's earning for you.</h2>
-            <p>No per-message charges. No setup fee. Cancel anytime from the dashboard.</p>
-          </div>
+          <Reveal dir="up">
+            <div className="section-head">
+              <p className="kicker">Pricing</p>
+              <h2 className="title">Start free for 14 days. Pick a plan when it's earning for you.</h2>
+              <p>No per-message charges. No setup fee. Cancel anytime from the dashboard.</p>
+            </div>
+          </Reveal>
           <div className="plans">
-            {PLANS.map(p => (
-              <div key={p.name} className={`plan reveal${p.featured ? " plan-featured" : ""}`}>
-                {p.featured && <span className="plan-badge">Most popular</span>}
-                <h3>{p.name}</h3>
-                <p className="plan-tag">{p.tag}</p>
-                <div className="plan-price">₹{p.price}<small> /month + GST</small></div>
-                <ul className="plan-feats">
-                  {p.features.map(f => <li key={f}><span className="check">✓</span>{f}</li>)}
-                  {p.missing.map(f => <li key={f} className="miss"><span className="cross">✗</span>{f}</li>)}
-                </ul>
-                <a className={`btn plan-cta ${p.featured ? "btn-marigold" : "btn-ghost"}`} href="/signup">Start free trial</a>
-              </div>
+            {PLANS.map((p, i) => (
+              <Reveal key={p.name} dir="up" delay={i * 100}>
+                <div className={`plan${p.featured ? " plan-featured" : ""}`}>
+                  {p.featured && <span className="plan-badge">Most popular</span>}
+                  <h3>{p.name}</h3>
+                  <p className="plan-tag">{p.tag}</p>
+                  <div className="plan-price">₹{p.price}<small> /month + GST</small></div>
+                  <ul className="plan-feats">
+                    {p.features.map(f => <li key={f}><span className="check">✓</span>{f}</li>)}
+                    {p.missing.map(f => <li key={f} className="miss"><span className="cross">✗</span>{f}</li>)}
+                  </ul>
+                  <a className={`btn plan-cta ${p.featured ? "btn-primary" : "btn-ghost"}`} href="/signup">Start free trial</a>
+                </div>
+              </Reveal>
             ))}
           </div>
-          <p className="roi reveal"><strong>It pays for itself with 4–5 saved bookings a month.</strong> Most businesses lose more than that in unanswered messages every single week.</p>
+          <Reveal dir="up" delay={200}>
+            <p className="roi"><strong>It pays for itself with 4–5 saved bookings a month.</strong> Most businesses lose more than that in unanswered messages every single week.</p>
+          </Reveal>
         </div>
       </section>
 
       {/* FAQ */}
       <section className="section">
         <div className="wrap">
-          <div className="section-head reveal">
-            <p className="kicker">Questions owners actually ask</p>
-            <h2 className="title">Before you ask —</h2>
-          </div>
-          <div className="faq reveal">
-            {FAQS.map((f,i) => (
-              <div key={i} className={`faq-item${openFaq===i?" open":""}`}>
-                <button className="faq-q" onClick={() => setOpenFaq(openFaq===i?null:i)}>
-                  {f.q}<span className="faq-icon">{openFaq===i?"−":"+"}</span>
-                </button>
-                <div className="faq-a"><p>{f.a}</p></div>
-              </div>
-            ))}
-          </div>
+          <Reveal dir="up">
+            <div className="section-head">
+              <p className="kicker">Questions owners actually ask</p>
+              <h2 className="title">Before you ask —</h2>
+            </div>
+          </Reveal>
+          <Reveal dir="up" delay={80}>
+            <div className="faq">
+              {FAQS.map((f, i) => (
+                <div key={i} className={`faq-item${openFaq === i ? " open" : ""}`}>
+                  <button className="faq-q" onClick={() => setOpenFaq(openFaq === i ? null : i)}>
+                    {f.q}<span className="faq-icon">{openFaq === i ? "−" : "+"}</span>
+                  </button>
+                  <div className="faq-a"><p>{f.a}</p></div>
+                </div>
+              ))}
+            </div>
+          </Reveal>
         </div>
       </section>
 
       {/* FINAL CTA */}
       <section className="final">
         <div className="wrap">
-          <h2>Don't take our word for it.<br />Take Fastrill's.</h2>
-          <p>The demo <strong>is</strong> the product — message it right now and try to stump it. Ask prices, book a slot, cancel it, ask in Telugu. See what your customers would see.</p>
-          <div className="final-ctas">
-            <a className="btn btn-white" href={WA_LINK} target="_blank" rel="noopener noreferrer"><WaIcon /> Message Fastrill on WhatsApp</a>
-            <a className="btn btn-ghost-light" href="/signup">Start free trial →</a>
-          </div>
-          <p className="final-note">14-day free trial · No credit card · Cancel anytime</p>
+          <Reveal dir="up">
+            <h2>Don't take our word for it.<br />Take Fastrill's.</h2>
+            <p>The demo <strong>is</strong> the product — message it right now and try to stump it. Ask prices, book a slot, cancel it, ask in Telugu. See what your customers would see.</p>
+            <div className="final-ctas">
+              <a className="btn btn-white" href={WA_LINK} target="_blank" rel="noopener noreferrer"><WaIcon /> Message Fastrill on WhatsApp</a>
+              <a className="btn btn-ghost-light" href="/signup">Start free trial →</a>
+            </div>
+            <p className="final-note">14-day free trial · No credit card · Cancel anytime</p>
+          </Reveal>
         </div>
       </section>
 
@@ -422,7 +485,7 @@ export default function Home() {
           <div className="footer-brand">
             <a href="/" className="logo">
               <img src="/logo.png" alt="Fastrill" className="logo-img" />
-              <span className="logo-text">fast<em>rill</em></span>
+              <span className="logo-text footer-logo-text">fast<em>rill</em></span>
             </a>
             <p className="footer-tagline">AI-powered WhatsApp automation for Indian service businesses. Built by Solvabil Pvt. Ltd., Hyderabad.</p>
           </div>
@@ -464,80 +527,87 @@ export default function Home() {
 }
 
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap');
 
 :root{
   --ink:#14201B;--ink-soft:#3D4A44;--paper:#FBFAF6;--card:#FFFFFF;
   --teal:#075E54;--teal-light:#EAF4F1;--teal-border:#CFE5DF;
-  --wa-green:#25D366;--marigold:#F2A007;--marigold-soft:#FDF3DC;--marigold-border:#EFD9A8;
+  --wa-green:#25D366;--marigold:#F2A007;--marigold-dark:#D68F00;--marigold-soft:#FDF3DC;--marigold-border:#EFD9A8;
   --line:#E4E1D6;--bubble-out:#D9FDD3;--red:#E86A5E;
-  --display:'Bricolage Grotesque',sans-serif;--body:'IBM Plex Sans',sans-serif;
-  --chat:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --font:'Bricolage Grotesque',sans-serif;
   --radius:14px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{font-family:var(--body);background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+body{font-family:var(--font);background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
 .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
 :focus-visible{outline:3px solid var(--marigold);outline-offset:3px;border-radius:4px}
 .pt-0{padding-top:0!important}
 
+@keyframes fadeQ{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
 /* NAV */
-.nav{position:sticky;top:0;z-index:100;background:rgba(251,250,246,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav{position:sticky;top:0;z-index:100;background:rgba(251,250,246,.6);backdrop-filter:blur(12px);border-bottom:1px solid transparent;transition:all .3s ease}
+.nav-sc{background:rgba(251,250,246,.95);border-bottom-color:var(--line);box-shadow:0 2px 12px rgba(20,32,27,.06)}
 .nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px}
-.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo{display:flex;align-items:center;gap:10px}
 .logo-img{width:32px;height:32px;object-fit:contain}
-.logo-text{font-family:var(--display);font-weight:800;font-size:1.3rem;letter-spacing:-.03em;color:var(--ink)}
+.logo-text{font-family:var(--font);font-weight:800;font-size:1.3rem;letter-spacing:-.03em;color:var(--ink)}
 .logo-text em{color:#00C9B1;font-style:normal}
-.nav-links{display:flex;align-items:center;gap:24px;font-size:.92rem;font-weight:500}
+.footer-logo-text{color:#fff}
+.footer-logo-text em{color:#00C9B1}
+.nav-links{display:flex;align-items:center;gap:22px;font-size:.92rem;font-weight:500}
 .nav-links a{color:var(--ink-soft);transition:color .15s}
 .nav-links a:hover{color:var(--ink)}
-.nav-signin{color:var(--teal)!important;font-weight:600}
+.nav-signin{color:var(--teal)!important;font-weight:600;border:1.5px solid var(--teal-border);padding:7px 16px;border-radius:999px;transition:all .2s!important}
+.nav-signin:hover{background:var(--teal-light)!important}
 .hbg{display:none;flex-direction:column;gap:5px;background:none;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer}
 .hbg span{display:block;width:18px;height:2px;background:var(--ink-soft);border-radius:2px;transition:all .2s}
-.mdr{position:fixed;top:64px;left:0;right:0;z-index:99;background:rgba(251,250,246,.97);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:8px 16px 20px;display:flex;flex-direction:column;gap:2px;transform:translateY(-110%);transition:transform .25s ease}
+.mdr{position:fixed;top:64px;left:0;right:0;z-index:99;background:rgba(251,250,246,.98);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding:8px 16px 20px;display:flex;flex-direction:column;gap:2px;transform:translateY(-110%);transition:transform .25s cubic-bezier(.16,1,.3,1)}
 .mdr.open{transform:none}
 .mdr a{color:var(--ink-soft);font-size:14px;font-weight:500;padding:12px 14px;border-radius:8px;display:block;transition:color .15s,background .15s}
 .mdr a:hover{color:var(--ink);background:rgba(0,0,0,.03)}
 
 /* BUTTONS */
-.btn{display:inline-flex;align-items:center;gap:9px;font-family:var(--body);font-weight:600;border-radius:999px;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease,opacity .15s;text-decoration:none;border:none}
-.btn:hover{transform:translateY(-1px)}
-.btn-teal{background:var(--teal);color:#fff;padding:10px 22px;box-shadow:0 4px 14px rgba(7,94,84,.2)}
-.btn-teal:hover{box-shadow:0 6px 20px rgba(7,94,84,.3)}
+.btn{display:inline-flex;align-items:center;gap:9px;font-family:var(--font);font-weight:700;border-radius:999px;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,opacity .18s;text-decoration:none;border:none}
+.btn:hover{transform:translateY(-2px)}
+.btn:active{transform:translateY(0)}
+.btn-primary{background:var(--marigold);color:var(--ink);padding:10px 22px;box-shadow:0 4px 16px rgba(242,160,7,.3)}
+.btn-primary:hover{background:var(--marigold-dark);box-shadow:0 6px 24px rgba(242,160,7,.4)}
 .btn-nav{padding:9px 18px;font-size:.9rem}
 .btn-lg{padding:13px 28px;font-size:1rem}
 .btn-ghost{border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:10px 22px}
-.btn-ghost-light{border:1.5px solid rgba(255,255,255,.3);background:transparent;color:#fff;padding:13px 28px;font-size:1rem}
-.btn-ghost-light:hover{background:rgba(255,255,255,.1)}
-.btn-marigold{background:var(--marigold);color:var(--ink);padding:13px 24px}
-.btn-white{background:#fff;color:var(--teal);padding:15px 32px;font-size:1.02rem;font-weight:700;box-shadow:0 4px 20px rgba(0,0,0,.15)}
+.btn-ghost:hover{border-color:var(--ink);background:var(--card)}
+.btn-ghost-light{border:1.5px solid rgba(255,255,255,.35);background:transparent;color:#fff;padding:13px 28px;font-size:1rem}
+.btn-ghost-light:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.6)}
+.btn-white{background:#fff;color:var(--teal);padding:15px 32px;font-size:1rem;font-weight:700;box-shadow:0 4px 20px rgba(0,0,0,.15)}
+.btn-white:hover{box-shadow:0 8px 32px rgba(0,0,0,.2)}
 
 /* HERO */
-.hero{padding:72px 0 88px}
-.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
-.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.78rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);background:var(--teal-light);border:1px solid var(--teal-border);padding:6px 14px;border-radius:999px;margin-bottom:22px}
-h1{font-family:var(--display);font-weight:800;font-size:clamp(2.4rem,4.6vw,3.6rem);line-height:1.06;letter-spacing:-.025em}
+.hero{padding:72px 0 80px}
+.hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:56px;align-items:center}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.78rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);background:var(--teal-light);border:1px solid var(--teal-border);padding:6px 14px;border-radius:999px;margin-bottom:20px}
+h1{font-weight:800;font-size:clamp(2.4rem,4.6vw,3.6rem);line-height:1.06;letter-spacing:-.03em}
 .accent{color:var(--teal);position:relative;white-space:nowrap}
 .accent::after{content:'';position:absolute;left:0;right:0;bottom:4px;height:10px;background:var(--marigold-soft);z-index:-1;border-radius:3px}
-.hero-sub{font-size:1.08rem;color:var(--ink-soft);margin:20px 0 28px;max-width:32rem}
+.hero-sub{font-size:1.05rem;color:var(--ink-soft);margin:20px 0 28px;max-width:32rem;font-weight:400}
 .hero-ctas{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-.cta-note{font-size:.87rem;color:var(--ink-soft);margin-top:14px}
+.cta-note{font-size:.85rem;color:var(--ink-soft);margin-top:12px;font-weight:400}
 .cta-note strong{color:var(--ink)}
-.trust-row{display:flex;gap:18px;flex-wrap:wrap;margin-top:20px}
+.trust-row{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px}
 .trust-item{font-size:.82rem;font-weight:600;color:var(--teal)}
 
 /* PHONE */
 .phone-wrap{display:flex;justify-content:center;position:relative}
-.late-tag{position:absolute;top:-16px;right:4%;background:var(--ink);color:var(--marigold);font-family:var(--display);font-weight:700;font-size:.82rem;padding:7px 15px;border-radius:999px;transform:rotate(3deg);z-index:5;box-shadow:0 6px 18px rgba(20,32,27,.25)}
-.phone{width:320px;background:#111B21;border-radius:38px;padding:11px;box-shadow:0 30px 60px -18px rgba(20,32,27,.4)}
+.late-tag{position:absolute;top:-16px;right:4%;background:var(--ink);color:var(--marigold);font-weight:700;font-size:.82rem;padding:7px 15px;border-radius:999px;transform:rotate(3deg);z-index:5;box-shadow:0 6px 18px rgba(20,32,27,.25)}
+.phone{width:320px;background:#111B21;border-radius:38px;padding:11px;box-shadow:0 30px 60px -18px rgba(20,32,27,.4),0 0 0 1px rgba(255,255,255,.06)}
 .screen{background:#EFEAE2;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;height:540px}
-.chat-header{background:var(--teal);color:#fff;padding:13px 15px;display:flex;align-items:center;gap:11px;font-family:var(--chat)}
+.chat-header{background:var(--teal);color:#fff;padding:13px 15px;display:flex;align-items:center;gap:11px}
 .avatar{width:36px;height:36px;border-radius:50%;background:var(--marigold);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--ink);font-size:.95rem;flex-shrink:0}
-.chat-name{font-size:.92rem;font-weight:600;line-height:1.2}
+.chat-name{font-size:.92rem;font-weight:700;line-height:1.2}
 .chat-status{font-size:.72rem;opacity:.85}
-.chat-body{flex:1;padding:14px 11px;display:flex;flex-direction:column;gap:9px;font-family:var(--chat);overflow:hidden}
+.chat-body{flex:1;padding:14px 11px;display:flex;flex-direction:column;gap:9px;overflow:hidden}
 .day-chip{align-self:center;background:#fff;border-radius:8px;padding:3px 11px;font-size:.7rem;color:#54656F;box-shadow:0 1px 1px rgba(0,0,0,.08)}
 .msg{max-width:82%;padding:8px 12px;border-radius:10px;font-size:.83rem;line-height:1.45;box-shadow:0 1px 1px rgba(0,0,0,.07);opacity:0;transform:translateY(8px)}
 .msg.show{animation:pop .35s ease forwards}
@@ -553,153 +623,155 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(2.4rem,4.6vw,3.6re
 .typing span:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
 
+/* STATS BAR */
+.stats-bar{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line)}
+.stat-item{background:var(--card);padding:28px 24px;text-align:center}
+.stat-val{font-weight:800;font-size:2rem;color:var(--ink);letter-spacing:-.03em;line-height:1}
+.stat-label{font-size:.82rem;color:var(--ink-soft);margin-top:4px;font-weight:500}
+
 /* VERTICALS */
-.verticals{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--card)}
+.verticals{border-bottom:1px solid var(--line);background:var(--paper)}
 .verticals-inner{display:flex;gap:24px;align-items:center;justify-content:center;flex-wrap:wrap;padding:16px 0;font-size:.88rem;color:var(--ink-soft);font-weight:500}
-.verticals-label{font-family:var(--display);font-weight:700;color:var(--ink);font-size:.9rem}
+.verticals-label{font-weight:700;color:var(--ink);font-size:.9rem}
 
 /* LEAK */
 .leak{background:var(--ink);color:var(--paper);padding:80px 0}
 .leak-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:56px;align-items:center}
-.leak h2{font-family:var(--display);font-weight:800;font-size:clamp(1.8rem,3.2vw,2.5rem);line-height:1.12;letter-spacing:-.02em}
+.leak h2{font-weight:800;font-size:clamp(1.8rem,3.2vw,2.5rem);line-height:1.12;letter-spacing:-.025em}
 .leak h2 em{font-style:normal;color:var(--marigold)}
-.leak p{color:#B9C4BE;margin-top:18px;font-size:1rem;max-width:26rem}
+.leak p{color:#B9C4BE;margin-top:18px;font-size:1rem;max-width:26rem;font-weight:400}
 .ledger{border:1px solid #2B3833;border-radius:var(--radius);overflow:hidden}
-.ledger-row{display:grid;grid-template-columns:80px 1fr auto;gap:14px;align-items:center;padding:16px 20px;border-bottom:1px solid #2B3833;font-size:.92rem}
+.ledger-row{display:grid;grid-template-columns:80px 1fr auto;gap:14px;align-items:center;padding:16px 20px;border-bottom:1px solid #2B3833;font-size:.88rem}
 .ledger-last{background:#1D2B25}
-.ledger-time{font-family:var(--display);font-weight:600;color:#8A9992;font-size:.82rem}
-.ledger-what{color:#DDE4E0;font-size:.88rem}
-.ledger-loss{font-family:var(--display);font-weight:700;color:var(--red);white-space:nowrap}
+.ledger-time{font-weight:600;color:#8A9992;font-size:.8rem}
+.ledger-what{color:#DDE4E0;font-size:.86rem}
+.ledger-loss{font-weight:700;color:var(--red);white-space:nowrap}
 .ledger-last .ledger-loss{color:var(--marigold)}
 .ledger-total{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#0D1A16;border-top:2px solid #3D5248}
-.ledger-total-label{font-size:.85rem;font-weight:600;color:#8A9992;letter-spacing:.04em;text-transform:uppercase}
-.ledger-total-val{font-family:var(--display);font-weight:800;font-size:1.4rem;color:var(--red)}
+.ledger-total-label{font-size:.82rem;font-weight:600;color:#8A9992;letter-spacing:.04em;text-transform:uppercase}
+.ledger-total-val{font-weight:800;font-size:1.5rem;color:var(--red)}
 
 /* SECTIONS */
 .section{padding:88px 0}
 .section-head{max-width:40rem;margin-bottom:52px}
-.kicker{font-size:.78rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);margin-bottom:12px}
-h2.title{font-family:var(--display);font-weight:800;font-size:clamp(1.7rem,3vw,2.4rem);letter-spacing:-.02em;line-height:1.12}
-.section-head p{color:var(--ink-soft);margin-top:14px;font-size:1rem}
+.kicker{font-size:.78rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);margin-bottom:12px}
+h2.title{font-weight:800;font-size:clamp(1.7rem,3vw,2.4rem);letter-spacing:-.025em;line-height:1.12}
+.section-head p{color:var(--ink-soft);margin-top:14px;font-size:1rem;font-weight:400}
 
 /* STEPS */
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-.step{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:32px 26px}
-.step-num{font-family:var(--display);font-weight:800;font-size:2.8rem;color:var(--marigold);line-height:1;margin-bottom:18px}
-.step h3{font-family:var(--display);font-weight:700;font-size:1.12rem;margin-bottom:10px;letter-spacing:-.01em}
-.step p{font-size:.93rem;color:var(--ink-soft)}
-.step-note{display:inline-block;margin-top:16px;font-size:.8rem;font-weight:600;color:var(--teal);background:var(--teal-light);padding:4px 10px;border-radius:6px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:32px 26px;height:100%}
+.step-num{font-weight:800;font-size:3rem;color:var(--marigold);line-height:1;margin-bottom:18px}
+.step h3{font-weight:700;font-size:1.1rem;margin-bottom:10px;letter-spacing:-.01em}
+.step p{font-size:.92rem;color:var(--ink-soft);font-weight:400}
+.step-note{display:inline-block;margin-top:16px;font-size:.78rem;font-weight:700;color:var(--teal);background:var(--teal-light);padding:4px 10px;border-radius:6px}
 
 /* BENTO */
 .bento{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
 .cell{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px 24px}
-.cell h3{font-family:var(--display);font-weight:700;font-size:1.08rem;margin-bottom:8px;letter-spacing:-.01em}
-.cell p{font-size:.91rem;color:var(--ink-soft);line-height:1.65}
+.cell h3{font-weight:700;font-size:1.08rem;margin-bottom:8px;letter-spacing:-.01em}
+.cell p{font-size:.9rem;color:var(--ink-soft);line-height:1.65;font-weight:400}
 .cell-big{grid-column:span 4;background:linear-gradient(135deg,var(--teal-light) 0%,var(--card) 60%)}
-.cell-big h3{font-size:1.3rem}
-.cell-big p{max-width:32rem;font-size:.97rem}
+.cell-big h3{font-size:1.28rem}
+.cell-big p{max-width:32rem;font-size:.96rem}
 .cell-tall{grid-column:span 2;grid-row:span 2;background:var(--marigold-soft);border-color:var(--marigold-border);display:flex;flex-direction:column;justify-content:space-between}
-.mini-quote{font-family:var(--display);font-weight:600;font-size:1rem;line-height:1.4;margin-top:24px;color:var(--ink)}
-.mini-quote small{display:block;font-family:var(--body);font-weight:500;font-size:.78rem;color:var(--ink-soft);margin-top:8px}
+.mini-quote{font-weight:700;font-size:1rem;line-height:1.4;margin-top:24px;color:var(--ink)}
+.mini-quote small{display:block;font-weight:400;font-size:.78rem;color:var(--ink-soft);margin-top:8px}
 .cell-sm{grid-column:span 2}
-.pill{display:inline-block;font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);background:var(--teal-light);padding:4px 10px;border-radius:6px;margin-bottom:12px}
+.pill{display:inline-block;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);background:var(--teal-light);padding:4px 10px;border-radius:6px;margin-bottom:12px}
 .cell-tall .pill{background:#fff}
 
 /* TESTIMONIALS */
 .testimonials-section{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .test-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:clamp(32px,5vw,72px);align-items:start}
-.test-qmark{font-size:80px;line-height:0.6;color:rgba(7,94,84,.1);margin-bottom:10px;display:block;font-family:var(--display)}
-.test-quote{font-size:clamp(17px,2vw,22px);font-weight:600;color:var(--ink);line-height:1.5;letter-spacing:-.01em;margin-bottom:28px;min-height:90px;font-family:var(--display)}
+.test-qmark{font-size:80px;line-height:.6;color:rgba(7,94,84,.1);margin-bottom:10px;display:block}
+.test-quote{font-size:clamp(17px,2vw,22px);font-weight:600;color:var(--ink);line-height:1.5;letter-spacing:-.01em;margin-bottom:28px;min-height:90px}
 .test-auth{display:flex;align-items:center;gap:12px;padding-top:20px;border-top:1px solid var(--line)}
 .test-av{width:38px;height:38px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;flex-shrink:0}
 .test-name{font-size:13px;font-weight:700;color:var(--ink)}
 .test-biz{font-size:11.5px;color:var(--ink-soft)}
 .test-rail{display:flex;flex-direction:column;border-left:1px solid var(--line)}
-.test-btn{text-align:left;background:none;border:none;border-left:2px solid transparent;margin-left:-1px;padding:18px 0 18px 22px;cursor:pointer;font-family:var(--body);transition:all .2s}
+.test-btn{text-align:left;background:none;border:none;border-left:2px solid transparent;margin-left:-1px;padding:18px 0 18px 22px;cursor:pointer;font-family:var(--font);transition:all .2s}
 .test-btn.active{border-left-color:var(--teal);background:linear-gradient(90deg,var(--teal-light),transparent 70%)}
-.test-stat{font-family:var(--display);font-size:22px;font-weight:800;color:var(--ink-soft);margin-bottom:3px;transition:color .2s}
+.test-stat{font-size:22px;font-weight:800;color:var(--ink-soft);margin-bottom:3px;transition:color .2s}
 .test-btn.active .test-stat{color:var(--teal)}
-.test-stat-label{font-size:10.5px;color:var(--ink-soft);margin-bottom:4px}
+.test-stat-label{font-size:10.5px;color:var(--ink-soft);margin-bottom:4px;font-weight:500}
 .test-person{font-size:11px;color:var(--ink-soft)}
 
 /* PRICING */
 .pricing{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch}
-.plan{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:32px 26px;display:flex;flex-direction:column;position:relative;transition:transform .2s,box-shadow .2s}
-.plan:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(20,32,27,.08)}
+.plan{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:32px 26px;display:flex;flex-direction:column;position:relative;transition:transform .2s,box-shadow .2s;height:100%}
+.plan:hover{transform:translateY(-3px);box-shadow:0 8px 32px rgba(20,32,27,.08)}
 .plan-featured{background:var(--ink);color:var(--paper);border-color:var(--ink);transform:scale(1.03)}
-.plan-featured:hover{transform:scale(1.03) translateY(-2px)}
-.plan-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--marigold);color:var(--ink);font-family:var(--display);font-weight:700;font-size:.76rem;padding:5px 14px;border-radius:999px;white-space:nowrap}
-.plan h3{font-family:var(--display);font-weight:800;font-size:1.25rem;letter-spacing:-.01em}
-.plan-tag{font-size:.86rem;color:var(--ink-soft);margin-top:4px;min-height:2.4em}
+.plan-featured:hover{transform:scale(1.03) translateY(-3px)}
+.plan-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--marigold);color:var(--ink);font-weight:700;font-size:.76rem;padding:5px 14px;border-radius:999px;white-space:nowrap}
+.plan h3{font-weight:800;font-size:1.25rem;letter-spacing:-.01em}
+.plan-tag{font-size:.85rem;color:var(--ink-soft);margin-top:4px;min-height:2.4em;font-weight:400}
 .plan-featured .plan-tag{color:#9FB0A9}
-.plan-price{font-family:var(--display);font-weight:800;font-size:2.2rem;letter-spacing:-.03em;margin:16px 0 18px;line-height:1}
-.plan-price small{font-size:.88rem;font-weight:500;color:var(--ink-soft);letter-spacing:0}
+.plan-price{font-weight:800;font-size:2.2rem;letter-spacing:-.03em;margin:16px 0 18px;line-height:1}
+.plan-price small{font-size:.86rem;font-weight:500;color:var(--ink-soft);letter-spacing:0}
 .plan-featured .plan-price small{color:#9FB0A9}
 .plan-feats{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:26px;flex:1}
-.plan-feats li{display:flex;gap:9px;align-items:flex-start;font-size:.88rem;color:var(--ink-soft)}
+.plan-feats li{display:flex;gap:9px;align-items:flex-start;font-size:.87rem;color:var(--ink-soft);font-weight:400}
 .plan-featured .plan-feats li{color:#DDE4E0}
-.plan-feats li.miss{opacity:.4}
+.plan-feats li.miss{opacity:.35}
 .check{color:var(--wa-green);font-weight:700;flex-shrink:0;margin-top:1px}
 .cross{color:var(--red);opacity:.5;font-weight:700;flex-shrink:0;margin-top:1px}
-.plan-featured .cross{color:#E86A5E}
 .plan-cta{justify-content:center;width:100%;padding:13px 24px;font-size:.95rem}
-
-.roi{margin-top:36px;text-align:center;color:var(--ink-soft);font-size:.96rem}
-.roi strong{font-family:var(--display);color:var(--ink)}
+.roi{margin-top:36px;text-align:center;color:var(--ink-soft);font-size:.95rem;font-weight:400}
+.roi strong{color:var(--ink);font-weight:700}
 
 /* FAQ */
 .faq{max-width:44rem}
 .faq-item{border-bottom:1px solid var(--line)}
 .faq-item:first-child{border-top:1px solid var(--line)}
-.faq-q{width:100%;background:none;border:none;padding:18px 0;text-align:left;font-family:var(--display);font-weight:600;font-size:1.02rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:14px;color:var(--ink);transition:color .2s}
+.faq-q{width:100%;background:none;border:none;padding:18px 0;text-align:left;font-family:var(--font);font-weight:700;font-size:1rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:14px;color:var(--ink);transition:color .2s}
 .faq-q:hover{color:var(--teal)}
 .faq-icon{font-size:1.4rem;font-weight:400;color:var(--teal);flex-shrink:0;transition:transform .2s}
 .faq-item.open .faq-icon{transform:rotate(45deg)}
-.faq-a{max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s ease}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .32s ease,padding .32s ease}
 .faq-item.open .faq-a{max-height:200px;padding-bottom:18px}
-.faq-a p{font-size:.94rem;color:var(--ink-soft);max-width:38rem}
+.faq-a p{font-size:.93rem;color:var(--ink-soft);max-width:38rem;font-weight:400}
 
-/* FINAL CTA */
+/* FINAL */
 .final{background:var(--teal);color:#fff;padding:88px 0;text-align:center;position:relative;overflow:hidden}
 .final::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 80% 20%,rgba(242,160,7,.18),transparent 45%);pointer-events:none}
-.final h2{font-family:var(--display);font-weight:800;font-size:clamp(1.9rem,3.6vw,2.8rem);letter-spacing:-.02em;line-height:1.1;position:relative}
-.final p{margin:16px auto 32px;max-width:30rem;color:#CBE3DE;position:relative;font-size:.98rem}
-.final p strong{color:#fff}
+.final h2{font-weight:800;font-size:clamp(1.9rem,3.6vw,2.8rem);letter-spacing:-.025em;line-height:1.1;position:relative}
+.final p{margin:16px auto 32px;max-width:30rem;color:#CBE3DE;position:relative;font-size:.97rem;font-weight:400}
+.final p strong{color:#fff;font-weight:700}
 .final-ctas{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;position:relative}
-.final-note{margin-top:20px;font-size:.82rem;color:rgba(255,255,255,.55);position:relative}
+.final-note{margin-top:20px;font-size:.82rem;color:rgba(255,255,255,.5);position:relative}
 
 /* FOOTER */
 .footer{background:var(--ink);color:var(--paper);padding:56px 0 0}
 .footer-inner{display:grid;grid-template-columns:1.6fr 1fr;gap:48px;padding-bottom:40px;border-bottom:1px solid #2B3833}
-.footer-brand .logo-text{color:#fff}
-.footer-tagline{font-size:.84rem;color:#8A9992;line-height:1.8;margin-top:14px;max-width:260px}
+.footer-tagline{font-size:.83rem;color:#8A9992;line-height:1.8;margin-top:14px;max-width:260px;font-weight:400}
 .footer-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-.footer-col-h{font-size:.75rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8A9992;margin-bottom:14px}
+.footer-col-h{font-size:.74rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#8A9992;margin-bottom:14px}
 .footer-links{list-style:none;display:flex;flex-direction:column;gap:9px}
-.footer-links a{font-size:.88rem;color:#B9C4BE;transition:color .15s}
+.footer-links a{font-size:.87rem;color:#B9C4BE;transition:color .15s;font-weight:400}
 .footer-links a:hover{color:#fff}
-.footer-bot{display:flex;justify-content:space-between;align-items:center;font-size:.8rem;color:#5C6B64;flex-wrap:wrap;gap:8px;padding:20px 0}
-
-/* REVEAL */
-.reveal{opacity:0;transform:translateY(18px);transition:opacity .55s ease,transform .55s ease}
-.reveal.in{opacity:1;transform:none}
+.footer-bot{display:flex;justify-content:space-between;align-items:center;font-size:.79rem;color:#5C6B64;flex-wrap:wrap;gap:8px;padding:20px 0;font-weight:400}
 
 @media(prefers-reduced-motion:reduce){
-  .msg,.typing span,.reveal,.btn{animation:none!important;transition:none!important;opacity:1!important;transform:none!important}
-  html{scroll-behavior:auto}
+  *{animation:none!important;transition:none!important}
+  .msg{opacity:1!important;transform:none!important}
 }
 @media(max-width:900px){
   .hero-grid,.leak-grid{grid-template-columns:1fr;gap:44px}
   .steps,.plans{grid-template-columns:1fr}
   .plan-featured{transform:none}
+  .plan-featured:hover{transform:translateY(-3px)}
   .bento{grid-template-columns:1fr 1fr}
   .cell-big,.cell-tall,.cell-sm{grid-column:span 2;grid-row:auto}
-  .nav-links a:not(.btn-teal):not(.nav-signin){display:none}
+  .nav-links a:not(.btn-primary):not(.nav-signin){display:none}
   .hbg{display:flex}
   .hero{padding:48px 0 64px}
   .phone{width:295px}
   .screen{height:510px}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
   .test-grid{grid-template-columns:1fr;gap:28px}
   .test-rail{border-left:none;border-top:1px solid var(--line);flex-direction:row;flex-wrap:wrap}
   .test-btn{border-left:none;border-top:2px solid transparent;margin:0;padding:12px 16px 12px 0}
@@ -713,5 +785,6 @@ h2.title{font-family:var(--display);font-weight:800;font-size:clamp(1.7rem,3vw,2
   .ledger-row{grid-template-columns:70px 1fr;gap:8px}
   .ledger-loss{grid-column:span 2;text-align:right}
   .footer-cols{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
 }
 `;
