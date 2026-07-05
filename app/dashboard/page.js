@@ -128,7 +128,6 @@ export default function Dashboard() {
   const toggleTheme = ()=>{ const n=!dark; setDark(n); localStorage.setItem("fastrill-theme",n?"dark":"light") }
   const handleLogout = async()=>{ try{ await supabase.auth.signOut(); router.push("/login") } catch(e){ toast.error("Sign out failed") } }
 
-  // FIX: handleConnect now uses env vars + passes userId as state for multi-tenant
   const handleConnect = () => {
     const appId      = process.env.NEXT_PUBLIC_META_APP_ID
     const configId   = process.env.NEXT_PUBLIC_META_CONFIG_ID
@@ -157,11 +156,51 @@ export default function Dashboard() {
   const fMax=Math.max(funnel.customers,1)
   const fSteps=[
     {label:"Customers",  val:funnel.customers, pct:100,                                   color:acc,     icon:"◑"},
-    {label:"Chats",      val:funnel.convos,    pct:Math.round((funnel.convos/fMax)*100),  color:"#38bdf8",icon:"◎"},
+    {label:"Conversations",val:funnel.convos,   pct:Math.round((funnel.convos/fMax)*100),  color:"#38bdf8",icon:"◎"},
     {label:"Booked",     val:funnel.booked,    pct:Math.round((funnel.booked/fMax)*100),  color:"#a78bfa",icon:"◷"},
     {label:"Completed",  val:funnel.completed, pct:Math.round((funnel.completed/fMax)*100),color:"#f59e0b",icon:"✓"},
-    {label:"Revenue",    val:"₹"+(funnel.revenue).toLocaleString(), pct:null,             color:"#fb7185",icon:"₹"},
+    {label:"Revenue",    val:"₹"+(funnel.revenue).toLocaleString(), pct:funnel.customers>0?Math.round((funnel.completed/fMax)*100):0, color:"#fb7185",icon:"₹"},
   ]
+
+  const FunnelShape = ({ steps }) => {
+    const w=500, h=280, padX=60, padY=10
+    const stepH = (h - padY*2) / steps.length
+    return (
+      <svg viewBox={`0 0 ${w} ${h}`} style={{width:"100%",height:"auto",display:"block"}}>
+        <defs>
+          {steps.map((s,i)=>(
+            <linearGradient key={`fg${i}`} id={`fg${i}`} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor={s.color} stopOpacity="0.25"/>
+              <stop offset="50%" stopColor={s.color} stopOpacity="0.15"/>
+              <stop offset="100%" stopColor={s.color} stopOpacity="0.25"/>
+            </linearGradient>
+          ))}
+        </defs>
+        {steps.map((step,i)=>{
+          const topPct = i===0 ? 100 : steps[i-1].pct
+          const botPct = step.pct !== null ? step.pct : (steps[i-1]?.pct || 100)
+          const topW = Math.max(40, (topPct/100)*(w-padX*2))
+          const botW = Math.max(40, (botPct/100)*(w-padX*2))
+          const y = padY + i*stepH
+          const cx = w/2
+          const topL=cx-topW/2, topR=cx+topW/2
+          const botL=cx-botW/2, botR=cx+botW/2
+          const pts=`${topL},${y} ${topR},${y} ${botR},${y+stepH-2} ${botL},${y+stepH-2}`
+          return (
+            <g key={i}>
+              <polygon points={pts} fill={`url(#fg${i})`} stroke={step.color} strokeWidth="1" strokeOpacity="0.35"/>
+              <text x={padX-8} y={y+stepH/2+1} textAnchor="end" fill={step.color} fontSize="11" fontWeight="700" fontFamily="'Plus Jakarta Sans',sans-serif">{step.label}</text>
+              <text x={w-padX+8} y={y+stepH/2-4} textAnchor="start" fill={tx} fontSize="16" fontWeight="800" fontFamily="'Plus Jakarta Sans',sans-serif">{loading?"—":step.val}</text>
+              {step.pct!==null && <text x={w-padX+8} y={y+stepH/2+12} textAnchor="start" fill={txf} fontSize="10" fontFamily="'Plus Jakarta Sans',sans-serif">{step.pct}% of total</text>}
+              {i>0 && (
+                <line x1={cx} y1={y-1} x2={cx} y2={y+1} stroke={step.color} strokeWidth="1" strokeOpacity="0.2" strokeDasharray="3,3"/>
+              )}
+            </g>
+          )
+        })}
+      </svg>
+    )
+  }
 
   return (
     <>
@@ -225,6 +264,8 @@ export default function Dashboard() {
         .bnil{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
         .bni.on .bnic,.bni.on .bnil{color:${acc};}
         select option{background-color:#0c0c15!important;color:#eeeef5!important;}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        .fade-up{animation:fadeUp 0.4s ease both;}
       `}</style>
 
       <div className="wrap">
@@ -245,14 +286,14 @@ export default function Dashboard() {
               <div className="ua">{ui}</div>
               <div style={{fontSize:11.5,color:txm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userEmail||"Loading..."}</div>
             </div>
-            <button className="lb" onClick={handleLogout}>↩ Sign out</button>
+            <button className="lb" onClick={handleLogout}>{"↩"} Sign out</button>
           </div>
         </aside>
 
         <div className="main">
           <div className="topbar">
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <button className="hbtn" onClick={()=>setMobSidebarOpen(s=>!s)}>☰</button>
+              <button className="hbtn" onClick={()=>setMobSidebarOpen(s=>!s)}>{"☰"}</button>
               <span style={{fontWeight:700,fontSize:15,color:tx}}>Revenue Engine</span>
               <div className="period-wrap">
                 {["today","week","month"].map(p=>(
@@ -270,20 +311,20 @@ export default function Dashboard() {
 
           <div className="content">
             {!connected&&(
-              <div style={{background:dark?`linear-gradient(135deg,${acc}0f,rgba(56,189,248,0.06))`:`linear-gradient(135deg,${acc}0a,rgba(56,189,248,0.04))`,border:`1px solid ${acc}28`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
+              <div className="fade-up" style={{background:dark?`linear-gradient(135deg,${acc}0f,rgba(56,189,248,0.06))`:`linear-gradient(135deg,${acc}0a,rgba(56,189,248,0.04))`,border:`1px solid ${acc}28`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:38,height:38,borderRadius:10,background:"#25d366",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>💬</div>
+                  <div style={{width:38,height:38,borderRadius:10,background:"#25d366",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{"💬"}</div>
                   <div>
                     <div style={{fontWeight:700,fontSize:13,color:tx,marginBottom:2}}>Connect WhatsApp to start generating revenue</div>
                     <div style={{fontSize:11.5,color:txm}}>Link your business number to activate AI-powered lead conversion</div>
                   </div>
                 </div>
-                <button onClick={handleConnect} style={{background:"#1877f2",color:"#fff",border:"none",padding:"8px 16px",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",flexShrink:0}}>Connect WhatsApp →</button>
+                <button onClick={handleConnect} style={{background:"#1877f2",color:"#fff",border:"none",padding:"8px 16px",borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",flexShrink:0}}>Connect WhatsApp {"→"}</button>
               </div>
             )}
 
             {/* Health + KPIs */}
-            <div className="health-row" style={{display:"grid",gridTemplateColumns:"210px 1fr",gap:14}}>
+            <div className="health-row fade-up" style={{display:"grid",gridTemplateColumns:"210px 1fr",gap:14}}>
               <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:13,padding:"20px 16px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden"}}>
                 <div style={{position:"absolute",inset:0,background:`radial-gradient(circle at 50% 30%,${acc}0d,transparent 70%)`,pointerEvents:"none"}}/>
                 <div style={{fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase",color:txf,fontWeight:600,marginBottom:12}}>Business Health</div>
@@ -304,13 +345,13 @@ export default function Dashboard() {
 
               <div className="kpi-grid">
                 {[
-                  {name:"Revenue Generated",   val:"₹"+stats.revenue.toLocaleString(),  color:acc,       icon:"₹", sub:pLabel},
-                  {name:"Leads Captured",      val:stats.leads,                          color:"#38bdf8", icon:"↗", sub:pLabel},
-                  {name:"Appointments Booked", val:stats.bookings,                       color:"#a78bfa", icon:"📅",sub:pLabel},
-                  {name:"Avg Service Value",   val:"₹"+avgServiceValue.toLocaleString(),color:"#f59e0b", icon:"₹", sub:"per booking"},
+                  {name:"Revenue Generated",   val:"₹"+stats.revenue.toLocaleString(),  color:acc,       icon:"₹", sub:pLabel, delta:stats.revenue>0?"+"+stats.revenue.toLocaleString():null},
+                  {name:"Leads Captured",      val:stats.leads,                          color:"#38bdf8", icon:"↗", sub:pLabel, delta:stats.leads>0?"+"+stats.leads:null},
+                  {name:"Appointments Booked", val:stats.bookings,                       color:"#a78bfa", icon:"◷",sub:pLabel, delta:stats.bookings>0?"+"+stats.bookings:null},
+                  {name:"Avg Service Value",   val:"₹"+avgServiceValue.toLocaleString(),color:"#f59e0b", icon:"₹", sub:"per booking", delta:null},
                 ].map(k=>(
                   <div key={k.name} style={{background:card,border:`1px solid ${cbdr}`,borderRadius:11,padding:"15px 14px",position:"relative",overflow:"hidden"}}>
-                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:k.color+"55",borderRadius:"11px 11px 0 0"}}/>
+                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${k.color}88,${k.color}22)`,borderRadius:"11px 11px 0 0"}}/>
                     <div style={{position:"absolute",top:12,right:13,fontSize:13,opacity:0.3}}>{k.icon}</div>
                     <div style={{fontSize:11,color:txm,marginBottom:8}}>{k.name}</div>
                     <div style={{fontWeight:700,fontSize:28,letterSpacing:"-1px",lineHeight:1,color:k.color,marginBottom:5}}>{loading?"—":k.val}</div>
@@ -320,70 +361,59 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Funnel */}
-            <div className="card">
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+            {/* Conversion Funnel — Tapered shape */}
+            <div className="card fade-up" style={{animationDelay:"0.1s"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
                 <div>
-                  <div style={{fontWeight:700,fontSize:13.5,color:tx}}>Conversion Funnel</div>
-                  <div style={{fontSize:11,color:txm,marginTop:2}}>Where are customers dropping off?</div>
+                  <div style={{fontWeight:700,fontSize:14,color:tx}}>Conversion Funnel</div>
+                  <div style={{fontSize:11.5,color:txm,marginTop:3}}>Customer journey from first contact to revenue</div>
                 </div>
-                {funnel.customers>0&&<div style={{fontSize:11,color:txf}}>Based on {funnel.customers} total customers</div>}
+                {funnel.customers>0&&<div style={{fontSize:11,color:txf,background:ibg,padding:"4px 10px",borderRadius:6,border:`1px solid ${cbdr}`}}>Based on {funnel.customers} customers</div>}
               </div>
               {loading?(
-                <div style={{textAlign:"center",padding:"20px 0",color:txf,fontSize:13}}>Loading funnel data...</div>
+                <div style={{textAlign:"center",padding:"30px 0",color:txf,fontSize:13}}>Loading funnel data...</div>
               ):funnel.customers===0?(
-                <div style={{textAlign:"center",padding:"24px 0",color:txf,fontSize:13}}>No data yet — connect WhatsApp and start chatting</div>
+                <div style={{textAlign:"center",padding:"30px 0",color:txf,fontSize:13}}>No data yet {"—"} connect WhatsApp and start chatting</div>
               ):(
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {fSteps.map((step,i)=>{
-                    const barPct=step.pct!==null?step.pct:null
-                    return(
-                      <div key={step.label} style={{display:"flex",alignItems:"center",gap:12}}>
-                        <div style={{width:24,height:24,borderRadius:"50%",background:step.color+"22",border:`1px solid ${step.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:step.color,flexShrink:0}}>{i+1}</div>
-                        <div style={{width:90,flexShrink:0}}>
-                          <div style={{fontSize:12,fontWeight:600,color:tx}}>{step.label}</div>
-                        </div>
-                        {barPct!==null?(
-                          <div style={{flex:1,height:28,background:dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)",borderRadius:6,overflow:"hidden",position:"relative"}}>
-                            <div style={{height:"100%",width:`${Math.max(barPct,3)}%`,background:step.color+"33",border:`1px solid ${step.color}44`,borderRadius:6,transition:"width 0.6s ease",display:"flex",alignItems:"center",paddingLeft:8}}>
-                              {barPct>=12&&<span style={{fontSize:11,fontWeight:700,color:step.color}}>{barPct}%</span>}
-                            </div>
-                            {barPct<12&&<span style={{position:"absolute",left:`${Math.max(barPct,3)+1}%`,top:"50%",transform:"translateY(-50%)",fontSize:11,fontWeight:700,color:step.color}}>{barPct}%</span>}
-                          </div>
-                        ):(
-                          <div style={{flex:1,height:28,background:`${step.color}18`,border:`1px solid ${step.color}33`,borderRadius:6,display:"flex",alignItems:"center",paddingLeft:12}}>
-                            <span style={{fontSize:12,fontWeight:700,color:step.color}}>Revenue generated</span>
-                          </div>
-                        )}
-                        <div style={{width:70,textAlign:"right",flexShrink:0}}>
-                          <div style={{fontWeight:800,fontSize:14,color:step.color}}>{loading?"—":step.val}</div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                <FunnelShape steps={fSteps}/>
+              )}
+              {!loading && funnel.customers>0 && funnel.convos>0 && (
+                <div style={{display:"flex",gap:10,marginTop:12,justifyContent:"center",flexWrap:"wrap"}}>
+                  {[
+                    {l:"Chat Rate", v:Math.round((funnel.convos/funnel.customers)*100)+"%", c:"#38bdf8"},
+                    {l:"Book Rate", v:funnel.convos>0?Math.round((funnel.booked/funnel.convos)*100)+"%":"0%", c:"#a78bfa"},
+                    {l:"Complete Rate", v:funnel.booked>0?Math.round((funnel.completed/funnel.booked)*100)+"%":"0%", c:"#f59e0b"},
+                  ].map(m=>(
+                    <div key={m.l} style={{display:"flex",alignItems:"center",gap:6,background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:"6px 14px"}}>
+                      <div style={{width:6,height:6,borderRadius:"50%",background:m.c}}/>
+                      <span style={{fontSize:11,color:txm}}>{m.l}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:m.c}}>{m.v}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
             {/* AI Performance + Missed Revenue */}
-            <div className="two-col">
+            <div className="two-col fade-up" style={{animationDelay:"0.15s"}}>
               <div className="card">
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                   <div>
-                    <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"2px 9px",fontSize:10,color:"#a78bfa",fontWeight:700,letterSpacing:"0.5px"}}>◈ AI PERFORMANCE</div>
+                    <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"2px 9px",fontSize:10,color:"#a78bfa",fontWeight:700,letterSpacing:"0.5px"}}>{"◈"} AI PERFORMANCE</div>
                     <div style={{fontWeight:700,fontSize:13.5,color:tx,marginTop:8}}>What your AI achieved</div>
                   </div>
                   <div style={{fontSize:11,color:txm}}>Gemini AI</div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
                   {[
-                    {l:"Conversations Handled",v:stats.aiHandled,    s:"real AI replies"},
-                    {l:"AI Bookings Created",  v:stats.aiBookings,   s:"auto-booked"},
-                    {l:"Revenue from AI",      v:"₹"+stats.aiRevenue.toLocaleString(), s:"ai_booked = true"},
-                    {l:"Avg Booking Value",    v:"₹"+avgServiceValue.toLocaleString(), s:"per booking"},
+                    {l:"Conversations Handled",v:stats.aiHandled,    s:"real AI replies",   c:acc},
+                    {l:"AI Bookings Created",  v:stats.aiBookings,   s:"auto-booked",       c:"#a78bfa"},
+                    {l:"Revenue from AI",      v:"₹"+stats.aiRevenue.toLocaleString(), s:"ai_booked = true", c:"#38bdf8"},
+                    {l:"Avg Booking Value",    v:"₹"+avgServiceValue.toLocaleString(), s:"per booking",      c:"#f59e0b"},
                   ].map(m=>(
-                    <div key={m.l} style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:9,padding:12}}>
-                      <div style={{fontWeight:700,fontSize:22,color:tx,lineHeight:1,marginBottom:3}}>{loading?"—":m.v}</div>
+                    <div key={m.l} style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:9,padding:12,position:"relative",overflow:"hidden"}}>
+                      <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${m.c}55,transparent)`}}/>
+                      <div style={{fontWeight:700,fontSize:22,color:m.c,lineHeight:1,marginBottom:3}}>{loading?"—":m.v}</div>
                       <div style={{fontSize:11,color:txm,lineHeight:1.4}}>{m.l}<br/><span style={{opacity:0.6,fontSize:10}}>{m.s}</span></div>
                     </div>
                   ))}
@@ -392,7 +422,7 @@ export default function Dashboard() {
 
               <div style={{background:card,border:"1px solid rgba(251,113,133,0.18)",borderRadius:13,padding:18}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                  <div style={{fontWeight:700,fontSize:13.5,color:tx}}>🔥 Missed Revenue</div>
+                  <div style={{fontWeight:700,fontSize:13.5,color:tx}}>{"🔥"} Missed Revenue</div>
                   <div style={{fontSize:11,color:txm}}>Open leads unfollowed</div>
                 </div>
                 <div style={{fontWeight:800,fontSize:36,color:"#fb7185",letterSpacing:"-1.5px",lineHeight:1,marginBottom:4}}>
@@ -413,14 +443,14 @@ export default function Dashboard() {
                 ))}
                 {stats.missedLeads>0&&(
                   <button onClick={()=>router.push("/dashboard/leads")} style={{width:"100%",marginTop:10,padding:"8px",borderRadius:8,background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",color:"#fb7185",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                    Recover {stats.missedLeads} leads →
+                    Recover {stats.missedLeads} leads {"→"}
                   </button>
                 )}
               </div>
             </div>
 
             {/* Sources + Today + Quick Actions */}
-            <div className="three-col">
+            <div className="three-col fade-up" style={{animationDelay:"0.2s"}}>
               <div className="card">
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
                   <div style={{fontWeight:700,fontSize:13.5,color:tx}}>Lead Sources</div>
@@ -428,13 +458,26 @@ export default function Dashboard() {
                 </div>
                 {loading?<div style={{color:txf,fontSize:12,textAlign:"center",padding:"16px 0"}}>Loading...</div>
                 :sources.length===0?<div style={{color:txf,fontSize:12,textAlign:"center",padding:"16px 0"}}>No leads yet</div>
-                :sources.map(s=>(
-                  <div key={s.name} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 0",borderBottom:`1px solid ${bdr}`}}>
-                    <div style={{width:7,height:7,borderRadius:"50%",background:s.color,flexShrink:0}}/>
-                    <div style={{fontSize:12.5,color:tx,flex:1,fontWeight:500,textTransform:"capitalize"}}>{s.name}</div>
-                    <div style={{fontWeight:700,fontSize:12,color:acc}}>{s.count}</div>
-                  </div>
-                ))}
+                :(<>
+                  {sources.map(s=>{
+                    const total=sources.reduce((a,b)=>a+b.count,0)
+                    const pct=total>0?Math.round((s.count/total)*100):0
+                    return(
+                      <div key={s.name} style={{marginBottom:10}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            <div style={{width:8,height:8,borderRadius:"50%",background:s.color,flexShrink:0}}/>
+                            <span style={{fontSize:12.5,color:tx,fontWeight:500,textTransform:"capitalize"}}>{s.name}</span>
+                          </div>
+                          <span style={{fontWeight:700,fontSize:12,color:s.color}}>{s.count} ({pct}%)</span>
+                        </div>
+                        <div style={{height:4,borderRadius:100,background:dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)"}}>
+                          <div style={{height:4,borderRadius:100,width:`${Math.max(pct,3)}%`,background:`linear-gradient(90deg,${s.color},${s.color}88)`,transition:"width 0.5s"}}/>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </>)}
               </div>
 
               <div className="card">
@@ -445,7 +488,7 @@ export default function Dashboard() {
                 {loading?<div style={{color:txf,fontSize:12,textAlign:"center",padding:"16px 0"}}>Loading...</div>
                 :todayBookings.length===0?(
                   <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"22px 0",gap:6}}>
-                    <div style={{fontSize:26,opacity:0.2}}>📅</div>
+                    <div style={{fontSize:26,opacity:0.2}}>{"📅"}</div>
                     <div style={{fontSize:11.5,color:txf,textAlign:"center",lineHeight:1.5}}>No bookings today<br/>{connected?"Appear automatically from WhatsApp":"Connect WhatsApp to start"}</div>
                   </div>
                 ):todayBookings.map(b=>(
@@ -456,7 +499,7 @@ export default function Dashboard() {
                     </div>
                     <div style={{textAlign:"right"}}>
                       <div style={{fontSize:11.5,fontWeight:600,color:acc}}>{b.booking_time||"—"}</div>
-                      {b.amount>0&&<div style={{fontSize:10.5,color:txf}}>₹{b.amount}</div>}
+                      {b.amount>0&&<div style={{fontSize:10.5,color:txf}}>{"₹"}{b.amount}</div>}
                     </div>
                   </div>
                 ))}
@@ -479,7 +522,7 @@ export default function Dashboard() {
                         <div style={{fontSize:10.5,color:txm}}>{a.sub}</div>
                       </div>
                     </div>
-                    <span style={{color:a.color,fontSize:14}}>→</span>
+                    <span style={{color:a.color,fontSize:14}}>{"→"}</span>
                   </div>
                 ))}
               </div>

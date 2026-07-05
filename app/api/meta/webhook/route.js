@@ -157,7 +157,17 @@ async function POST(req) {
   }
 }
 
+const USER_MESSAGE_TYPES = new Set([
+  "text","image","video","audio","document","sticker","location",
+  "button","interactive","contacts","order"
+])
+
 async function processMessage({ message, contacts, userId, accessToken, phoneNumberId }) {
+  if (!USER_MESSAGE_TYPES.has(message.type)) {
+    console.log("⏭️ Skipping non-user message type:", message.type, "from:", message.from)
+    return
+  }
+
   const msg = normalizeMessage(message, contacts)
 
   if (await isDuplicate(msg.messageId)) return

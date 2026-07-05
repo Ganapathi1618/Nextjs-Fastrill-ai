@@ -18,7 +18,7 @@ const NAV = [
 ]
 
 export default function Analytics() {
-  usePlanGuard()  
+  usePlanGuard()
   const router = useRouter()
   const toast  = useToast()
   const [userId,    setUserId]    = useState(null)
@@ -135,51 +135,141 @@ export default function Analytics() {
   const accent=dark?"#00C9B1":"#00897A"
   const navText=dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"
   const navActive=dark?"rgba(0,196,125,0.1)":"rgba(0,180,115,0.08)"
-  const navActiveBorder = colors.navActiveBdr // dark?"rgba(0,196,125,0.2)":"rgba(0,180,115,0.2)"
-  const navActiveText = colors.navActiveText // dark?"#00B5A0":"#00897A"
+  const navActiveBorder = colors.navActiveBdr
+  const navActiveText = colors.navActiveText
   const userInitial = userEmail?userEmail[0].toUpperCase():"G"
 
-  // Mini bar chart component
-  const BarChart = ({ dataPoints, color, label }) => {
+  // Smooth SVG area chart with gradient fill
+  const AreaChart = ({ dataPoints, color, gradientId, label, prefix="" }) => {
     const max = Math.max(...dataPoints.map(d=>d.value), 1)
+    const W = 400, H = 100, padTop = 10, padBot = 20
+    const chartH = H - padTop - padBot
+    const step = dataPoints.length > 1 ? W / (dataPoints.length - 1) : W
+
+    const points = dataPoints.map((d, i) => ({
+      x: i * step,
+      y: padTop + chartH - (d.value / max) * chartH
+    }))
+
+    // Smooth cubic bezier path
+    let linePath = ""
+    let areaPath = ""
+    if (points.length > 0) {
+      linePath = `M ${points[0].x},${points[0].y}`
+      for (let i = 1; i < points.length; i++) {
+        const prev = points[i - 1]
+        const curr = points[i]
+        const cpx = (prev.x + curr.x) / 2
+        linePath += ` C ${cpx},${prev.y} ${cpx},${curr.y} ${curr.x},${curr.y}`
+      }
+      areaPath = linePath + ` L ${points[points.length-1].x},${H - padBot} L ${points[0].x},${H - padBot} Z`
+    }
+
+    // Pick ~5 evenly spaced labels
+    const labelCount = Math.min(5, dataPoints.length)
+    const labelIndices = []
+    if (dataPoints.length <= 5) {
+      dataPoints.forEach((_, i) => labelIndices.push(i))
+    } else {
+      for (let i = 0; i < labelCount; i++) {
+        labelIndices.push(Math.round(i * (dataPoints.length - 1) / (labelCount - 1)))
+      }
+    }
+
+    // Peak value indicator
+    const peakIdx = dataPoints.reduce((best, d, i) => d.value > dataPoints[best].value ? i : best, 0)
+    const peakVal = dataPoints[peakIdx]?.value || 0
+
     return (
       <div>
-        <div style={{fontSize:11,color:textFaint,fontWeight:600,marginBottom:10}}>{label}</div>
-        <div style={{display:"flex",alignItems:"flex-end",gap:3,height:70}}>
-          {dataPoints.map((d,i)=>(
-            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-              <div style={{
-                width:"100%", borderRadius:"3px 3px 0 0",
-                height: d.value>0 ? `${Math.max(4,(d.value/max)*60)}px` : "2px",
-                background: d.value>0 ? color : (dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)"),
-                transition:"height 0.3s"
-              }}/>
-            </div>
-          ))}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div style={{fontSize:11,color:textFaint,fontWeight:600}}>{label}</div>
+          {peakVal > 0 && <div style={{fontSize:10,color,fontWeight:700,background:dark?`${color}15`:`${color}18`,padding:"2px 8px",borderRadius:20}}>Peak: {prefix}{peakVal.toLocaleString()}</div>}
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
-          <span style={{fontSize:9.5,color:textFaint}}>{dataPoints[0]?.label}</span>
-          <span style={{fontSize:9.5,color:textFaint}}>{dataPoints[dataPoints.length-1]?.label}</span>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:120}} preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.3"/>
+              <stop offset="100%" stopColor={color} stopOpacity="0.02"/>
+            </linearGradient>
+          </defs>
+          {/* Horizontal grid lines */}
+          {[0.25, 0.5, 0.75].map(f => (
+            <line key={f} x1={0} y1={padTop + chartH * (1 - f)} x2={W} y2={padTop + chartH * (1 - f)}
+              stroke={dark?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.05)"} strokeDasharray="4,4"/>
+          ))}
+          {/* Gradient fill area */}
+          {areaPath && <path d={areaPath} fill={`url(#${gradientId})`}/>}
+          {/* Smooth line */}
+          {linePath && <path d={linePath} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
+          {/* Data point dots */}
+          {points.map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r={dataPoints[i].value > 0 ? 3 : 0}
+              fill={card} stroke={color} strokeWidth="2"/>
+          ))}
+          {/* Peak dot highlight */}
+          {peakVal > 0 && <circle cx={points[peakIdx].x} cy={points[peakIdx].y} r={5}
+            fill={color} opacity="0.3"/>}
+        </svg>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:2}}>
+          {labelIndices.map(i => (
+            <span key={i} style={{fontSize:9.5,color:textFaint}}>{dataPoints[i]?.label}</span>
+          ))}
         </div>
       </div>
     )
   }
 
-  // Donut-style metric
+  // Donut-style metric with glow effect
   const RingMetric = ({ value, max, color, label, sub }) => {
     const pct = Math.min(100, max>0 ? Math.round((value/max)*100) : 0)
-    const r = 28, circ = 2*Math.PI*r
+    const r = 30, circ = 2*Math.PI*r
     const dash = (pct/100)*circ
     return (
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
-        <svg width={72} height={72} style={{transform:"rotate(-90deg)"}}>
-          <circle cx={36} cy={36} r={r} fill="none" stroke={dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.06)"} strokeWidth={6}/>
-          <circle cx={36} cy={36} r={r} fill="none" stroke={color} strokeWidth={6}
-            strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{transition:"stroke-dasharray 0.5s"}}/>
+        <svg width={76} height={76} style={{transform:"rotate(-90deg)",filter:`drop-shadow(0 0 6px ${color}40)`}}>
+          <circle cx={38} cy={38} r={r} fill="none" stroke={dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)"} strokeWidth={5}/>
+          <circle cx={38} cy={38} r={r} fill="none" stroke={color} strokeWidth={5}
+            strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" style={{transition:"stroke-dasharray 0.6s ease-out"}}/>
         </svg>
-        <div style={{marginTop:-54,fontSize:15,fontWeight:800,color:text,textAlign:"center",lineHeight:1}}>{pct}%</div>
-        <div style={{marginTop:20,fontSize:11.5,fontWeight:700,color:text,textAlign:"center"}}>{label}</div>
+        <div style={{marginTop:-56,fontSize:16,fontWeight:800,color:text,textAlign:"center",lineHeight:1}}>{pct}%</div>
+        <div style={{marginTop:22,fontSize:11.5,fontWeight:700,color:text,textAlign:"center"}}>{label}</div>
         {sub && <div style={{fontSize:10.5,color:textFaint,textAlign:"center"}}>{sub}</div>}
+      </div>
+    )
+  }
+
+  // AI vs Manual donut
+  const AiDonut = ({ ai, manual }) => {
+    const total = ai + manual
+    if (total === 0) return <div style={{color:textFaint,fontSize:12,textAlign:"center",padding:"20px 0"}}>No data yet</div>
+    const aiPct = Math.round((ai / total) * 100)
+    const manualPct = 100 - aiPct
+    const r = 36, circ = 2 * Math.PI * r
+    const aiDash = (aiPct / 100) * circ
+    const manualDash = (manualPct / 100) * circ
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:20,justifyContent:"center"}}>
+        <svg width={90} height={90} style={{transform:"rotate(-90deg)",filter:`drop-shadow(0 0 8px ${accent}30)`}}>
+          <circle cx={45} cy={45} r={r} fill="none" stroke={dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)"} strokeWidth={7}/>
+          <circle cx={45} cy={45} r={r} fill="none" stroke={accent} strokeWidth={7}
+            strokeDasharray={`${aiDash} ${circ}`} strokeLinecap="round" style={{transition:"stroke-dasharray 0.6s"}}/>
+          <circle cx={45} cy={45} r={r} fill="none" stroke="#a78bfa" strokeWidth={7}
+            strokeDasharray={`${manualDash} ${circ}`} strokeDashoffset={-aiDash}
+            strokeLinecap="round" style={{transition:"all 0.6s"}}/>
+        </svg>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <div style={{width:10,height:10,borderRadius:3,background:accent}}/>
+            <span style={{fontSize:12,color:textMuted}}>AI</span>
+            <span style={{fontSize:13,fontWeight:800,color:accent,marginLeft:"auto"}}>{ai}</span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:10,height:10,borderRadius:3,background:"#a78bfa"}}/>
+            <span style={{fontSize:12,color:textMuted}}>Manual</span>
+            <span style={{fontSize:13,fontWeight:800,color:"#a78bfa",marginLeft:"auto"}}>{manual}</span>
+          </div>
+        </div>
       </div>
     )
   }
@@ -213,7 +303,13 @@ export default function Analytics() {
         .toggle-pill{width:30px;height:16px;border-radius:100px;background:${dark?accent:"#d1d5db"};position:relative;flex-shrink:0;}
         .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
         .content{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px;background:${bg};}
-        .stat-card{background:${card};border:1px solid ${cardBorder};border-radius:11px;padding:15px 17px;}
+        .stat-card{background:${card};border:1px solid ${cardBorder};border-radius:11px;padding:15px 17px;position:relative;overflow:hidden;}
+
+        @keyframes fadeUp {
+          from { opacity:0; transform:translateY(12px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+        .anim-in { animation: fadeUp 0.4s ease-out both; }
 
         /* ══ MOBILE RESPONSIVE ══════════════════════════════════ */
         @media(max-width:767px){
@@ -230,7 +326,6 @@ export default function Analytics() {
           .content{padding:12px!important;}
           .hamburger{display:flex!important;}
           .tb-title{font-size:14px!important;}
-          /* Hide theme toggle label on small screens */
           .theme-toggle .tog-label{display:none;}
         }
         .mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
@@ -304,15 +399,16 @@ export default function Analytics() {
             {/* Top KPIs */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11}}>
               {[
-                {l:"Revenue",         v:`₹${data.revenue.toLocaleString()}`, c:accent,     icon:"₹"},
-                {l:"Bookings",        v:data.bookings,                       c:"#a78bfa",  icon:"📅"},
-                {l:"New Customers",   v:data.customers,                      c:"#38bdf8",  icon:"◑"},
-                {l:"Leads Captured",  v:data.leads,                          c:"#f59e0b",  icon:"↗"},
-              ].map(s=>(
-                <div key={s.l} className="stat-card">
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                    <div style={{fontSize:11,color:textMuted}}>{s.l}</div>
-                    <div style={{fontSize:13,opacity:0.4}}>{s.icon}</div>
+                {l:"Revenue",         v:`₹${data.revenue.toLocaleString()}`, c:accent,     icon:"₹",  grad:`linear-gradient(135deg,${accent},#0ea5e9)`},
+                {l:"Bookings",        v:data.bookings,                       c:"#a78bfa",  icon:"◷",  grad:"linear-gradient(135deg,#a78bfa,#818cf8)"},
+                {l:"New Customers",   v:data.customers,                      c:"#38bdf8",  icon:"◑",  grad:"linear-gradient(135deg,#38bdf8,#06b6d4)"},
+                {l:"Leads Captured",  v:data.leads,                          c:"#f59e0b",  icon:"↗",  grad:"linear-gradient(135deg,#f59e0b,#fb923c)"},
+              ].map((s,idx)=>(
+                <div key={s.l} className="stat-card anim-in" style={{animationDelay:`${idx*60}ms`}}>
+                  <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:s.grad,borderRadius:"11px 11px 0 0"}}/>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,marginTop:2}}>
+                    <div style={{fontSize:11,color:textMuted,fontWeight:500}}>{s.l}</div>
+                    <div style={{fontSize:13,opacity:0.35}}>{s.icon}</div>
                   </div>
                   <div style={{fontSize:24,fontWeight:800,color:s.c,letterSpacing:"-0.5px"}}>{loading?"…":s.v}</div>
                   <div style={{fontSize:10.5,color:textFaint,marginTop:2}}>Last {period} days</div>
@@ -320,61 +416,65 @@ export default function Analytics() {
               ))}
             </div>
 
-            {/* Charts row */}
+            {/* Charts row — area charts instead of bar charts */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-              <div className="stat-card">
-                <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:14}}>Revenue Trend</div>
-                {loading ? <div style={{height:80,display:"flex",alignItems:"center",justifyContent:"center",color:textFaint,fontSize:12}}>Loading...</div>
-                  : <BarChart dataPoints={data.dailyRevenue} color={accent} label="Daily revenue (₹)"/>}
+              <div className="stat-card anim-in" style={{animationDelay:"250ms"}}>
+                <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:4}}>Revenue Trend</div>
+                {loading ? <div style={{height:120,display:"flex",alignItems:"center",justifyContent:"center",color:textFaint,fontSize:12}}>Loading...</div>
+                  : <AreaChart dataPoints={data.dailyRevenue} color={accent} gradientId="revGrad" label="Daily revenue" prefix="₹"/>}
               </div>
-              <div className="stat-card">
-                <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:14}}>Booking Volume</div>
-                {loading ? <div style={{height:80,display:"flex",alignItems:"center",justifyContent:"center",color:textFaint,fontSize:12}}>Loading...</div>
-                  : <BarChart dataPoints={data.dailyBookings} color="#a78bfa" label="Daily bookings"/>}
+              <div className="stat-card anim-in" style={{animationDelay:"310ms"}}>
+                <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:4}}>Booking Volume</div>
+                {loading ? <div style={{height:120,display:"flex",alignItems:"center",justifyContent:"center",color:textFaint,fontSize:12}}>Loading...</div>
+                  : <AreaChart dataPoints={data.dailyBookings} color="#a78bfa" gradientId="bkGrad" label="Daily bookings"/>}
               </div>
             </div>
 
             {/* Performance metrics row */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
-              {/* Conversion + AI rates */}
-              <div className="stat-card" style={{display:"flex",justifyContent:"space-around",alignItems:"center",padding:"20px 16px"}}>
+              {/* Conversion + Returning rates */}
+              <div className="stat-card anim-in" style={{display:"flex",justifyContent:"space-around",alignItems:"center",padding:"20px 16px",animationDelay:"380ms"}}>
                 <RingMetric value={data.conversionRate} max={100} color={accent} label="Conversion" sub="lead → booking"/>
                 <RingMetric value={data.returningRate} max={100} color="#38bdf8" label="Returning" sub="of customers"/>
               </div>
 
-              {/* AI Performance */}
-              <div className="stat-card">
-                <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:14}}>◈ AI Performance</div>
-                {[
-                  {l:"AI Replies Sent",  v:data.aiReplies,              c:accent},
-                  {l:"AI Bookings",      v:data.aiVsManual.ai,          c:"#a78bfa"},
-                  {l:"Manual Bookings",  v:data.aiVsManual.manual,      c:textMuted},
-                  {l:"Avg Booking Value",v:`₹${data.avgBookingValue}`,   c:accent},
-                ].map(r=>(
-                  <div key={r.l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${border}`}}>
-                    <span style={{fontSize:12,color:textMuted}}>{r.l}</span>
-                    <span style={{fontSize:12,fontWeight:700,color:r.c}}>{loading?"…":r.v}</span>
+              {/* AI vs Manual donut + stats */}
+              <div className="stat-card anim-in" style={{animationDelay:"440ms"}}>
+                <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:14}}>AI vs Manual Bookings</div>
+                <AiDonut ai={data.aiVsManual.ai} manual={data.aiVsManual.manual}/>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:14}}>
+                  <div style={{background:inputBg,borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:textFaint,marginBottom:2}}>AI Replies</div>
+                    <div style={{fontSize:15,fontWeight:800,color:accent}}>{loading?"…":data.aiReplies}</div>
                   </div>
-                ))}
+                  <div style={{background:inputBg,borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                    <div style={{fontSize:10,color:textFaint,marginBottom:2}}>Avg Value</div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#a78bfa"}}>{loading?"…":`₹${data.avgBookingValue}`}</div>
+                  </div>
+                </div>
               </div>
 
               {/* Booking status breakdown */}
-              <div className="stat-card">
+              <div className="stat-card anim-in" style={{animationDelay:"500ms"}}>
                 <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:14}}>Booking Status</div>
                 {Object.keys(data.bookingsByStatus).length===0 ? (
                   <div style={{color:textFaint,fontSize:12,textAlign:"center",padding:"16px 0"}}>No data yet</div>
                 ) : Object.entries(data.bookingsByStatus).map(([status, count])=>{
                   const total = Object.values(data.bookingsByStatus).reduce((a,b)=>a+b,0)
                   const pct = Math.round((count/total)*100)
-                  const c = {confirmed:accent,completed:"#a78bfa",cancelled:"#fb7185",pending:"#f59e0b"}[status]||textMuted
+                  const statusColors = {confirmed:accent,completed:"#a78bfa",cancelled:"#fb7185",pending:"#f59e0b"}
+                  const c = statusColors[status]||textMuted
                   return (
-                    <div key={status} style={{marginBottom:8}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                        <span style={{fontSize:11.5,color:textMuted,textTransform:"capitalize"}}>{status}</span>
+                    <div key={status} style={{marginBottom:10}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <div style={{width:8,height:8,borderRadius:2,background:c}}/>
+                          <span style={{fontSize:11.5,color:textMuted,textTransform:"capitalize"}}>{status}</span>
+                        </div>
                         <span style={{fontSize:11.5,fontWeight:700,color:c}}>{count} ({pct}%)</span>
                       </div>
-                      <div style={{height:4,borderRadius:100,background:dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.07)"}}>
-                        <div style={{height:4,borderRadius:100,width:`${pct}%`,background:c,transition:"width 0.4s"}}/>
+                      <div style={{height:5,borderRadius:100,background:dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)"}}>
+                        <div style={{height:5,borderRadius:100,width:`${pct}%`,background:`linear-gradient(90deg,${c},${c}aa)`,transition:"width 0.5s ease-out"}}/>
                       </div>
                     </div>
                   )
@@ -385,17 +485,18 @@ export default function Analytics() {
             {/* Bottom row: Top Services + Lead Sources */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
               {/* Top Services */}
-              <div className="stat-card">
+              <div className="stat-card anim-in" style={{animationDelay:"560ms"}}>
                 <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:14}}>Top Services by Revenue</div>
                 {data.topServices.length===0 ? (
                   <div style={{color:textFaint,fontSize:12,textAlign:"center",padding:"16px 0"}}>No bookings yet</div>
                 ) : data.topServices.map((s,i)=>{
                   const maxRev = data.topServices[0].revenue || 1
+                  const pct = Math.round((s.revenue/maxRev)*100)
                   return (
                     <div key={s.name} style={{marginBottom:10}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,alignItems:"center"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}>
                         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                          <span style={{fontSize:10,fontWeight:700,color:accent,opacity:0.6}}>#{i+1}</span>
+                          <span style={{fontSize:10,fontWeight:700,color:accent,background:dark?`${accent}15`:`${accent}18`,padding:"1px 6px",borderRadius:4}}>#{i+1}</span>
                           <span style={{fontSize:12,fontWeight:600,color:text,textTransform:"capitalize"}}>{s.name}</span>
                         </div>
                         <div style={{textAlign:"right"}}>
@@ -403,8 +504,8 @@ export default function Analytics() {
                           <span style={{fontSize:10.5,color:textFaint,marginLeft:6}}>{s.count}x</span>
                         </div>
                       </div>
-                      <div style={{height:4,borderRadius:100,background:dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.07)"}}>
-                        <div style={{height:4,borderRadius:100,width:`${Math.round((s.revenue/maxRev)*100)}%`,background:`linear-gradient(90deg,${accent},#0ea5e9)`,transition:"width 0.4s"}}/>
+                      <div style={{height:5,borderRadius:100,background:dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)"}}>
+                        <div style={{height:5,borderRadius:100,width:`${pct}%`,background:`linear-gradient(90deg,${accent},#0ea5e9)`,transition:"width 0.5s ease-out"}}/>
                       </div>
                     </div>
                   )
@@ -412,7 +513,7 @@ export default function Analytics() {
               </div>
 
               {/* Lead Sources */}
-              <div className="stat-card">
+              <div className="stat-card anim-in" style={{animationDelay:"620ms"}}>
                 <div style={{fontWeight:700,fontSize:13,color:text,marginBottom:14}}>Lead Sources</div>
                 {Object.keys(data.leadsBySource).length===0 ? (
                   <div style={{color:textFaint,fontSize:12,textAlign:"center",padding:"16px 0"}}>No leads yet</div>
@@ -424,19 +525,23 @@ export default function Analytics() {
                     const c = srcColors[src.toLowerCase()] || "#a78bfa"
                     return (
                       <div key={src} style={{marginBottom:10}}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                          <span style={{fontSize:12,color:textMuted,textTransform:"capitalize"}}>{src}</span>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <div style={{width:8,height:8,borderRadius:2,background:c}}/>
+                            <span style={{fontSize:12,color:textMuted,textTransform:"capitalize"}}>{src}</span>
+                          </div>
                           <span style={{fontSize:12,fontWeight:700,color:c}}>{count} ({pct}%)</span>
                         </div>
-                        <div style={{height:4,borderRadius:100,background:dark?"rgba(255,255,255,0.07)":"rgba(0,0,0,0.07)"}}>
-                          <div style={{height:4,borderRadius:100,width:`${pct}%`,background:c,transition:"width 0.4s"}}/>
+                        <div style={{height:5,borderRadius:100,background:dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)"}}>
+                          <div style={{height:5,borderRadius:100,width:`${pct}%`,background:`linear-gradient(90deg,${c},${c}aa)`,transition:"width 0.5s ease-out"}}/>
                         </div>
                       </div>
                     )
                   })
                 })()}
-                <div style={{marginTop:14,padding:"10px 12px",background:inputBg,borderRadius:8,fontSize:11.5,color:textMuted}}>
-                  📊 Total leads: <span style={{fontWeight:700,color:text}}>{data.leads}</span> · Conversion: <span style={{fontWeight:700,color:accent}}>{data.conversionRate}%</span>
+                <div style={{marginTop:14,padding:"10px 12px",background:inputBg,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:11.5,color:textMuted}}>Total leads: <span style={{fontWeight:700,color:text}}>{data.leads}</span></span>
+                  <span style={{fontSize:11.5,color:textMuted}}>Conversion: <span style={{fontWeight:700,color:accent}}>{data.conversionRate}%</span></span>
                 </div>
               </div>
             </div>
