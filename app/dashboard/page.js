@@ -104,7 +104,6 @@ export default function Dashboard() {
       setAvgServiceValue(avgVal)
       setStats({ revenue, leads:(leads||[]).length, bookings:periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue })
 
-      const allConfirmed = bks.filter(b=>b.status==="confirmed"||b.status==="completed")
       setFunnel({ customers:(customers||[]).length, convos:uniqueConvos, booked:periodBks.length, completed:periodConfirmed.length, revenue })
       setTodayBookings(bks.filter(b=>b.booking_date===todayStr&&b.status!=="cancelled").slice(0,4))
 
@@ -155,52 +154,12 @@ export default function Dashboard() {
 
   const fMax=Math.max(funnel.customers,1)
   const fSteps=[
-    {label:"Customers",  val:funnel.customers, pct:100,                                   color:acc,     icon:"◑"},
-    {label:"Conversations",val:funnel.convos,   pct:Math.round((funnel.convos/fMax)*100),  color:"#38bdf8",icon:"◎"},
-    {label:"Booked",     val:funnel.booked,    pct:Math.round((funnel.booked/fMax)*100),  color:"#a78bfa",icon:"◷"},
-    {label:"Completed",  val:funnel.completed, pct:Math.round((funnel.completed/fMax)*100),color:"#f59e0b",icon:"✓"},
-    {label:"Revenue",    val:"₹"+(funnel.revenue).toLocaleString(), pct:funnel.customers>0?Math.round((funnel.completed/fMax)*100):0, color:"#fb7185",icon:"₹"},
+    {label:"Customers",    val:funnel.customers, pct:100,                                     color:acc,      icon:"◑"},
+    {label:"Conversations",val:funnel.convos,     pct:Math.round((funnel.convos/fMax)*100),    color:"#38bdf8",icon:"◎"},
+    {label:"Booked",       val:funnel.booked,     pct:Math.round((funnel.booked/fMax)*100),    color:"#a78bfa",icon:"◷"},
+    {label:"Completed",    val:funnel.completed,  pct:Math.round((funnel.completed/fMax)*100), color:"#f59e0b",icon:"✓"},
+    {label:"Revenue",      val:"₹"+(funnel.revenue).toLocaleString(), pct:funnel.customers>0?Math.round((funnel.completed/fMax)*100):0, color:"#fb7185",icon:"₹"},
   ]
-
-  const FunnelShape = ({ steps }) => {
-    const w=500, h=280, padX=60, padY=10
-    const stepH = (h - padY*2) / steps.length
-    return (
-      <svg viewBox={`0 0 ${w} ${h}`} style={{width:"100%",height:"auto",display:"block"}}>
-        <defs>
-          {steps.map((s,i)=>(
-            <linearGradient key={`fg${i}`} id={`fg${i}`} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor={s.color} stopOpacity="0.25"/>
-              <stop offset="50%" stopColor={s.color} stopOpacity="0.15"/>
-              <stop offset="100%" stopColor={s.color} stopOpacity="0.25"/>
-            </linearGradient>
-          ))}
-        </defs>
-        {steps.map((step,i)=>{
-          const topPct = i===0 ? 100 : steps[i-1].pct
-          const botPct = step.pct !== null ? step.pct : (steps[i-1]?.pct || 100)
-          const topW = Math.max(40, (topPct/100)*(w-padX*2))
-          const botW = Math.max(40, (botPct/100)*(w-padX*2))
-          const y = padY + i*stepH
-          const cx = w/2
-          const topL=cx-topW/2, topR=cx+topW/2
-          const botL=cx-botW/2, botR=cx+botW/2
-          const pts=`${topL},${y} ${topR},${y} ${botR},${y+stepH-2} ${botL},${y+stepH-2}`
-          return (
-            <g key={i}>
-              <polygon points={pts} fill={`url(#fg${i})`} stroke={step.color} strokeWidth="1" strokeOpacity="0.35"/>
-              <text x={padX-8} y={y+stepH/2+1} textAnchor="end" fill={step.color} fontSize="11" fontWeight="700" fontFamily="'Plus Jakarta Sans',sans-serif">{step.label}</text>
-              <text x={w-padX+8} y={y+stepH/2-4} textAnchor="start" fill={tx} fontSize="16" fontWeight="800" fontFamily="'Plus Jakarta Sans',sans-serif">{loading?"—":step.val}</text>
-              {step.pct!==null && <text x={w-padX+8} y={y+stepH/2+12} textAnchor="start" fill={txf} fontSize="10" fontFamily="'Plus Jakarta Sans',sans-serif">{step.pct}% of total</text>}
-              {i>0 && (
-                <line x1={cx} y1={y-1} x2={cx} y2={y+1} stroke={step.color} strokeWidth="1" strokeOpacity="0.2" strokeDasharray="3,3"/>
-              )}
-            </g>
-          )
-        })}
-      </svg>
-    )
-  }
 
   return (
     <>
@@ -227,27 +186,6 @@ export default function Dashboard() {
         .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${bdr};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sb};}
         .content{flex:1;overflow-y:auto;padding:20px 24px;background:${bg};display:flex;flex-direction:column;gap:14px;}
         .card{background:${card};border:1px solid ${cbdr};border-radius:13px;padding:18px;}
-        .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-        .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
-        .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;}
-        @media(max-width:1200px){.three-col{grid-template-columns:1fr 1fr;}}
-        @media(max-width:960px){.two-col,.three-col{grid-template-columns:1fr;}}
-        @media(max-width:767px){
-          .kpi-grid{grid-template-columns:repeat(2,1fr)!important;}
-          .health-row{grid-template-columns:1fr!important;}
-          .wrap{position:relative;}
-          .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s;width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
-          .sidebar.open{transform:translateX(0);}
-          .topbar{padding:0 12px!important;}
-          .content{padding:12px!important;}
-          .hbtn{display:flex!important;}
-          [style*="grid-template-columns: 210px"]{grid-template-columns:1fr!important;}
-          [style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr!important;}
-          [style*="grid-template-columns: 1fr 300px"]{grid-template-columns:1fr!important;}
-        }
-        .mob-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
-        .mob-ov.open{display:block;}
-        .hbtn{display:none;background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:${tx};line-height:1;margin-right:2px;}
         .period-wrap{display:flex;background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:2px;gap:1px;}
         .pbt{padding:3px 11px;border-radius:6px;font-size:11.5px;font-weight:600;cursor:pointer;border:none;background:transparent;color:${txm};font-family:'Plus Jakarta Sans',sans-serif;}
         .pbt.on{background:${card};color:${tx};box-shadow:0 1px 3px rgba(0,0,0,0.15);}
@@ -264,8 +202,26 @@ export default function Dashboard() {
         .bnil{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
         .bni.on .bnic,.bni.on .bnil{color:${acc};}
         select option{background-color:#0c0c15!important;color:#eeeef5!important;}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        .fade-up{animation:fadeUp 0.4s ease both;}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .fin{animation:fadeUp 0.35s ease both;}
+
+        @media(max-width:767px){
+          .wrap{position:relative;}
+          .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s;width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
+          .sidebar.open{transform:translateX(0);}
+          .topbar{padding:0 12px!important;}
+          .content{padding:12px!important;}
+          .hbtn{display:flex!important;}
+          [style*="grid-template-columns: repeat(5"]{grid-template-columns:repeat(2,1fr)!important;}
+          [style*="grid-template-columns: repeat(4"]{grid-template-columns:repeat(2,1fr)!important;}
+          [style*="grid-template-columns: repeat(3"]{grid-template-columns:repeat(2,1fr)!important;}
+          [style*="grid-template-columns: 200px"]{grid-template-columns:1fr!important;}
+          [style*="grid-template-columns: 1fr 1fr 1fr"]{grid-template-columns:1fr!important;}
+          [style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr!important;}
+        }
+        .mob-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
+        .mob-ov.open{display:block;}
+        .hbtn{display:none;background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:${tx};line-height:1;margin-right:2px;}
       `}</style>
 
       <div className="wrap">
@@ -310,8 +266,9 @@ export default function Dashboard() {
           </div>
 
           <div className="content">
+            {/* WhatsApp connect banner */}
             {!connected&&(
-              <div className="fade-up" style={{background:dark?`linear-gradient(135deg,${acc}0f,rgba(56,189,248,0.06))`:`linear-gradient(135deg,${acc}0a,rgba(56,189,248,0.04))`,border:`1px solid ${acc}28`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
+              <div className="fin" style={{background:dark?`linear-gradient(135deg,${acc}0f,rgba(56,189,248,0.06))`:`linear-gradient(135deg,${acc}0a,rgba(56,189,248,0.04))`,border:`1px solid ${acc}28`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14}}>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <div style={{width:38,height:38,borderRadius:10,background:"#25d366",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{"💬"}</div>
                   <div>
@@ -323,134 +280,177 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* Health + KPIs */}
-            <div className="health-row fade-up" style={{display:"grid",gridTemplateColumns:"210px 1fr",gap:14}}>
-              <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:13,padding:"20px 16px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden"}}>
-                <div style={{position:"absolute",inset:0,background:`radial-gradient(circle at 50% 30%,${acc}0d,transparent 70%)`,pointerEvents:"none"}}/>
-                <div style={{fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase",color:txf,fontWeight:600,marginBottom:12}}>Business Health</div>
-                <div style={{position:"relative",width:110,height:110,marginBottom:12}}>
-                  <svg width="110" height="110" viewBox="0 0 110 110" style={{transform:"rotate(-90deg)"}}>
-                    <circle cx="55" cy="55" r="46" fill="none" stroke={dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.07)"} strokeWidth="7"/>
-                    <circle cx="55" cy="55" r="46" fill="none" stroke={hColor} strokeWidth="7" strokeLinecap="round"
-                      strokeDasharray={`${circ}`} strokeDashoffset={`${circ*(1-healthScore/100)}`} style={{transition:"stroke-dashoffset 1.2s ease"}}/>
-                  </svg>
-                  <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
-                    <div style={{fontWeight:800,fontSize:34,lineHeight:1,color:hColor}}>{healthScore}</div>
-                    <div style={{fontSize:11,color:txf}}>/100</div>
+            {/* KPI Cards Row */}
+            <div className="fin" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11,animationDelay:"0.05s"}}>
+              {[
+                {name:"Revenue",    val:"₹"+stats.revenue.toLocaleString(),  color:acc,       icon:"₹",  sub:pLabel},
+                {name:"Leads",      val:stats.leads,                          color:"#38bdf8", icon:"↗", sub:pLabel},
+                {name:"Bookings",   val:stats.bookings,                       color:"#a78bfa", icon:"◷", sub:pLabel},
+                {name:"AI Bookings",val:stats.aiBookings,                     color:"#f59e0b", icon:"◈", sub:"automated"},
+                {name:"Avg Value",  val:"₹"+avgServiceValue.toLocaleString(), color:"#fb7185", icon:"₹",  sub:"per booking"},
+              ].map((k,i)=>(
+                <div key={k.name} className="fin" style={{background:card,border:`1px solid ${cbdr}`,borderRadius:12,padding:"16px 15px",position:"relative",overflow:"hidden",animationDelay:`${i*40}ms`}}>
+                  <div style={{position:"absolute",top:0,left:0,right:0,height:2.5,background:`linear-gradient(90deg,${k.color},${k.color}44)`}}/>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                    <div style={{fontSize:11,color:txm,fontWeight:500}}>{k.name}</div>
+                    <div style={{width:28,height:28,borderRadius:8,background:dark?`${k.color}12`:`${k.color}10`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:k.color,fontWeight:700}}>{k.icon}</div>
                   </div>
+                  <div style={{fontWeight:800,fontSize:26,letterSpacing:"-1px",lineHeight:1,color:tx}}>{loading?"—":k.val}</div>
+                  <div style={{fontSize:10.5,color:txf,marginTop:5}}>{k.sub}</div>
                 </div>
-                <div style={{fontWeight:700,fontSize:13,color:hColor,marginBottom:3}}>{hLabel}</div>
-                <div style={{fontSize:11,color:txm,lineHeight:1.5}}>{loading?"Calculating...":connected?"AI is active":"Connect WhatsApp to start"}</div>
-              </div>
-
-              <div className="kpi-grid">
-                {[
-                  {name:"Revenue Generated",   val:"₹"+stats.revenue.toLocaleString(),  color:acc,       icon:"₹", sub:pLabel, delta:stats.revenue>0?"+"+stats.revenue.toLocaleString():null},
-                  {name:"Leads Captured",      val:stats.leads,                          color:"#38bdf8", icon:"↗", sub:pLabel, delta:stats.leads>0?"+"+stats.leads:null},
-                  {name:"Appointments Booked", val:stats.bookings,                       color:"#a78bfa", icon:"◷",sub:pLabel, delta:stats.bookings>0?"+"+stats.bookings:null},
-                  {name:"Avg Service Value",   val:"₹"+avgServiceValue.toLocaleString(),color:"#f59e0b", icon:"₹", sub:"per booking", delta:null},
-                ].map(k=>(
-                  <div key={k.name} style={{background:card,border:`1px solid ${cbdr}`,borderRadius:11,padding:"15px 14px",position:"relative",overflow:"hidden"}}>
-                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${k.color}88,${k.color}22)`,borderRadius:"11px 11px 0 0"}}/>
-                    <div style={{position:"absolute",top:12,right:13,fontSize:13,opacity:0.3}}>{k.icon}</div>
-                    <div style={{fontSize:11,color:txm,marginBottom:8}}>{k.name}</div>
-                    <div style={{fontWeight:700,fontSize:28,letterSpacing:"-1px",lineHeight:1,color:k.color,marginBottom:5}}>{loading?"—":k.val}</div>
-                    <div style={{fontSize:10.5,color:txf}}>{k.sub}</div>
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
 
-            {/* Conversion Funnel — Tapered shape */}
-            <div className="card fade-up" style={{animationDelay:"0.1s"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-                <div>
-                  <div style={{fontWeight:700,fontSize:14,color:tx}}>Conversion Funnel</div>
-                  <div style={{fontSize:11.5,color:txm,marginTop:3}}>Customer journey from first contact to revenue</div>
+            {/* Funnel + Health Score row */}
+            <div className="fin" style={{display:"grid",gridTemplateColumns:"1fr 200px",gap:14,animationDelay:"0.1s"}}>
+              {/* Conversion Pipeline — horizontal steps */}
+              <div className="card">
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14,color:tx}}>Conversion Pipeline</div>
+                    <div style={{fontSize:11,color:txm,marginTop:2}}>Customer journey from contact to revenue</div>
+                  </div>
+                  {funnel.customers>0&&<div style={{fontSize:10.5,color:txf,background:ibg,padding:"3px 10px",borderRadius:6,border:`1px solid ${cbdr}`}}>{funnel.customers} total customers</div>}
                 </div>
-                {funnel.customers>0&&<div style={{fontSize:11,color:txf,background:ibg,padding:"4px 10px",borderRadius:6,border:`1px solid ${cbdr}`}}>Based on {funnel.customers} customers</div>}
-              </div>
-              {loading?(
-                <div style={{textAlign:"center",padding:"30px 0",color:txf,fontSize:13}}>Loading funnel data...</div>
-              ):funnel.customers===0?(
-                <div style={{textAlign:"center",padding:"30px 0",color:txf,fontSize:13}}>No data yet {"—"} connect WhatsApp and start chatting</div>
-              ):(
-                <FunnelShape steps={fSteps}/>
-              )}
-              {!loading && funnel.customers>0 && funnel.convos>0 && (
-                <div style={{display:"flex",gap:10,marginTop:12,justifyContent:"center",flexWrap:"wrap"}}>
-                  {[
-                    {l:"Chat Rate", v:Math.round((funnel.convos/funnel.customers)*100)+"%", c:"#38bdf8"},
-                    {l:"Book Rate", v:funnel.convos>0?Math.round((funnel.booked/funnel.convos)*100)+"%":"0%", c:"#a78bfa"},
-                    {l:"Complete Rate", v:funnel.booked>0?Math.round((funnel.completed/funnel.booked)*100)+"%":"0%", c:"#f59e0b"},
-                  ].map(m=>(
-                    <div key={m.l} style={{display:"flex",alignItems:"center",gap:6,background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:"6px 14px"}}>
-                      <div style={{width:6,height:6,borderRadius:"50%",background:m.c}}/>
-                      <span style={{fontSize:11,color:txm}}>{m.l}</span>
-                      <span style={{fontSize:12,fontWeight:700,color:m.c}}>{m.v}</span>
+
+                {loading?(
+                  <div style={{textAlign:"center",padding:"28px 0",color:txf,fontSize:12}}>Loading...</div>
+                ):funnel.customers===0?(
+                  <div style={{textAlign:"center",padding:"28px 0",color:txf,fontSize:12}}>No data yet</div>
+                ):(
+                  <div>
+                    {/* Pipeline steps */}
+                    <div style={{display:"flex",gap:0,alignItems:"stretch"}}>
+                      {fSteps.map((step,i)=>{
+                        const widthPct = Math.max(12, step.pct)
+                        return (
+                          <div key={step.label} style={{flex:`${widthPct} 0 0`,minWidth:0,position:"relative"}}>
+                            <div style={{
+                              background:dark?`${step.color}18`:`${step.color}12`,
+                              borderLeft:i===0?`3px solid ${step.color}`:"none",
+                              borderRight:`3px solid ${step.color}`,
+                              borderTop:`1px solid ${step.color}30`,
+                              borderBottom:`1px solid ${step.color}30`,
+                              borderRadius:i===0?"10px 0 0 10px":i===fSteps.length-1?"0 10px 10px 0":"0",
+                              padding:"14px 12px",
+                              height:"100%",
+                              position:"relative",
+                              overflow:"hidden"
+                            }}>
+                              <div style={{position:"absolute",bottom:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${step.color}66,${step.color}22)`}}/>
+                              <div style={{fontSize:10,color:step.color,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{step.label}</div>
+                              <div style={{fontWeight:800,fontSize:20,color:tx,lineHeight:1,marginBottom:3}}>{step.val}</div>
+                              <div style={{fontSize:10,color:txf}}>{step.pct}%</div>
+                            </div>
+                            {i<fSteps.length-1&&(
+                              <div style={{position:"absolute",right:-6,top:"50%",transform:"translateY(-50%)",zIndex:2,width:12,height:12,background:card,border:`2px solid ${step.color}55`,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                                <div style={{width:0,height:0,borderTop:"3px solid transparent",borderBottom:"3px solid transparent",borderLeft:`4px solid ${step.color}`,marginLeft:1}}/>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
-                  ))}
+
+                    {/* Conversion rate pills */}
+                    {funnel.convos>0 && (
+                      <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
+                        {[
+                          {l:"Chat Rate", v:Math.round((funnel.convos/funnel.customers)*100)+"%", c:"#38bdf8"},
+                          {l:"Book Rate", v:funnel.convos>0?Math.round((funnel.booked/funnel.convos)*100)+"%":"0%", c:"#a78bfa"},
+                          {l:"Complete Rate", v:funnel.booked>0?Math.round((funnel.completed/funnel.booked)*100)+"%":"0%", c:"#f59e0b"},
+                        ].map(m=>(
+                          <div key={m.l} style={{display:"flex",alignItems:"center",gap:6,background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:"5px 12px"}}>
+                            <div style={{width:6,height:6,borderRadius:"50%",background:m.c}}/>
+                            <span style={{fontSize:10.5,color:txm}}>{m.l}</span>
+                            <span style={{fontSize:11.5,fontWeight:700,color:m.c}}>{m.v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Health Score */}
+              <div style={{background:card,border:`1px solid ${cbdr}`,borderRadius:13,padding:"18px 14px",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",position:"relative",overflow:"hidden"}}>
+                <div style={{position:"absolute",inset:0,background:`radial-gradient(circle at 50% 30%,${acc}08,transparent 70%)`,pointerEvents:"none"}}/>
+                <div style={{fontSize:9.5,letterSpacing:"1.5px",textTransform:"uppercase",color:txf,fontWeight:600,marginBottom:10}}>Health</div>
+                <div style={{position:"relative",width:100,height:100,marginBottom:10}}>
+                  <svg width="100" height="100" viewBox="0 0 110 110" style={{transform:"rotate(-90deg)"}}>
+                    <circle cx="55" cy="55" r="46" fill="none" stroke={dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.07)"} strokeWidth="6"/>
+                    <circle cx="55" cy="55" r="46" fill="none" stroke={hColor} strokeWidth="6" strokeLinecap="round"
+                      strokeDasharray={`${circ}`} strokeDashoffset={`${circ*(1-healthScore/100)}`} style={{transition:"stroke-dashoffset 1s ease",filter:`drop-shadow(0 0 4px ${hColor}40)`}}/>
+                  </svg>
+                  <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                    <div style={{fontWeight:800,fontSize:28,lineHeight:1,color:hColor}}>{healthScore}</div>
+                    <div style={{fontSize:10,color:txf}}>/100</div>
+                  </div>
                 </div>
-              )}
+                <div style={{fontWeight:700,fontSize:12,color:hColor}}>{hLabel}</div>
+                <div style={{fontSize:10,color:txm,marginTop:3,lineHeight:1.4}}>{connected?"AI active":"Connect WA"}</div>
+              </div>
             </div>
 
             {/* AI Performance + Missed Revenue */}
-            <div className="two-col fade-up" style={{animationDelay:"0.15s"}}>
+            <div className="fin" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,animationDelay:"0.15s"}}>
               <div className="card">
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                   <div>
-                    <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:100,padding:"2px 9px",fontSize:10,color:"#a78bfa",fontWeight:700,letterSpacing:"0.5px"}}>{"◈"} AI PERFORMANCE</div>
-                    <div style={{fontWeight:700,fontSize:13.5,color:tx,marginTop:8}}>What your AI achieved</div>
+                    <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.18)",borderRadius:100,padding:"2px 9px",fontSize:10,color:"#a78bfa",fontWeight:700,letterSpacing:"0.5px"}}>{"◈"} AI ENGINE</div>
+                    <div style={{fontWeight:700,fontSize:13.5,color:tx,marginTop:6}}>AI Performance</div>
                   </div>
-                  <div style={{fontSize:11,color:txm}}>Gemini AI</div>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   {[
-                    {l:"Conversations Handled",v:stats.aiHandled,    s:"real AI replies",   c:acc},
-                    {l:"AI Bookings Created",  v:stats.aiBookings,   s:"auto-booked",       c:"#a78bfa"},
-                    {l:"Revenue from AI",      v:"₹"+stats.aiRevenue.toLocaleString(), s:"ai_booked = true", c:"#38bdf8"},
-                    {l:"Avg Booking Value",    v:"₹"+avgServiceValue.toLocaleString(), s:"per booking",      c:"#f59e0b"},
+                    {l:"Conversations",v:stats.aiHandled,    s:"handled by AI",    c:acc},
+                    {l:"AI Bookings",  v:stats.aiBookings,   s:"auto-created",     c:"#a78bfa"},
+                    {l:"AI Revenue",   v:"₹"+stats.aiRevenue.toLocaleString(), s:"generated", c:"#38bdf8"},
+                    {l:"Avg Value",    v:"₹"+avgServiceValue.toLocaleString(), s:"per booking",c:"#f59e0b"},
                   ].map(m=>(
-                    <div key={m.l} style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:9,padding:12,position:"relative",overflow:"hidden"}}>
+                    <div key={m.l} style={{background:ibg,border:`1px solid ${cbdr}`,borderRadius:10,padding:"12px 11px",position:"relative",overflow:"hidden"}}>
                       <div style={{position:"absolute",bottom:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${m.c}55,transparent)`}}/>
-                      <div style={{fontWeight:700,fontSize:22,color:m.c,lineHeight:1,marginBottom:3}}>{loading?"—":m.v}</div>
-                      <div style={{fontSize:11,color:txm,lineHeight:1.4}}>{m.l}<br/><span style={{opacity:0.6,fontSize:10}}>{m.s}</span></div>
+                      <div style={{fontWeight:800,fontSize:20,color:m.c,lineHeight:1,marginBottom:4}}>{loading?"—":m.v}</div>
+                      <div style={{fontSize:11,color:txm,fontWeight:500}}>{m.l}</div>
+                      <div style={{fontSize:9.5,color:txf,marginTop:1}}>{m.s}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div style={{background:card,border:"1px solid rgba(251,113,133,0.18)",borderRadius:13,padding:18}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                  <div style={{fontWeight:700,fontSize:13.5,color:tx}}>{"🔥"} Missed Revenue</div>
-                  <div style={{fontSize:11,color:txm}}>Open leads unfollowed</div>
+              <div style={{background:card,border:`1px solid ${dark?"rgba(251,113,133,0.15)":"rgba(251,113,133,0.2)"}`,borderRadius:13,padding:18}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                  <div>
+                    <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.18)",borderRadius:100,padding:"2px 9px",fontSize:10,color:"#fb7185",fontWeight:700,letterSpacing:"0.5px"}}>ATTENTION</div>
+                    <div style={{fontWeight:700,fontSize:13.5,color:tx,marginTop:6}}>Missed Revenue</div>
+                  </div>
                 </div>
-                <div style={{fontWeight:800,fontSize:36,color:"#fb7185",letterSpacing:"-1.5px",lineHeight:1,marginBottom:4}}>
-                  {loading?"—":stats.missedLeads>0?stats.missedLeads+" open leads":"All caught up ✅"}
+                <div style={{fontWeight:800,fontSize:32,color:stats.missedLeads>0?"#fb7185":acc,letterSpacing:"-1px",lineHeight:1,marginBottom:6}}>
+                  {loading?"—":stats.missedLeads>0?stats.missedLeads+" open leads":"All caught up"}
                 </div>
                 <div style={{fontSize:11.5,color:txm,marginBottom:14}}>
-                  {stats.missedLeads>0?"no booking yet this period":"No open leads right now"}
+                  {stats.missedLeads>0?"Leads without bookings this period":"No open leads right now"}
                 </div>
                 {[
                   {l:"Open leads",       v:stats.missedLeads, c:"#fb7185"},
                   {l:"AI replies sent",  v:stats.aiHandled,   c:acc},
                   {l:"Bookings created", v:stats.bookings,    c:acc},
                 ].map(r=>(
-                  <div key={r.l} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 10px",background:ibg,border:`1px solid ${cbdr}`,borderRadius:7,marginBottom:5}}>
+                  <div key={r.l} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 10px",background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,marginBottom:5}}>
                     <span style={{fontSize:12,color:txm}}>{r.l}</span>
                     <span style={{fontSize:12,fontWeight:700,color:r.c}}>{loading?"—":r.v}</span>
                   </div>
                 ))}
                 {stats.missedLeads>0&&(
-                  <button onClick={()=>router.push("/dashboard/leads")} style={{width:"100%",marginTop:10,padding:"8px",borderRadius:8,background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.25)",color:"#fb7185",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                  <button onClick={()=>router.push("/dashboard/leads")} style={{width:"100%",marginTop:10,padding:"9px",borderRadius:8,background:"rgba(251,113,133,0.1)",border:"1px solid rgba(251,113,133,0.22)",color:"#fb7185",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                     Recover {stats.missedLeads} leads {"→"}
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Sources + Today + Quick Actions */}
-            <div className="three-col fade-up" style={{animationDelay:"0.2s"}}>
+            {/* Sources + Today's Bookings + Quick Actions */}
+            <div className="fin" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,animationDelay:"0.2s"}}>
               <div className="card">
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
                   <div style={{fontWeight:700,fontSize:13.5,color:tx}}>Lead Sources</div>
@@ -466,13 +466,13 @@ export default function Dashboard() {
                       <div key={s.name} style={{marginBottom:10}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                           <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <div style={{width:8,height:8,borderRadius:"50%",background:s.color,flexShrink:0}}/>
+                            <div style={{width:8,height:8,borderRadius:3,background:s.color,flexShrink:0}}/>
                             <span style={{fontSize:12.5,color:tx,fontWeight:500,textTransform:"capitalize"}}>{s.name}</span>
                           </div>
                           <span style={{fontWeight:700,fontSize:12,color:s.color}}>{s.count} ({pct}%)</span>
                         </div>
                         <div style={{height:4,borderRadius:100,background:dark?"rgba(255,255,255,0.06)":"rgba(0,0,0,0.06)"}}>
-                          <div style={{height:4,borderRadius:100,width:`${Math.max(pct,3)}%`,background:`linear-gradient(90deg,${s.color},${s.color}88)`,transition:"width 0.5s"}}/>
+                          <div style={{height:4,borderRadius:100,width:`${Math.max(pct,3)}%`,background:`linear-gradient(90deg,${s.color},${s.color}66)`,transition:"width 0.5s"}}/>
                         </div>
                       </div>
                     )
@@ -488,8 +488,8 @@ export default function Dashboard() {
                 {loading?<div style={{color:txf,fontSize:12,textAlign:"center",padding:"16px 0"}}>Loading...</div>
                 :todayBookings.length===0?(
                   <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"22px 0",gap:6}}>
-                    <div style={{fontSize:26,opacity:0.2}}>{"📅"}</div>
-                    <div style={{fontSize:11.5,color:txf,textAlign:"center",lineHeight:1.5}}>No bookings today<br/>{connected?"Appear automatically from WhatsApp":"Connect WhatsApp to start"}</div>
+                    <div style={{fontSize:26,opacity:0.15}}>{"◷"}</div>
+                    <div style={{fontSize:11.5,color:txf,textAlign:"center",lineHeight:1.5}}>No bookings today<br/>{connected?"Appear from WhatsApp chats":"Connect WhatsApp to start"}</div>
                   </div>
                 ):todayBookings.map(b=>(
                   <div key={b.customer_name+b.booking_time} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${bdr}`}}>
@@ -505,18 +505,18 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              <div style={{background:card,border:`1px solid ${acc}1e`,borderRadius:13,padding:18}}>
-                <div style={{fontSize:10,letterSpacing:"1.2px",textTransform:"uppercase",color:txf,fontWeight:600,marginBottom:4}}>Quick Actions</div>
-                <div style={{fontWeight:800,fontSize:20,color:acc,letterSpacing:"-0.5px",lineHeight:1,marginBottom:12}}>Grow Faster</div>
+              <div style={{background:card,border:`1px solid ${acc}1a`,borderRadius:13,padding:18}}>
+                <div style={{fontSize:9.5,letterSpacing:"1.2px",textTransform:"uppercase",color:txf,fontWeight:600,marginBottom:4}}>Quick Actions</div>
+                <div style={{fontWeight:800,fontSize:18,color:acc,letterSpacing:"-0.5px",lineHeight:1,marginBottom:14}}>Grow Faster</div>
                 {[
-                  {label:"Send Campaign",   sub:"Reach all customers",        icon:"📢",path:"/dashboard/campaigns",color:acc},
+                  {label:"Send Campaign",   sub:"Reach all customers",        icon:"◆",path:"/dashboard/campaigns",color:acc},
                   {label:"Recover Leads",   sub:stats.missedLeads+" waiting", icon:"◉", path:"/dashboard/leads",   color:"#fb7185"},
-                  {label:"Add Booking",     sub:"Manual entry",               icon:"📅",path:"/dashboard/bookings",color:"#a78bfa"},
+                  {label:"Add Booking",     sub:"Manual entry",               icon:"◷",path:"/dashboard/bookings",color:"#a78bfa"},
                   {label:"New Sequence",    sub:"Drip automation",            icon:"⟳", path:"/dashboard/sequences",color:"#38bdf8"},
                 ].map(a=>(
                   <div key={a.label} onClick={()=>router.push(a.path)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${bdr}`,cursor:"pointer"}}>
                     <div style={{display:"flex",alignItems:"center",gap:9}}>
-                      <span style={{fontSize:15}}>{a.icon}</span>
+                      <span style={{fontSize:14,color:a.color}}>{a.icon}</span>
                       <div>
                         <div style={{fontSize:12,fontWeight:600,color:tx}}>{a.label}</div>
                         <div style={{fontSize:10.5,color:txm}}>{a.sub}</div>
