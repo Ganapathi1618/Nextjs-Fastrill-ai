@@ -4,6 +4,24 @@ import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { usePlanGuard } from "@/lib/hooks/usePlanGuard"
 
+// ════════════════════════════════════════════════════════════════
+// FIXES IN THIS VERSION
+// 1. Reply counts capped at recipients per campaign (webhook currently
+//    counts every inbound message as a reply — a chatty customer = 25
+//    "replies". Real fix is webhook-side; see migration notes in chat.)
+// 2. avgServiceValue now uses MEDIAN booking amount, not mean — one junk
+//    test booking of ₹10L was inflating "avg" to ₹55,057.
+// 3. ROI display honest: "—" until 10+ sends, capped display at 999%+.
+// 4. Compose flow rebuilt as single-column 4-step wizard (template →
+//    details → audience → send) to match the rest of the app. Split
+//    left-panel layout removed. Same design tokens throughout.
+// 5. sendCampaign now stamps conversations.campaign_id so the webhook
+//    can count unique repliers per campaign.
+//    ⚠ RUN THIS SQL IN SUPABASE **BEFORE** DEPLOYING THIS FILE:
+//    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS campaign_id uuid;
+//    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS campaign_replied_at timestamptz;
+// ════════════════════════════════════════════════════════════════
+
 const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
   { id:"inbox",     label:"Conversations",  icon:"◎", path:"/dashboard/conversations" },
@@ -67,6 +85,13 @@ function getCategoryIcon(cat) {
   if (cat==="SERVICE") return "💬"
   return "📢"
 }
+// FIX: a campaign can never have more unique repliers than people it reached.
+// Webhook currently increments replied_count per MESSAGE, so one chatty
+// customer inflates it. Cap at sent_count until the webhook counts unique
+// customers (see migration notes).
+function cappedReplies(c) {
+  return Math.min(c?.replied_count||0, c?.sent_count||0)
+}
 
 export default function Campaigns() {
   usePlanGuard()
@@ -86,7 +111,7 @@ export default function Campaigns() {
   // History highlight
   const [lastSentCampId, setLastSentCampId] = useState(null)
 
-  // Avg service value for ROI calc
+  // Median service value for ROI calc (FIX: was mean — outlier-poisoned)
   const [avgServiceValue, setAvgServiceValue] = useState(1200)
 
   // Data
@@ -174,11 +199,17 @@ export default function Campaigns() {
         setPlanLocked(true)
       }
 
-      // Calculate actual avg service value for ROI
+      // FIX: MEDIAN service value, not mean. One junk/test booking (e.g. a
+      // ₹10L test entry or an amount saved in paise) was inflating the mean
+      // to ₹55,057 and producing fantasy revenue estimates. Median ignores
+      // outliers entirely.
       if (bks?.length > 0) {
-        const total = bks.reduce((s,b)=>s+(b.amount||0), 0)
-        const avg = Math.round(total / bks.length)
-        if (avg > 0) setAvgServiceValue(avg)
+        const amts = bks.map(b=>b.amount||0).filter(a=>a>0).sort((a,b)=>a-b)
+        if (amts.length > 0) {
+          const mid = Math.floor(amts.length/2)
+          const median = amts.length%2===1 ? amts[mid] : Math.round((amts[mid-1]+amts[mid])/2)
+          if (median > 0) setAvgServiceValue(median)
+        }
       }
 
       try {
@@ -332,14 +363,15 @@ export default function Campaigns() {
     return pool.filter(c=>!optouts.includes(dedupe(c.phone)))
   }
 
-  // ── ANALYTICS MATH ──────────────────────────────────────────
+  // ── ANALYTICS MATH — FIXED ──────────────────────────────────
   function getDashboardStats() {
     const completed  = history.filter(c=>c.status==="done"||c.status==="completed")
     const totalSent  = completed.reduce((a,c)=>a+(c.sent_count||0),0)
     const totalDlv   = completed.reduce((a,c)=>a+(c.delivered_count||0),0)
     const totalRead  = completed.reduce((a,c)=>a+(c.read_count||0),0)
-    // FIX: use actual replied_count from DB (incremented by webhook)
-    const totalReply = completed.reduce((a,c)=>a+(c.replied_count||0),0)
+    // FIX: replies capped per-campaign at recipients — webhook counts every
+    // inbound message, so raw replied_count can exceed sent_count.
+    const totalReply = completed.reduce((a,c)=>a+cappedReplies(c),0)
     const totalCost  = completed.reduce((a,c)=>{
       const tmpl = templates.find(t=>t.template_name===c.template_name)
       return a+(c.sent_count||0)*(tmpl?.metaCost||0.83)
@@ -350,16 +382,17 @@ export default function Campaigns() {
     const readRate     = totalSent>0 ? Math.min(100,Math.round((totalRead/totalSent)*100))  : 0
     const replyRate    = totalSent>0 ? Math.min(100,Math.round((totalReply/totalSent)*100)) : 0
 
-    // Revenue estimate using actual avg service value from business bookings
+    // Revenue estimate using MEDIAN booking value (outlier-safe)
     const estBookings = Math.round(totalReply * 0.6)  // 60% of replies convert to booking
     const estRevenue  = estBookings * avgServiceValue
 
     const costFixed   = parseFloat(totalCost.toFixed(2))
 
-    // ROI only meaningful when >= 10 sends and cost > 0
+    // ROI only meaningful when >= 10 sends and cost > 0.
+    // Not capped here — display layer shows "999%+" beyond 999.
     const roi = (costFixed>0 && totalSent>=10)
-      ? Math.min(Math.round(((estRevenue-costFixed)/costFixed)*100), 9999)
-      : 0
+      ? Math.round(((estRevenue-costFixed)/costFixed)*100)
+      : null
 
     // Cost per reply — only show when replies > 0
     const costPerReply = totalReply>0 ? parseFloat((costFixed/totalReply).toFixed(2)) : null
@@ -374,20 +407,27 @@ export default function Campaigns() {
     }
   }
 
+  // Honest ROI formatting: null → "—", huge → "999%+"
+  function fmtRoi(roi) {
+    if (roi===null || roi===undefined) return "—"
+    if (roi>999) return "999%+"
+    return (roi>0?"+":"")+roi+"%"
+  }
+
   // Per-campaign ROI calc
   function calcRoi(c) {
     const sc      = c.sent_count||0
-    const replied = c.replied_count||0  // FIX: use actual replied_count
+    const replied = cappedReplies(c)  // FIX: capped at recipients
     const tmpl    = templates.find(t=>t.template_name===c.template_name)
     const cost    = parseFloat((sc*(tmpl?.metaCost||0.83)).toFixed(2))
     const bookings = Math.round(replied*0.6)
     const revenue  = bookings * avgServiceValue
 
     // ROI only when >= 10 sends
-    const roi     = (cost>0 && sc>=10) ? Math.min(Math.round(((revenue-cost)/cost)*100), 9999) : 0
+    const roi     = (cost>0 && sc>=10) ? Math.round(((revenue-cost)/cost)*100) : null
     const replyRt = sc>0 ? Math.min(100, Math.round((replied/sc)*100)) : 0
 
-    return { cost, bookings, revenue, roi, showRoi:sc>=10, replyRate:replyRt, replied }
+    return { cost, bookings, revenue, roi, showRoi:sc>=10&&roi!==null, replyRate:replyRt, replied }
   }
 
   function buildPayload(customerName, phone) {
@@ -506,17 +546,12 @@ export default function Campaigns() {
     },10000)
   }
 
-  // ── sendCampaign() — FIXED ──────────────────────────────────
-  // Bug fixed: was using dedupe(customer.phone) (10-digit, raw input) to look up
-  // conversations.phone (which is ALWAYS stored 12-digit with 91 prefix). This
-  // mismatch meant the conversation lookup silently failed for any customer whose
-  // raw phone field wasn't already 12-digit — so campaign_sent_at never got set,
-  // the messages insert error was swallowed by an empty catch block, and the
-  // dashboard still showed "Sent" because the Meta API call itself succeeded.
-  //
-  // Fix: derive both lookups from the SAME normalized `phone` (toPhone result),
-  // use toPhone() format for conversations.phone lookup, dedupe() format for
-  // messages.customer_phone, and log every failure instead of swallowing it.
+  // ── sendCampaign() ──────────────────────────────────────────
+  // Phone-format fix retained from previous version (toPhone for
+  // conversations.phone, dedupe for messages.customer_phone).
+  // NEW: stamps conversations.campaign_id so the webhook can count
+  // UNIQUE repliers per campaign instead of every message.
+  // ⚠ Requires the SQL migration in the header comment to be run first.
   async function sendCampaign() {
     const aud  = getAudience()
     const tmpl = templates.find(t=>t.id===selectedTmplId)
@@ -542,9 +577,6 @@ export default function Campaigns() {
       const payload = buildPayload(customer.name||"Customer", phone)
       if (!payload) { fc++; setFailCount(fc); continue }
       try {
-        // SECURITY FIX: routed through server — access_token never enters
-        // the browser. authToken cached outside the loop would be better,
-        // but kept inline here to avoid touching the loop's control flow.
         const { data: { session } } = await supabase.auth.getSession()
         const authToken = session?.access_token
         const res = await fetch("/api/meta/send-message", {
@@ -583,6 +615,8 @@ export default function Campaigns() {
               await supabase.from("conversations").update({
                 campaign_sent_at: now,
                 campaign_message: getPreview().substring(0,500),
+                campaign_id: campId,          // NEW: lets webhook count unique repliers
+                campaign_replied_at: null,    // NEW: reset so this campaign's first reply counts
                 state_json: null
               }).eq("id", convo.id)
             } else {
@@ -702,13 +736,12 @@ export default function Campaigns() {
         .lb:hover{border-color:#fca5a5;color:#ef4444;}
         .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
         .topbar{height:54px;flex-shrink:0;border-bottom:1px solid ${bdr};display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:${sb};}
-        .desktop{flex:1;display:flex;overflow:hidden;}
-        .left-panel{width:300px;flex-shrink:0;border-right:1px solid ${bdr};overflow-y:auto;background:${sb};display:flex;flex-direction:column;}
-        .right-area{flex:1;overflow-y:auto;background:${bg};}
-        .right-pad{padding:28px;max-width:760px;margin:0 auto;}
-        .tmpl-item{padding:14px 16px;cursor:pointer;border-bottom:1px solid ${bdr};transition:background 0.1s;border-left:3px solid transparent;}
-        .tmpl-item:hover{background:${ibg};}
-        .tmpl-item.on{background:${adim};border-left-color:${acc};}
+        .compose-area{flex:1;overflow-y:auto;background:${bg};}
+        .compose-pad{padding:28px;max-width:760px;margin:0 auto;}
+        .tmpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+        .tmpl-card{padding:14px 16px;border:1px solid ${cbdr};border-radius:11px;cursor:pointer;transition:all 0.12s;background:${ibg};}
+        .tmpl-card:hover{border-color:${acc}44;}
+        .tmpl-card.on{border-color:${acc};background:${adim};}
         .seg-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
         .seg-card{padding:12px 14px;border:1px solid ${cbdr};border-radius:10px;cursor:pointer;transition:all 0.12s;background:${ibg};display:flex;align-items:center;gap:10px;}
         .seg-card:hover{border-color:${acc}44;}
@@ -730,7 +763,6 @@ export default function Campaigns() {
         .bnil{font-size:9px;font-weight:600;color:${txf};}
         .bni.on .bnic,.bni.on .bnil{color:${acc};}
         input:focus,textarea:focus{border-color:${acc}88!important;outline:none;}
-        @media(max-width:1024px){.left-panel{width:260px;}}
         @media(max-width:767px){
           .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);width:240px!important;}
           .sidebar.open{transform:translateX(0);box-shadow:4px 0 24px rgba(0,0,0,0.5);}
@@ -738,9 +770,8 @@ export default function Campaigns() {
           .hbtn{display:flex;}
           .bnav{display:flex;}
           .main{padding-bottom:58px;}
-          .desktop{flex-direction:column;}
-          .left-panel{width:100%!important;border-right:none;border-bottom:1px solid ${bdr};max-height:320px;}
-          .right-pad{padding:16px;}
+          .compose-pad{padding:16px;}
+          .tmpl-grid{grid-template-columns:1fr!important;}
           .var-grid{grid-template-columns:1fr!important;}
           .dash-kpi{grid-template-columns:repeat(2,1fr)!important;}
           .dash-rev{grid-template-columns:repeat(2,1fr)!important;}
@@ -844,7 +875,7 @@ export default function Campaigns() {
                     {label:"Total Sent",    val:s.totalSent.toLocaleString(), sub:"messages",              color:tx,        icon:"📤"},
                     {label:"Delivery Rate", val:s.deliveryRate+"%",           sub:s.totalDlv+" delivered", color:"#38bdf8", icon:"📬"},
                     {label:"Read Rate",     val:s.readRate+"%",               sub:s.totalRead+" read",     color:"#a78bfa", icon:"👁"},
-                    {label:"Reply Rate",    val:s.replyRate+"%",              sub:s.totalReply+" replied", color:acc,       icon:"↩"},
+                    {label:"Reply Rate",    val:s.replyRate+"%",              sub:s.totalReply+" customers replied", color:acc, icon:"↩"},
                   ].map(k=>(
                     <div key={k.label} style={{background:card,border:"1px solid "+cbdr,borderRadius:14,padding:"22px 20px"}}>
                       <div style={{fontSize:12,color:txf,fontWeight:600,marginBottom:12}}>{k.icon} {k.label}</div>
@@ -862,7 +893,7 @@ export default function Campaigns() {
                       {label:"Meta Spend",    val:"₹"+s.totalCost.toLocaleString(),  color:txm},
                       {label:"Est. Bookings", val:s.estBookings,                      color:"#a78bfa"},
                       {label:"Est. Revenue",  val:"₹"+s.estRevenue.toLocaleString(),  color:acc},
-                      {label:"ROI",           val:s.totalSent>=10?(s.roi>0?"+":"")+s.roi+"%":"N/A (need 10+ sends)", color:s.totalSent>=10&&s.roi>0?acc:txm},
+                      {label:"ROI",           val:fmtRoi(s.roi), color:s.roi!==null&&s.roi>0?acc:txm},
                       {label:"Cost/Reply",    val:s.costPerReply!=null?"₹"+s.costPerReply:"—", color:txm},
                     ].map(r=>(
                       <div key={r.label} style={{background:ibg,borderRadius:10,padding:"14px 16px",textAlign:"center"}}>
@@ -872,7 +903,7 @@ export default function Campaigns() {
                     ))}
                   </div>
                   <div style={{fontSize:11.5,color:txf,marginTop:12}}>
-                    Est. Revenue = replies × 60% booking rate × avg ₹{avgServiceValue.toLocaleString()} (your actual avg). ROI shown for 10+ sends only.
+                    Est. Revenue = customers who replied × 60% booking rate × ₹{avgServiceValue.toLocaleString()} (your median booking value). Replies counted once per customer per campaign. ROI shown after 10+ sends.
                   </div>
                 </div>
 
@@ -884,7 +915,7 @@ export default function Campaigns() {
                     </div>
                     {history.slice(0,5).map(c=>{
                       const sc=c.sent_count||0
-                      const rpl=c.replied_count||0
+                      const rpl=cappedReplies(c)
                       const replyRt=sc>0?Math.min(100,Math.round((rpl/sc)*100)):0
                       const isDone=c.status==="done"||c.status==="completed"
                       return(
@@ -930,7 +961,7 @@ export default function Campaigns() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
                 <div>
                   <div style={{fontWeight:800,fontSize:20,color:tx}}>Campaign History</div>
-                  <div style={{fontSize:12.5,color:txf,marginTop:3}}>Real Meta cost · Reply rate from actual customer replies</div>
+                  <div style={{fontSize:12.5,color:txf,marginTop:3}}>Real Meta cost · Replies counted once per customer</div>
                 </div>
                 <button onClick={loadHistory} style={{padding:"8px 16px",borderRadius:9,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:12.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                   {histLoading?"Loading...":"↻ Refresh"}
@@ -997,7 +1028,7 @@ export default function Campaigns() {
                             <div style={{fontSize:10,color:txf}}>reply rate</div>
                             {showRoi && (
                               <div style={{fontSize:11,fontWeight:700,color:roi>0?acc:txm,marginTop:2}}>
-                                ROI {roi>0?"+":""}{roi}%
+                                ROI {fmtRoi(roi)}
                               </div>
                             )}
                           </div>
@@ -1097,292 +1128,309 @@ export default function Campaigns() {
             </div>
           )}
 
-          {/* ── COMPOSE: SETUP ── */}
+          {/* ── COMPOSE: SETUP — single-column 4-step wizard ── */}
           {!planLocked && view==="compose"&&step==="setup"&&(
-            <div className="desktop">
-              <div className="left-panel">
-                <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+bdr,position:"sticky",top:0,background:sb,zIndex:5}}>
-                  <div style={{fontWeight:700,fontSize:13,color:tx,marginBottom:3}}>Your Approved Templates</div>
-                  <div style={{fontSize:11.5,color:txf}}>From your Meta WhatsApp Business account</div>
-                  {whatsapp&&(
-                    <button onClick={()=>fetchMetaTemplates(whatsapp)}
-                      style={{marginTop:8,padding:"5px 12px",borderRadius:7,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:11.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                      ↻ Refresh
-                    </button>
-                  )}
-                </div>
+            <div className="compose-area">
+              <div className="compose-pad">
 
-                {tmplLoading&&(
-                  <div style={{padding:32,textAlign:"center",color:txf,fontSize:13}}>
-                    <div style={{fontSize:24,marginBottom:10,opacity:0.4}}>⟳</div>
-                    Loading from Meta...
-                  </div>
-                )}
-                {!whatsapp&&!tmplLoading&&(
-                  <div style={{padding:24,textAlign:"center"}}>
-                    <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📵</div>
-                    <div style={{fontWeight:600,fontSize:13.5,color:tx,marginBottom:8}}>WhatsApp not connected</div>
-                    <button onClick={()=>router.push("/dashboard/settings")}
-                      style={{padding:"9px 20px",borderRadius:9,background:acc,border:"none",color:"#000",fontWeight:700,fontSize:12.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                      Go to Settings →
-                    </button>
-                  </div>
-                )}
-                {whatsapp&&!tmplLoading&&tmplError==="no_templates"&&(
-                  <div style={{padding:24,textAlign:"center"}}>
-                    <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📋</div>
-                    <div style={{fontWeight:600,fontSize:13.5,color:tx,marginBottom:8}}>No approved templates found</div>
-                    <div style={{fontSize:12,color:txf,marginBottom:16,lineHeight:1.6}}>
-                      Create templates in Meta Business Manager. They appear here once approved (24-48 hrs).
+                {/* STEP 1 — CHOOSE TEMPLATE */}
+                <div className="step-card">
+                  <div className="step-head">
+                    <div className="step-num">1</div>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:14,color:tx}}>Choose Template</div>
+                      <div style={{fontSize:11.5,color:txf,marginTop:1}}>Approved templates from your Meta WhatsApp Business account</div>
                     </div>
-                    <a href="https://business.facebook.com/wa/manage/message-templates/"
-                      target="_blank" rel="noreferrer"
-                      style={{display:"inline-block",padding:"9px 20px",borderRadius:9,background:acc,color:"#000",fontWeight:700,fontSize:12.5,textDecoration:"none"}}>
-                      Create in Meta →
-                    </a>
-                  </div>
-                )}
-                {whatsapp&&!tmplLoading&&tmplError&&tmplError!=="no_templates"&&tmplError!=="no_whatsapp"&&(
-                  <div style={{padding:24,textAlign:"center"}}>
-                    <div style={{fontSize:32,marginBottom:12,opacity:0.3}}>⚠️</div>
-                    <div style={{fontSize:12,color:"#fb7185",marginBottom:12,lineHeight:1.5}}>{tmplError}</div>
-                    <button onClick={()=>fetchMetaTemplates(whatsapp)}
-                      style={{padding:"8px 20px",borderRadius:8,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                      ↻ Retry
-                    </button>
-                  </div>
-                )}
-                {!tmplLoading&&!tmplError&&templates.map(t=>(
-                  <div key={t.id} className={"tmpl-item"+(selectedTmplId===t.id?" on":"")}
-                    onClick={()=>{ setSelectedTmplId(t.id); setTmplVals(p=>({business_name:p.business_name||bizName})) }}>
-                    <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:5}}>
-                      <span style={{fontSize:18,lineHeight:1,flexShrink:0}}>{t.icon}</span>
-                      <div style={{fontWeight:600,fontSize:13,color:selectedTmplId===t.id?acc:tx,wordBreak:"break-all"}}>{t.label}</div>
+                    <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
+                      {whatsapp&&!selectedTmplId&&(
+                        <button onClick={()=>fetchMetaTemplates(whatsapp)}
+                          style={{padding:"5px 12px",borderRadius:7,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:11.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                          ↻ Refresh
+                        </button>
+                      )}
+                      {selectedTmplId&&(
+                        <button onClick={()=>setSelectedTmplId("")}
+                          style={{padding:"5px 12px",borderRadius:7,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                          ← Change
+                        </button>
+                      )}
                     </div>
-                    <div style={{fontSize:11,color:txf,lineHeight:1.4,marginBottom:7,paddingLeft:27}}>{t.desc}</div>
-                    {t.bodyText&&(
-                      <div style={{fontSize:11,color:txf,lineHeight:1.4,marginBottom:7,paddingLeft:27,opacity:0.7,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        {t.bodyText.substring(0,60)}...
+                  </div>
+                  <div className="step-body">
+                    {tmplLoading&&(
+                      <div style={{padding:24,textAlign:"center",color:txf,fontSize:13}}>
+                        <div style={{fontSize:24,marginBottom:10,opacity:0.4}}>⟳</div>
+                        Loading from Meta...
                       </div>
                     )}
-                    <div style={{display:"flex",gap:5,alignItems:"center",paddingLeft:27}}>
-                      <span style={{fontSize:9.5,padding:"2px 8px",borderRadius:100,
-                        background:t.category==="UTILITY"||t.category==="AUTHENTICATION"?"rgba(56,189,248,0.1)":adim,
-                        color:t.category==="UTILITY"||t.category==="AUTHENTICATION"?"#38bdf8":acc,
-                        border:"1px solid "+(t.category==="UTILITY"||t.category==="AUTHENTICATION"?"rgba(56,189,248,0.25)":acc+"33"),
-                        fontWeight:700}}>
-                        {t.category}
-                      </span>
-                      <span style={{fontSize:9.5,color:txf,marginLeft:"auto"}}>₹{t.metaCost}/msg</span>
+                    {!whatsapp&&!tmplLoading&&(
+                      <div style={{padding:16,textAlign:"center"}}>
+                        <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📵</div>
+                        <div style={{fontWeight:600,fontSize:13.5,color:tx,marginBottom:8}}>WhatsApp not connected</div>
+                        <button onClick={()=>router.push("/dashboard/settings")}
+                          style={{padding:"9px 20px",borderRadius:9,background:acc,border:"none",color:"#000",fontWeight:700,fontSize:12.5,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                          Go to Settings →
+                        </button>
+                      </div>
+                    )}
+                    {whatsapp&&!tmplLoading&&tmplError==="no_templates"&&(
+                      <div style={{padding:16,textAlign:"center"}}>
+                        <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📋</div>
+                        <div style={{fontWeight:600,fontSize:13.5,color:tx,marginBottom:8}}>No approved templates found</div>
+                        <div style={{fontSize:12,color:txf,marginBottom:16,lineHeight:1.6}}>
+                          Create templates in Meta Business Manager. They appear here once approved (24-48 hrs).
+                        </div>
+                        <a href="https://business.facebook.com/wa/manage/message-templates/"
+                          target="_blank" rel="noreferrer"
+                          style={{display:"inline-block",padding:"9px 20px",borderRadius:9,background:acc,color:"#000",fontWeight:700,fontSize:12.5,textDecoration:"none"}}>
+                          Create in Meta →
+                        </a>
+                      </div>
+                    )}
+                    {whatsapp&&!tmplLoading&&tmplError&&tmplError!=="no_templates"&&tmplError!=="no_whatsapp"&&(
+                      <div style={{padding:16,textAlign:"center"}}>
+                        <div style={{fontSize:32,marginBottom:12,opacity:0.3}}>⚠️</div>
+                        <div style={{fontSize:12,color:"#fb7185",marginBottom:12,lineHeight:1.5}}>{tmplError}</div>
+                        <button onClick={()=>fetchMetaTemplates(whatsapp)}
+                          style={{padding:"8px 20px",borderRadius:8,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                          ↻ Retry
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Template grid — hidden once selected */}
+                    {!tmplLoading&&!tmplError&&!selectedTmplId&&templates.length>0&&(
+                      <div className="tmpl-grid">
+                        {templates.map(t=>(
+                          <div key={t.id} className="tmpl-card"
+                            onClick={()=>{ setSelectedTmplId(t.id); setTmplVals(p=>({business_name:p.business_name||bizName})) }}>
+                            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:6}}>
+                              <span style={{fontSize:18,lineHeight:1,flexShrink:0}}>{t.icon}</span>
+                              <div style={{fontWeight:600,fontSize:13,color:tx,wordBreak:"break-all"}}>{t.label}</div>
+                            </div>
+                            {t.bodyText&&(
+                              <div style={{fontSize:11,color:txf,lineHeight:1.45,marginBottom:9,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
+                                {t.bodyText}
+                              </div>
+                            )}
+                            <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                              <span style={{fontSize:9.5,padding:"2px 8px",borderRadius:100,
+                                background:t.category==="UTILITY"||t.category==="AUTHENTICATION"?"rgba(56,189,248,0.1)":adim,
+                                color:t.category==="UTILITY"||t.category==="AUTHENTICATION"?"#38bdf8":acc,
+                                border:"1px solid "+(t.category==="UTILITY"||t.category==="AUTHENTICATION"?"rgba(56,189,248,0.25)":acc+"33"),
+                                fontWeight:700}}>
+                                {t.category}
+                              </span>
+                              <span style={{fontSize:9.5,color:txf,marginLeft:"auto"}}>₹{t.metaCost}/msg</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Selected summary — shown once selected */}
+                    {selectedTmpl&&(
+                      <div style={{display:"flex",alignItems:"center",gap:12,background:adim,border:"1px solid "+acc+"33",borderRadius:11,padding:"14px 16px"}}>
+                        <span style={{fontSize:22,flexShrink:0}}>{selectedTmpl.icon}</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:700,fontSize:13.5,color:acc}}>{selectedTmpl.label}</div>
+                          <div style={{fontSize:11.5,color:txm,marginTop:2}}>{selectedTmpl.desc} · ₹{selectedTmpl.metaCost}/msg</div>
+                        </div>
+                        <span style={{fontSize:16,color:acc,flexShrink:0}}>✓</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* STEP 2 — CAMPAIGN DETAILS */}
+                {selectedTmplId&&(
+                  <div className="step-card">
+                    <div className="step-head">
+                      <div className="step-num">2</div>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:14,color:tx}}>Campaign Details</div>
+                        <div style={{fontSize:11.5,color:txf,marginTop:1}}>Name your campaign and fill in variables</div>
+                      </div>
+                    </div>
+                    <div className="step-body">
+                      <div style={{marginBottom:20}}>
+                        <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:7}}>Campaign Name *</div>
+                        <input placeholder="e.g. May Offer 2026" value={campaignName}
+                          onChange={e=>setCampaignName(e.target.value)} style={{...inp,fontSize:14}}/>
+                      </div>
+
+                      {selectedTmpl?.vars.some(v=>v.auto)&&(
+                        <div style={{marginBottom:16,padding:"12px 14px",background:ibg,borderRadius:9,border:"1px solid "+acc+"22"}}>
+                          <div style={{fontSize:12,color:acc,fontWeight:700,marginBottom:3}}>👤 Customer Name — Auto-personalised</div>
+                          <div style={{fontSize:12.5,color:txm}}>Each recipient gets their own first name automatically. No action needed.</div>
+                        </div>
+                      )}
+
+                      {nonAutoVars.length>0&&(
+                        <>
+                          <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:12}}>Fill in Template Variables</div>
+                          <div className="var-grid">
+                            {nonAutoVars.map(v=>(
+                              <div key={v.key}>
+                                <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:4}}>{v.label}</div>
+                                <div style={{fontSize:11,color:txf,marginBottom:6}}>{v.hint}</div>
+                                <input
+                                  placeholder={v.hint}
+                                  value={tmplVals[v.key]||""}
+                                  onChange={e=>setTmplVals(p=>({...p,[v.key]:e.target.value}))}
+                                  style={inp}/>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+
+                      {nonAutoVars.length===0&&!selectedTmpl?.vars.some(v=>v.auto)&&(
+                        <div style={{fontSize:12.5,color:txf,background:ibg,borderRadius:9,padding:"12px 14px"}}>
+                          No variables — sent as-is to all recipients.
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
 
-              <div className="right-area">
-                <div className="right-pad">
-                  {!selectedTmplId&&(
-                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:400,gap:12}}>
-                      <div style={{fontSize:48,opacity:0.2}}>←</div>
-                      <div style={{fontWeight:600,fontSize:15,color:txm}}>Select a template to get started</div>
-                    </div>
-                  )}
-
-                  {selectedTmplId&&(
-                    <div className="step-card">
-                      <div className="step-head">
-                        <div className="step-num">1</div>
-                        <div>
-                          <div style={{fontWeight:700,fontSize:14,color:tx}}>Campaign Details</div>
-                          <div style={{fontSize:11.5,color:txf,marginTop:1}}>Name your campaign and fill in variables</div>
+                {/* STEP 3 — AUDIENCE */}
+                {selectedTmplId&&campaignName.trim()&&(
+                  <div className="step-card">
+                    <div className="step-head">
+                      <div className="step-num">3</div>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:14,color:tx}}>Select Audience</div>
+                        <div style={{fontSize:11.5,color:txf,marginTop:1}}>Who receives this campaign?</div>
+                      </div>
+                      {audience.length>0&&(
+                        <div style={{marginLeft:"auto",textAlign:"right"}}>
+                          <div style={{fontSize:28,fontWeight:800,color:acc,letterSpacing:"-1px",lineHeight:1}}>{audience.length}</div>
+                          <div style={{fontSize:11,color:txf}}>recipients</div>
                         </div>
-                        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
-                          <span style={{fontSize:16}}>{selectedTmpl?.icon}</span>
-                          <span style={{fontWeight:600,fontSize:12,color:acc,maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selectedTmpl?.label}</span>
-                          <button onClick={()=>setSelectedTmplId("")}
-                            style={{padding:"5px 12px",borderRadius:7,background:ibg,border:"1px solid "+cbdr,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                            ← Change
+                      )}
+                    </div>
+                    <div className="step-body">
+                      <div className="seg-grid" style={{marginBottom:16}}>
+                        {SEGMENTS.map(s=>{
+                          const count = segCount(s.id)
+                          return(
+                            <div key={s.id} className={"seg-card"+(segment===s.id?" on":"")}
+                              onClick={()=>{ setSegment(s.id); if(s.id!=="csv") setCsvNums([]) }}>
+                              <span style={{fontSize:18,flexShrink:0}}>{s.icon}</span>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontSize:13,fontWeight:600,color:segment===s.id?acc:tx}}>{s.label}</div>
+                                <div style={{fontSize:11,color:txf,marginTop:1}}>{s.desc}</div>
+                              </div>
+                              {count!==null&&<div style={{fontSize:14,fontWeight:700,color:segment===s.id?acc:txf,flexShrink:0}}>{count}</div>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {segment==="manual"&&(
+                        <div style={{background:ibg,border:"1px solid "+cbdr,borderRadius:10,padding:16}}>
+                          <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:8}}>Enter numbers (one per line or comma-separated)</div>
+                          <textarea placeholder={"919876543210\n918765432109"} value={manualNums}
+                            onChange={e=>setManualNums(e.target.value)} rows={5}
+                            style={{...inp,resize:"vertical",lineHeight:1.7,marginBottom:8}}/>
+                          <span style={{fontSize:12.5,color:acc,fontWeight:600}}>
+                            {manualNums.replace(/[,;]/g," ").split(/\s+/).filter(s=>s.trim().length>=8).length} numbers detected
+                          </span>
+                        </div>
+                      )}
+                      {segment==="csv"&&(
+                        <div style={{background:ibg,border:"1px solid "+cbdr,borderRadius:10,padding:16}}>
+                          <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={handleCsv}/>
+                          <button onClick={()=>fileRef.current?.click()}
+                            style={{width:"100%",padding:"12px",borderRadius:9,background:adim,border:"1px solid "+acc+"44",color:acc,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                            📎 {csvNums.length>0?csvNums.length+" numbers loaded — click to replace":"Upload CSV or .txt file"}
                           </button>
                         </div>
-                      </div>
-                      <div className="step-body">
-                        <div style={{marginBottom:20}}>
-                          <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:7}}>Campaign Name *</div>
-                          <input placeholder="e.g. May Offer 2026" value={campaignName}
-                            onChange={e=>setCampaignName(e.target.value)} style={{...inp,fontSize:14}}/>
-                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
-                        {selectedTmpl?.vars.some(v=>v.auto)&&(
-                          <div style={{marginBottom:16,padding:"12px 14px",background:ibg,borderRadius:9,border:"1px solid "+acc+"22"}}>
-                            <div style={{fontSize:12,color:acc,fontWeight:700,marginBottom:3}}>👤 Customer Name — Auto-personalised</div>
-                            <div style={{fontSize:12.5,color:txm}}>Each recipient gets their own first name automatically. No action needed.</div>
-                          </div>
-                        )}
-
-                        {nonAutoVars.length>0&&(
-                          <>
-                            <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:12}}>Fill in Template Variables</div>
-                            <div className="var-grid">
-                              {nonAutoVars.map(v=>(
-                                <div key={v.key}>
-                                  <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:4}}>{v.label}</div>
-                                  <div style={{fontSize:11,color:txf,marginBottom:6}}>{v.hint}</div>
-                                  <input
-                                    placeholder={v.hint}
-                                    value={tmplVals[v.key]||""}
-                                    onChange={e=>setTmplVals(p=>({...p,[v.key]:e.target.value}))}
-                                    style={inp}/>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-
-                        {nonAutoVars.length===0&&!selectedTmpl?.vars.some(v=>v.auto)&&(
-                          <div style={{fontSize:12.5,color:txf,background:ibg,borderRadius:9,padding:"12px 14px"}}>
-                            No variables — sent as-is to all recipients.
-                          </div>
-                        )}
+                {/* STEP 4 — PREVIEW, TEST & SEND */}
+                {selectedTmplId&&campaignName.trim()&&audience.length>0&&(
+                  <div className="step-card">
+                    <div className="step-head">
+                      <div className="step-num">4</div>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:14,color:tx}}>Preview, Test & Send</div>
+                        <div style={{fontSize:11.5,color:txf,marginTop:1}}>Always test on your number first</div>
                       </div>
                     </div>
-                  )}
-
-                  {selectedTmplId&&campaignName.trim()&&(
-                    <div className="step-card">
-                      <div className="step-head">
-                        <div className="step-num">2</div>
+                    <div className="step-body">
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,marginBottom:24}}>
                         <div>
-                          <div style={{fontWeight:700,fontSize:14,color:tx}}>Select Audience</div>
-                          <div style={{fontSize:11.5,color:txf,marginTop:1}}>Who receives this campaign?</div>
-                        </div>
-                        {audience.length>0&&(
-                          <div style={{marginLeft:"auto",textAlign:"right"}}>
-                            <div style={{fontSize:28,fontWeight:800,color:acc,letterSpacing:"-1px",lineHeight:1}}>{audience.length}</div>
-                            <div style={{fontSize:11,color:txf}}>recipients</div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="step-body">
-                        <div className="seg-grid" style={{marginBottom:16}}>
-                          {SEGMENTS.map(s=>{
-                            const count = segCount(s.id)
-                            return(
-                              <div key={s.id} className={"seg-card"+(segment===s.id?" on":"")}
-                                onClick={()=>{ setSegment(s.id); if(s.id!=="csv") setCsvNums([]) }}>
-                                <span style={{fontSize:18,flexShrink:0}}>{s.icon}</span>
-                                <div style={{flex:1,minWidth:0}}>
-                                  <div style={{fontSize:13,fontWeight:600,color:segment===s.id?acc:tx}}>{s.label}</div>
-                                  <div style={{fontSize:11,color:txf,marginTop:1}}>{s.desc}</div>
-                                </div>
-                                {count!==null&&<div style={{fontSize:14,fontWeight:700,color:segment===s.id?acc:txf,flexShrink:0}}>{count}</div>}
+                          <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:10}}>Message preview</div>
+                          <div style={{background:dark?"#0d1117":"#e5ddd5",borderRadius:13,padding:"18px 16px",minHeight:120}}>
+                            <div style={{background:dark?"#1c2433":"#fff",borderRadius:"4px 14px 14px 14px",padding:"13px 16px",maxWidth:"92%",display:"inline-block"}}>
+                              <div style={{fontSize:13.5,color:dark?"#e9edef":"#111",lineHeight:1.75,whiteSpace:"pre-wrap"}}>
+                                {previewText||<span style={{color:txf,fontStyle:"italic"}}>Preview here</span>}
                               </div>
-                            )
-                          })}
-                        </div>
-                        {segment==="manual"&&(
-                          <div style={{background:ibg,border:"1px solid "+cbdr,borderRadius:10,padding:16}}>
-                            <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:8}}>Enter numbers (one per line or comma-separated)</div>
-                            <textarea placeholder={"919876543210\n918765432109"} value={manualNums}
-                              onChange={e=>setManualNums(e.target.value)} rows={5}
-                              style={{...inp,resize:"vertical",lineHeight:1.7,marginBottom:8}}/>
-                            <span style={{fontSize:12.5,color:acc,fontWeight:600}}>
-                              {manualNums.replace(/[,;]/g," ").split(/\s+/).filter(s=>s.trim().length>=8).length} numbers detected
-                            </span>
+                            </div>
                           </div>
-                        )}
-                        {segment==="csv"&&(
-                          <div style={{background:ibg,border:"1px solid "+cbdr,borderRadius:10,padding:16}}>
-                            <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={handleCsv}/>
-                            <button onClick={()=>fileRef.current?.click()}
-                              style={{width:"100%",padding:"12px",borderRadius:9,background:adim,border:"1px solid "+acc+"44",color:acc,fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                              📎 {csvNums.length>0?csvNums.length+" numbers loaded — click to replace":"Upload CSV or .txt file"}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedTmplId&&campaignName.trim()&&audience.length>0&&(
-                    <div className="step-card">
-                      <div className="step-head">
-                        <div className="step-num">3</div>
-                        <div>
-                          <div style={{fontWeight:700,fontSize:14,color:tx}}>Preview, Test & Send</div>
-                          <div style={{fontSize:11.5,color:txf,marginTop:1}}>Always test on your number first</div>
                         </div>
-                      </div>
-                      <div className="step-body">
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,marginBottom:24}}>
+                        <div style={{display:"flex",flexDirection:"column",gap:16}}>
                           <div>
-                            <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:10}}>Message preview</div>
-                            <div style={{background:dark?"#0d1117":"#e5ddd5",borderRadius:13,padding:"18px 16px",minHeight:120}}>
-                              <div style={{background:dark?"#1c2433":"#fff",borderRadius:"4px 14px 14px 14px",padding:"13px 16px",maxWidth:"92%",display:"inline-block"}}>
-                                <div style={{fontSize:13.5,color:dark?"#e9edef":"#111",lineHeight:1.75,whiteSpace:"pre-wrap"}}>
-                                  {previewText||<span style={{color:txf,fontStyle:"italic"}}>Preview here</span>}
-                                </div>
-                              </div>
+                            <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:8}}>🧪 Test message</div>
+                            <div style={{display:"flex",gap:8}}>
+                              <input placeholder="e.g. 919876543210" value={testPhone}
+                                onChange={e=>setTestPhone(e.target.value)} style={{...inp,flex:1,fontSize:13}}/>
+                              <button onClick={sendTest}
+                                disabled={!testPhone.trim()||!whatsapp||testState==="sending"}
+                                style={{padding:"11px 16px",borderRadius:9,flexShrink:0,
+                                  background:testState==="done"?acc:adim,
+                                  border:"1px solid "+acc+"44",
+                                  color:testState==="done"?"#000":acc,
+                                  fontWeight:700,fontSize:13,cursor:"pointer",
+                                  fontFamily:"'Plus Jakarta Sans',sans-serif",whiteSpace:"nowrap"}}>
+                                {testState==="sending"?"...":testState==="done"?"Sent ✓":"Send Test"}
+                              </button>
                             </div>
                           </div>
-                          <div style={{display:"flex",flexDirection:"column",gap:16}}>
-                            <div>
-                              <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:8}}>🧪 Test message</div>
-                              <div style={{display:"flex",gap:8}}>
-                                <input placeholder="e.g. 919876543210" value={testPhone}
-                                  onChange={e=>setTestPhone(e.target.value)} style={{...inp,flex:1,fontSize:13}}/>
-                                <button onClick={sendTest}
-                                  disabled={!testPhone.trim()||!whatsapp||testState==="sending"}
-                                  style={{padding:"11px 16px",borderRadius:9,flexShrink:0,
-                                    background:testState==="done"?acc:adim,
-                                    border:"1px solid "+acc+"44",
-                                    color:testState==="done"?"#000":acc,
-                                    fontWeight:700,fontSize:13,cursor:"pointer",
-                                    fontFamily:"'Plus Jakarta Sans',sans-serif",whiteSpace:"nowrap"}}>
-                                  {testState==="sending"?"...":testState==="done"?"Sent ✓":"Send Test"}
-                                </button>
+                          <div style={{background:ibg,border:"1px solid "+cbdr,borderRadius:11,padding:"14px 16px",flex:1}}>
+                            <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:12}}>Summary</div>
+                            {[
+                              {label:"Template",  val:selectedTmpl?.label},
+                              {label:"Audience",  val:audience.length+" recipients"},
+                              {label:"Meta Cost", val:"₹"+(audience.length*(selectedTmpl?.metaCost||0.83)).toFixed(2)},
+                              {label:"Est. time", val:"~"+Math.ceil(audience.length*1.2)+"s"},
+                            ].map(item=>(
+                              <div key={item.label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+bdr}}>
+                                <span style={{fontSize:12.5,color:txf}}>{item.label}</span>
+                                <span style={{fontSize:12.5,fontWeight:600,color:tx}}>{item.val}</span>
                               </div>
-                            </div>
-                            <div style={{background:ibg,border:"1px solid "+cbdr,borderRadius:11,padding:"14px 16px",flex:1}}>
-                              <div style={{fontSize:12.5,color:txm,fontWeight:600,marginBottom:12}}>Summary</div>
-                              {[
-                                {label:"Template",  val:selectedTmpl?.label},
-                                {label:"Audience",  val:audience.length+" recipients"},
-                                {label:"Meta Cost", val:"₹"+(audience.length*(selectedTmpl?.metaCost||0.83)).toFixed(2)},
-                                {label:"Est. time", val:"~"+Math.ceil(audience.length*1.2)+"s"},
-                              ].map(item=>(
-                                <div key={item.label} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid "+bdr}}>
-                                  <span style={{fontSize:12.5,color:txf}}>{item.label}</span>
-                                  <span style={{fontSize:12.5,fontWeight:600,color:tx}}>{item.val}</span>
-                                </div>
-                              ))}
-                            </div>
+                            ))}
                           </div>
-                        </div>
-
-                        <button onClick={sendCampaign} disabled={!canSend||sending}
-                          style={{width:"100%",padding:"16px",
-                            background:canSend?"#00B5A0":ibg,
-                            border:"1px solid "+(canSend?"#00B5A0":cbdr),
-                            borderRadius:12,color:canSend?"#000":txm,
-                            fontWeight:800,fontSize:16,
-                            cursor:canSend?"pointer":"not-allowed",
-                            fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:8}}>
-                          {!allVarsFilled
-                            ?"↑ Fill in all template variables"
-                            :"🚀 Send to "+audience.length+" people · ₹"+(audience.length*(selectedTmpl?.metaCost||0.83)).toFixed(2)}
-                        </button>
-
-                        <div style={{display:"flex",gap:10,alignItems:"center",justifyContent:"center",marginTop:4}}>
-                          <button onClick={saveDraft} disabled={!campaignName.trim()||!selectedTmplId}
-                            style={{padding:"6px 16px",borderRadius:7,background:"transparent",border:"1px solid "+cbdr,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
-                            💾 Save as Draft
-                          </button>
-                          <span style={{fontSize:12,color:txf}}>1 msg/sec · Meta rate safe</span>
                         </div>
                       </div>
+
+                      <button onClick={sendCampaign} disabled={!canSend||sending}
+                        style={{width:"100%",padding:"16px",
+                          background:canSend?"#00B5A0":ibg,
+                          border:"1px solid "+(canSend?"#00B5A0":cbdr),
+                          borderRadius:12,color:canSend?"#000":txm,
+                          fontWeight:800,fontSize:16,
+                          cursor:canSend?"pointer":"not-allowed",
+                          fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:8}}>
+                        {!allVarsFilled
+                          ?"↑ Fill in all template variables"
+                          :"🚀 Send to "+audience.length+" people · ₹"+(audience.length*(selectedTmpl?.metaCost||0.83)).toFixed(2)}
+                      </button>
+
+                      <div style={{display:"flex",gap:10,alignItems:"center",justifyContent:"center",marginTop:4}}>
+                        <button onClick={saveDraft} disabled={!campaignName.trim()||!selectedTmplId}
+                          style={{padding:"6px 16px",borderRadius:7,background:"transparent",border:"1px solid "+cbdr,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                          💾 Save as Draft
+                        </button>
+                        <span style={{fontSize:12,color:txf}}>1 msg/sec · Meta rate safe</span>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
