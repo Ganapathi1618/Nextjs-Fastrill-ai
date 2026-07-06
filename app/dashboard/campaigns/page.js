@@ -617,6 +617,22 @@ export default function Campaigns() {
           sc++; setSentCount(sc)
           const waId = d?.waMessageId
           if (waId) waIds.push(waId)
+          // ── INSERT INTO campaign_recipients ──
+if (campId) {
+  try {
+    await supabase.from("campaign_recipients").insert({
+      campaign_id: campId,
+      user_id: userId,
+      phone: dedupe(phone),
+      status: "sent",
+      wa_message_id: waId || null,
+      sent_at: now,
+      created_at: now,
+    })
+  } catch(e) {
+    console.error("⚠️ campaign_recipients insert failed for", phone, e.message)
+  }
+}
           try {
             const { data:convo, error:convoErr } = await supabase
               .from("conversations").select("id")
