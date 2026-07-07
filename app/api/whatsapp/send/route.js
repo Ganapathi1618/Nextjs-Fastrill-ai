@@ -49,7 +49,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "WhatsApp not connected. Go to Settings." }, { status: 400 })
     }
 
-    const accessToken = decrypt(conn.access_token)
+    const accessToken = conn.access_token.includes(":") ? decrypt(conn.access_token) : conn.access_token
 
     const waRes = await fetch(
       "https://graph.facebook.com/v18.0/" + conn.phone_number_id + "/messages",
