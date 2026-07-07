@@ -38,9 +38,7 @@ async function POST(req) {
     if (!wa?.access_token || !wa?.phone_number_id) {
       return NextResponse.json({ error: "WhatsApp not connected" }, { status: 400 })
     }
-
-    const accessToken = decrypt(wa.access_token)
-
+const accessToken = wa.access_token.includes(":") ? decrypt(wa.access_token) : wa.access_token
     const payload = {
       messaging_product: "whatsapp",
       to,
