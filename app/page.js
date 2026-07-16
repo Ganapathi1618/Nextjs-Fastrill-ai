@@ -222,9 +222,12 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
 .fl-mdraw a:hover{background:rgba(255,255,255,.04);color:var(--ink)}
 
 @media(max-width:900px){
-  .fl-nav-links,.fl-nav-signin{display:none}
+  .fl-nav-links,.fl-nav-signin,.fl-nav-cta{display:none}
   .fl-hbg{display:flex}
 }
+.fl-mdraw-cta{display:block;margin:8px 14px 0;padding:12px 0;border-radius:10px;background:var(--teal);color:#06140f;font-weight:700;font-size:14px;text-align:center;text-decoration:none;transition:background .2s}
+.fl-mdraw-cta:hover{background:var(--teal2)}
+.fl-mdraw-signin{color:var(--ink4) !important;text-align:center;font-size:13px !important;padding:10px 14px !important}
 
 /* ── HERO ── */
 .fl-hero{min-height:100vh;display:flex;align-items:center;padding:clamp(100px,12vw,140px) clamp(20px,4vw,48px) clamp(60px,8vw,100px);position:relative;overflow:hidden}
@@ -513,7 +516,8 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
         {[["#problem", "Problem"], ["#product", "Product"], ["#demo", "Demo"], ["#pricing", "Pricing"]].map(([h, l]) => (
           <a key={h} href={h} onClick={() => setMobOpen(false)}>{l}</a>
         ))}
-        <a href="/login" onClick={() => setMobOpen(false)}>Sign in</a>
+        <a href="/login" className="fl-mdraw-cta" onClick={() => setMobOpen(false)}>Start Free Trial</a>
+        <a href="/login" className="fl-mdraw-signin" onClick={() => setMobOpen(false)}>Sign in</a>
       </div>
 
       {/* HERO */}
