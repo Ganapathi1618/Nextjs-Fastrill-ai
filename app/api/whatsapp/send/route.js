@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
+import { decrypt } from "@/lib/encryption"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,9 +10,6 @@ const supabaseAdmin = createClient(
 
 export async function POST(req) {
   try {
-    // ── 1. Get userId from server session (NOT from request body) ──
-    // This is the security fix — userId must come from the authenticated
-    // session, not from the browser. Otherwise anyone can spoof a userId.
     const cookieStore = cookies()
     const authHeader  = req.headers.get("authorization") || ""
     const token       = authHeader.replace("Bearer ", "").trim()
@@ -19,7 +17,6 @@ export async function POST(req) {
     let userId = null
 
     if (token) {
-      // JWT token passed from client via Authorization header
       const { data: { user }, error } = await supabaseAdmin.auth.getUser(token)
       if (!error && user) userId = user.id
     }
@@ -28,7 +25,6 @@ export async function POST(req) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // ── 2. Parse request body ──────────────────────────────────────
     const { to, message, conversationId, customerPhone } = await req.json()
 
     if (!to || !message) {
@@ -43,7 +39,6 @@ export async function POST(req) {
       return NextResponse.json({ error: "Invalid phone number" }, { status: 400 })
     }
 
-    // ── 3. Load WhatsApp credentials from DB ──────────────────────
     const { data: conn, error: connErr } = await supabaseAdmin
       .from("whatsapp_connections")
       .select("access_token, phone_number_id")
@@ -54,13 +49,14 @@ export async function POST(req) {
       return NextResponse.json({ error: "WhatsApp not connected. Go to Settings." }, { status: 400 })
     }
 
-    // ── 4. Send via WhatsApp Graph API ────────────────────────────
+    const accessToken = conn.access_token.includes(":") ? decrypt(conn.access_token) : conn.access_token
+
     const waRes = await fetch(
       "https://graph.facebook.com/v18.0/" + conn.phone_number_id + "/messages",
       {
         method: "POST",
         headers: {
-          "Authorization": "Bearer " + conn.access_token,
+          "Authorization": "Bearer " + accessToken,
           "Content-Type":  "application/json"
         },
         body: JSON.stringify({
@@ -79,7 +75,6 @@ export async function POST(req) {
       return NextResponse.json({ error: data.error.message, code: data.error.code }, { status: 400 })
     }
 
-    // ── 5. Save to messages table ─────────────────────────────────
     const waMessageId = data?.messages?.[0]?.id || null
     try {
       await supabaseAdmin.from("messages").insert({

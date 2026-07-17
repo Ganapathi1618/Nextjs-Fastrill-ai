@@ -116,7 +116,7 @@ export default function Conversations() {
   useEffect(() => { msgsEndRef.current?.scrollIntoView({ behavior:"smooth" }) }, [messages])
 
   async function loadWaConn() {
-    const { data } = await supabase.from("whatsapp_connections").select("*").eq("user_id", userId).maybeSingle()
+    const { data } = await supabase.from("whatsapp_connections").select("id,phone_number_id,waba_id,connected_at").eq("user_id", userId).maybeSingle()
     setWaConn(data || null)
   }
   async function loadServices() {

@@ -104,7 +104,12 @@ export default function Dashboard() {
       setAvgServiceValue(avgVal)
       setStats({ revenue, leads:(leads||[]).length, bookings:periodBks.length, missedLeads, aiHandled, aiBookings, aiRevenue })
 
-      setFunnel({ customers:(customers||[]).length, convos:uniqueConvos, booked:periodBks.length, completed:periodConfirmed.length, revenue })
+      // FIX: messages are filtered by created_at but bookings by booking_date,
+      // so a booking made before the period (for a date inside it) has its chat
+      // outside the message window — convos undercounts and Book Rate exceeded 100%.
+      // Every booking comes from a conversation, so clamp convos to at least bookings.
+      const funnelConvos = Math.max(uniqueConvos, periodBks.length)
+      setFunnel({ customers:(customers||[]).length, convos:funnelConvos, booked:periodBks.length, completed:periodConfirmed.length, revenue })
       setTodayBookings(bks.filter(b=>b.booking_date===todayStr&&b.status!=="cancelled").slice(0,4))
 
       const srcMap={}
@@ -154,11 +159,11 @@ export default function Dashboard() {
 
   const fMax=Math.max(funnel.customers,1)
   const fSteps=[
-    {label:"Customers",    val:funnel.customers, pct:100,                                     color:acc,      icon:"◑"},
-    {label:"Conversations",val:funnel.convos,     pct:Math.round((funnel.convos/fMax)*100),    color:"#38bdf8",icon:"◎"},
-    {label:"Booked",       val:funnel.booked,     pct:Math.round((funnel.booked/fMax)*100),    color:"#a78bfa",icon:"◷"},
-    {label:"Completed",    val:funnel.completed,  pct:Math.round((funnel.completed/fMax)*100), color:"#f59e0b",icon:"✓"},
-    {label:"Revenue",      val:"₹"+(funnel.revenue).toLocaleString(), pct:funnel.customers>0?Math.round((funnel.completed/fMax)*100):0, color:"#fb7185",icon:"₹"},
+    {label:"Customers",  val:funnel.customers, pct:100,                                     color:acc,      icon:"◑"},
+    {label:"Chats",      val:funnel.convos,     pct:Math.round((funnel.convos/fMax)*100),    color:"#38bdf8",icon:"◎"},
+    {label:"Booked",     val:funnel.booked,     pct:Math.round((funnel.booked/fMax)*100),    color:"#a78bfa",icon:"◷"},
+    {label:"Completed",  val:funnel.completed,  pct:Math.round((funnel.completed/fMax)*100), color:"#f59e0b",icon:"✓"},
+    {label:"Revenue",    val:"₹"+(funnel.revenue).toLocaleString(), pct:funnel.customers>0?Math.round((funnel.completed/fMax)*100):0, color:"#fb7185",icon:"₹"},
   ]
 
   return (
@@ -284,7 +289,7 @@ export default function Dashboard() {
             <div className="fin" style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:11,animationDelay:"0.05s"}}>
               {[
                 {name:"Revenue",    val:"₹"+stats.revenue.toLocaleString(),  color:acc,       icon:"₹",  sub:pLabel},
-                {name:"Leads",      val:stats.leads,                          color:"#38bdf8", icon:"↗", sub:pLabel},
+                {name:"New Leads",  val:stats.leads,                          color:"#38bdf8", icon:"↗", sub:pLabel},
                 {name:"Bookings",   val:stats.bookings,                       color:"#a78bfa", icon:"◷", sub:pLabel},
                 {name:"AI Bookings",val:stats.aiBookings,                     color:"#f59e0b", icon:"◈", sub:"automated"},
                 {name:"Avg Value",  val:"₹"+avgServiceValue.toLocaleString(), color:"#fb7185", icon:"₹",  sub:"per booking"},
@@ -308,7 +313,7 @@ export default function Dashboard() {
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
                   <div>
                     <div style={{fontWeight:700,fontSize:14,color:tx}}>Conversion Pipeline</div>
-                    <div style={{fontSize:11,color:txm,marginTop:2}}>Customer journey from contact to revenue</div>
+                    <div style={{fontSize:11,color:txm,marginTop:2}}>Customer journey from contact to revenue · {pLabel.toLowerCase()}</div>
                   </div>
                   {funnel.customers>0&&<div style={{fontSize:10.5,color:txf,background:ibg,padding:"3px 10px",borderRadius:6,border:`1px solid ${cbdr}`}}>{funnel.customers} total customers</div>}
                 </div>
@@ -356,9 +361,9 @@ export default function Dashboard() {
                     {funnel.convos>0 && (
                       <div style={{display:"flex",gap:8,marginTop:14,flexWrap:"wrap"}}>
                         {[
-                          {l:"Chat Rate", v:Math.round((funnel.convos/funnel.customers)*100)+"%", c:"#38bdf8"},
-                          {l:"Book Rate", v:funnel.convos>0?Math.round((funnel.booked/funnel.convos)*100)+"%":"0%", c:"#a78bfa"},
-                          {l:"Complete Rate", v:funnel.booked>0?Math.round((funnel.completed/funnel.booked)*100)+"%":"0%", c:"#f59e0b"},
+                          {l:"Chat Rate", v:Math.min(100,Math.round((funnel.convos/Math.max(funnel.customers,1))*100))+"%", c:"#38bdf8"},
+                          {l:"Book Rate", v:funnel.convos>0?Math.min(100,Math.round((funnel.booked/funnel.convos)*100))+"%":"0%", c:"#a78bfa"},
+                          {l:"Complete Rate", v:funnel.booked>0?Math.min(100,Math.round((funnel.completed/funnel.booked)*100))+"%":"0%", c:"#f59e0b"},
                         ].map(m=>(
                           <div key={m.l} style={{display:"flex",alignItems:"center",gap:6,background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:"5px 12px"}}>
                             <div style={{width:6,height:6,borderRadius:"50%",background:m.c}}/>

@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendAndSave } from "@/lib/messaging/wa-send"
+import { decrypt } from "@/lib/encryption"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -179,7 +180,7 @@ export async function GET(req) {
           )
 
           console.log("📤 Sending 24hr reminder to:", booking.customer_phone, "for:", booking.service)
-          const sent = await sendWhatsApp(conn.access_token, conn.phone_number_id, booking.customer_phone, message, biz.user_id)
+          const sent = await sendWhatsApp(decrypt(conn.access_token), conn.phone_number_id, booking.customer_phone, message, biz.user_id)
 
           if (sent) {
             await supabaseAdmin.from("bookings")
@@ -230,7 +231,7 @@ export async function GET(req) {
           biz.business_name, "2hrs"
         )
 
-        const sent = await sendWhatsApp(conn.access_token, conn.phone_number_id, booking.customer_phone, message, biz.user_id)
+        const sent = await sendWhatsApp(decrypt(conn.access_token), conn.phone_number_id, booking.customer_phone, message, biz.user_id)
         if (sent) {
           await supabaseAdmin.from("bookings")
             .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })

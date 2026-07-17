@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { verifyOAuthState } from "@/lib/meta/oauth-state"
+import { encrypt } from "@/lib/encryption"
 
 export async function GET(req) {
   try {
@@ -19,28 +20,21 @@ export async function GET(req) {
     }
 
     if (!code) {
-      console.error("❌ Callback: No code from Meta")
+      console.error("Callback: No code from Meta")
       return NextResponse.redirect(new URL("/dashboard/settings?error=no_code", req.url))
     }
-
-    console.log("✅ Callback: Valid userId from state:", userId)
 
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    // ── VERIFY user exists in Supabase ──────────────────────────
-    // Prevents connecting WhatsApp to a deleted/invalid account
     const { data: { user }, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId)
     if (userError || !user) {
-      console.error("❌ Callback: User not found for id:", userId)
+      console.error("Callback: User not found for id:", userId)
       return NextResponse.redirect(new URL("/login?error=user_not_found", req.url))
     }
 
-    console.log("✅ User verified:", user.email)
-
-    // ── EXCHANGE code for access token ──────────────────────────
     const appId       = process.env.META_APP_ID
     const appSecret   = process.env.META_APP_SECRET
     const redirectUri = (process.env.NEXT_PUBLIC_APP_URL || "https://fastrill.com") + "/api/meta/callback"
@@ -55,58 +49,49 @@ export async function GET(req) {
     const tokenData = await tokenRes.json()
 
     if (tokenData.error) {
-      console.error("❌ Token exchange failed:", tokenData.error)
+      console.error("Token exchange failed:", tokenData.error)
       return NextResponse.redirect(new URL("/dashboard/settings?error=token_failed", req.url))
     }
 
     const accessToken = tokenData.access_token
-    console.log("✅ Token received")
 
-    // ── FETCH WABA and phone number ─────────────────────────────
     let wabaId = null, phoneNumberId = null, displayPhoneNumber = null
 
-    // Method 1: via businesses endpoint
     try {
       const r = await fetch(`https://graph.facebook.com/v18.0/me/businesses?access_token=${accessToken}`)
       const d = await r.json()
       wabaId = d?.data?.[0]?.id || null
-      console.log("✅ WABA from businesses:", wabaId)
     } catch(e) {
-      console.warn("⚠️ businesses endpoint failed:", e.message)
+      console.warn("businesses endpoint failed:", e.message)
     }
 
-    // Method 2: fallback via me endpoint
     if (!wabaId) {
       try {
         const r = await fetch(`https://graph.facebook.com/v18.0/me?fields=whatsapp_business_account&access_token=${accessToken}`)
         const d = await r.json()
         wabaId = d?.whatsapp_business_account?.id || null
-        console.log("✅ WABA from me:", wabaId)
       } catch(e) {
-        console.warn("⚠️ me endpoint failed:", e.message)
+        console.warn("me endpoint failed:", e.message)
       }
     }
 
-    // Fetch phone numbers if WABA found
     if (wabaId) {
       try {
         const r = await fetch(`https://graph.facebook.com/v18.0/${wabaId}/phone_numbers?access_token=${accessToken}`)
         const d = await r.json()
         phoneNumberId      = d?.data?.[0]?.id || null
         displayPhoneNumber = d?.data?.[0]?.display_phone_number || null
-        console.log("✅ Phone:", phoneNumberId, displayPhoneNumber)
       } catch(e) {
-        console.warn("⚠️ Phone numbers fetch failed:", e.message)
+        console.warn("Phone numbers fetch failed:", e.message)
       }
     }
 
-    // ── SAVE to Supabase ────────────────────────────────────────
     const { error: upsertError } = await supabaseAdmin
       .from("whatsapp_connections")
       .upsert(
         {
           user_id:              userId,
-          access_token:         accessToken,
+          access_token:         encrypt(accessToken),
           waba_id:              wabaId,
           phone_number_id:      phoneNumberId,
           display_phone_number: displayPhoneNumber,
@@ -116,13 +101,10 @@ export async function GET(req) {
       )
 
     if (upsertError) {
-      console.error("❌ Supabase upsert error:", upsertError.message)
+      console.error("Supabase upsert error:", upsertError.message)
       return NextResponse.redirect(new URL("/dashboard/settings?error=db_failed", req.url))
     }
 
-    console.log("✅ WhatsApp connection saved for:", userId)
-
-    // ── REGISTER webhook subscription (non-critical) ────────────
     if (phoneNumberId) {
       try {
         await fetch(
@@ -133,17 +115,15 @@ export async function GET(req) {
             body:    JSON.stringify({ subscribed_fields: ["messages"] })
           }
         )
-        console.log("✅ Webhook subscribed")
       } catch(e) {
-        console.warn("⚠️ Webhook subscription failed (non-critical):", e.message)
+        console.warn("Webhook subscription failed (non-critical):", e.message)
       }
     }
 
-    // ── SUCCESS ─────────────────────────────────────────────────
     return NextResponse.redirect(new URL("/dashboard/settings?connected=true", req.url))
 
   } catch (err) {
-    console.error("❌ Callback fatal error:", err.message)
+    console.error("Callback fatal error:", err.message)
     return NextResponse.redirect(new URL("/dashboard/settings?error=unknown", req.url))
   }
 }
