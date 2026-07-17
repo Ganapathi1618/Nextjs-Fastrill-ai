@@ -156,9 +156,9 @@ export default function Campaigns() {
   useEffect(() => {
     const saved = localStorage.getItem("fastrill-theme")
     if (saved) setDark(saved==="dark")
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data?.user) router.push("/login")
-      else { setUserEmail(data.user.email||""); setUserId(data.user.id) }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) router.push("/login")
+      else { setUserEmail(session.user.email || ""); setUserId(session.user.id) }
     })
   }, [])
 
