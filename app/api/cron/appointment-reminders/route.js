@@ -5,6 +5,8 @@
 
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { sendAndSave } from "@/lib/messaging/wa-send"
+import { decrypt } from "@/lib/encryption"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -52,36 +54,16 @@ function getISTTimeString(utcDate, offsetMs = 0) {
   return String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0")
 }
 
-async function sendWhatsApp(accessToken, phoneNumberId, to, message) {
-  const phone = to.replace(/[^0-9]/g, "")
+// Sends via the shared wa-send module so the reminder is also saved to the
+// messages table and appears in the conversation inbox.
+async function sendWhatsApp(accessToken, phoneNumberId, to, message, userId) {
+  const phone = (to || "").replace(/[^0-9]/g, "")
   if (phone.length < 10) return false
-  try {
-    const res = await fetch(
-      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + accessToken,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "text",
-          text: { body: message, preview_url: false }
-        })
-      }
-    )
-    const data = await res.json()
-    if (data.error) {
-      console.error("❌ WA send error:", data.error.message)
-      return false
-    }
-    return true
-  } catch(e) {
-    console.error("❌ WA send exception:", e.message)
-    return false
-  }
+  const result = await sendAndSave({
+    phoneNumberId, accessToken, to: phone, message,
+    userId, conversationId: null, isAI: false
+  })
+  return result.ok
 }
 
 function buildReminderMessage(name, service, dateStr, timeStr, bizName, type) {
@@ -198,7 +180,7 @@ export async function GET(req) {
           )
 
           console.log("📤 Sending 24hr reminder to:", booking.customer_phone, "for:", booking.service)
-          const sent = await sendWhatsApp(conn.access_token, conn.phone_number_id, booking.customer_phone, message)
+          const sent = await sendWhatsApp(decrypt(conn.access_token), conn.phone_number_id, booking.customer_phone, message, biz.user_id)
 
           if (sent) {
             await supabaseAdmin.from("bookings")
@@ -249,7 +231,7 @@ export async function GET(req) {
           biz.business_name, "2hrs"
         )
 
-        const sent = await sendWhatsApp(conn.access_token, conn.phone_number_id, booking.customer_phone, message)
+        const sent = await sendWhatsApp(decrypt(conn.access_token), conn.phone_number_id, booking.customer_phone, message, biz.user_id)
         if (sent) {
           await supabaseAdmin.from("bookings")
             .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })

@@ -104,6 +104,11 @@ export default function Conversations() {
           setMessages(prev => prev.find(m => m.id === p.new.id) ? prev : [...prev, p.new])
           setConvos(prev => prev.map(c => c.id === selected.id ? { ...c, last_message: p.new.message_text, unread_count:0 } : c))
         })
+      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"messages", filter:"conversation_id=eq." + selected.id },
+        (p) => {
+          if (selectedRef.current?.id !== selected.id) return
+          setMessages(prev => prev.map(m => m.id === p.new.id ? { ...m, ...p.new } : m))
+        })
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [selected?.id])
@@ -111,7 +116,7 @@ export default function Conversations() {
   useEffect(() => { msgsEndRef.current?.scrollIntoView({ behavior:"smooth" }) }, [messages])
 
   async function loadWaConn() {
-    const { data } = await supabase.from("whatsapp_connections").select("*").eq("user_id", userId).maybeSingle()
+    const { data } = await supabase.from("whatsapp_connections").select("id,phone_number_id,waba_id,connected_at").eq("user_id", userId).maybeSingle()
     setWaConn(data || null)
   }
   async function loadServices() {
@@ -140,13 +145,12 @@ export default function Conversations() {
     if (customerPhone) {
       const digits = customerPhone.replace(/[^0-9]/g,"")
       const variants = [...new Set([customerPhone, digits, "+"+digits, digits.slice(-10), "91"+digits.slice(-10)])]
-      for (const v of variants) {
-        const { data } = await supabase.from("messages").select("*").eq("customer_phone", v).eq("user_id", userId).order("created_at", { ascending:true })
-        if (data?.length) {
-          supabase.from("messages").update({ conversation_id: convoId }).in("id", data.map(m => m.id))
-          if (selectedRef.current?.id === convoId) setMessages(data)
-          return
-        }
+      // One query for all format variants instead of up to 5 sequential ones
+      const { data } = await supabase.from("messages").select("*").in("customer_phone", variants).eq("user_id", userId).order("created_at", { ascending:true })
+      if (data?.length) {
+        supabase.from("messages").update({ conversation_id: convoId }).in("id", data.map(m => m.id))
+        if (selectedRef.current?.id === convoId) setMessages(data)
+        return
       }
     }
     if (selectedRef.current?.id === convoId) setMessages([])
@@ -173,7 +177,6 @@ export default function Conversations() {
     const text  = msgInput.trim()
     setMsgInput("")
     const phone = (selected.phone || "").replace(/[^0-9]/g,"")
-console.log("📤 Sending to phone:", phone)
     try {
       const authHeader = await getAuthHeader()
       if (!authHeader) { toast.error("Session expired — please refresh"); setSending(false); return }
@@ -183,7 +186,6 @@ console.log("📤 Sending to phone:", phone)
         body: JSON.stringify({ to: phone, message: text, conversationId: selected.id, customerPhone: selected.phone })
       })
       const result = await res.json()
-      console.log("📨 Send result:", JSON.stringify(result))
       if (!result.success) { toast.error("Send failed: " + (result.error || "Unknown error")); setSending(false); return }
       if (result.messageId) {
         const { data: savedMsg } = await supabase.from("messages").select("*").eq("wa_message_id", result.messageId).maybeSingle()
@@ -358,7 +360,7 @@ console.log("📤 Sending to phone:", phone)
         .hbtn{display:none;background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:${tx};line-height:1;margin-right:2px;}
         .mob-back-btn{display:none;background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:5px 10px;cursor:pointer;font-size:13px;color:${tx};font-family:'Plus Jakarta Sans',sans-serif;align-items:center;gap:5px;font-weight:600;margin-right:8px;}
         .mob-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
-        .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:${sb};border-top:1px solid ${bdr};padding:6px 0;z-index:200;}
+        .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:${sb};border-top:1px solid ${bdr};padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:200;}
         @media(max-width:767px){
           .wrap{position:relative;}
           .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s;width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
@@ -366,7 +368,7 @@ console.log("📤 Sending to phone:", phone)
           .mob-ov.open{display:block;}
           .hbtn{display:flex;}
           .bnav{display:flex;}
-          .main{padding-bottom:58px;}
+          .main{padding-bottom:calc(58px + env(safe-area-inset-bottom));}
           .topbar{padding:0 12px!important;}
           .clist{width:100%!important;border-right:none!important;}
           .mob-hide-list{display:none!important;}
@@ -375,8 +377,8 @@ console.log("📤 Sending to phone:", phone)
           .mob-back-btn{display:flex!important;}
         }
         .bni{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
-        .bnic{font-size:17px;color:rgba(255,255,255,0.3);}
-        .bnil{font-size:9px;font-weight:600;color:rgba(255,255,255,0.3);}
+        .bnic{font-size:17px;color:${navText};}
+        .bnil{font-size:9px;font-weight:600;color:${navText};}
         .bni.on .bnic,.bni.on .bnil{color:${acc};}
         select option{background-color:#0c0c15!important;color:#eeeef5!important;}
         textarea:focus,input:focus{border-color:${acc}88!important;}
@@ -492,6 +494,7 @@ console.log("📤 Sending to phone:", phone)
                     <div style={{display:"flex", alignItems:"center", gap:7, fontSize:12, fontWeight:600, color:txm}}>
                       <span>AI</span>
                       <button
+                        role="switch" aria-checked={!!selected.ai_enabled} aria-label="AI auto-reply for this conversation"
                         style={{width:36, height:20, borderRadius:100, position:"relative", cursor:"pointer", border:"none", background:selected.ai_enabled ? acc : "rgba(255,255,255,0.12)", transition:"background 0.2s", flexShrink:0}}
                         onClick={() => toggleAI(selected.id, selected.ai_enabled)}>
                         <span style={{position:"absolute", top:2, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left 0.2s", left:selected.ai_enabled ? "18px" : "2px", display:"block"}}/>
@@ -521,7 +524,15 @@ console.log("📤 Sending to phone:", phone)
                             <span>{msgText || "📎 " + (m.message_type || "Media")}</span>
                             <div style={{display:"flex", alignItems:"center", justifyContent:"flex-end", gap:"3px", marginTop:"3px"}}>
                               <span style={{fontSize:"10px", color: dir==="outbound"?(dark?"rgba(255,255,255,0.55)":"rgba(0,0,0,0.45)"):"rgba(255,255,255,0.4)", lineHeight:1}}>{formatMsgTime(m.created_at)}</span>
-                              {dir === "outbound" && <span style={{fontSize:"11px", color:dark?"#53bdeb":"#4fc3f7"}}>✓✓</span>}
+                              {dir === "outbound" && (
+                                m.status === "failed"
+                                  ? <span style={{fontSize:"11px", color:"#ef4444"}} title="Failed to send">!</span>
+                                  : m.status === "read"
+                                    ? <span style={{fontSize:"11px", color:dark?"#53bdeb":"#4fc3f7"}} title="Read">✓✓</span>
+                                    : m.status === "delivered"
+                                      ? <span style={{fontSize:"11px", color:dark?"rgba(255,255,255,0.55)":"rgba(0,0,0,0.45)"}} title="Delivered">✓✓</span>
+                                      : <span style={{fontSize:"11px", color:dark?"rgba(255,255,255,0.55)":"rgba(0,0,0,0.45)"}} title="Sent">✓</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -537,8 +548,14 @@ console.log("📤 Sending to phone:", phone)
                   ) : (
                     <>
                       <textarea className="msg-field" placeholder="Type a message..." value={msgInput} rows={1}
-                        onChange={e => setMsgInput(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg() } }}/>
+                        aria-label="Message text"
+                        style={{overflow:"hidden", maxHeight:120}}
+                        onChange={e => {
+                          setMsgInput(e.target.value)
+                          e.target.style.height = "auto"
+                          e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"
+                        }}
+                        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.target.style.height = "auto"; sendMsg() } }}/>
                       <button className="send-btn" onClick={sendMsg} disabled={sending || !msgInput.trim()}>
                         {sending ? "..." : "Send"}
                       </button>
@@ -560,18 +577,21 @@ console.log("📤 Sending to phone:", phone)
 
       {/* Booking modal */}
       {showBooking && selected && (
-        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:20}} onClick={e => { if (e.target === e.currentTarget) setShowBooking(false) }}>
-          <div style={{background:card, border:"1px solid " + cbdr, borderRadius:16, padding:28, width:"100%", maxWidth:440, display:"flex", flexDirection:"column", gap:14}}>
+        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:20}}
+          onClick={e => { if (e.target === e.currentTarget) setShowBooking(false) }}
+          onKeyDown={e => { if (e.key === "Escape") setShowBooking(false) }}>
+          <div role="dialog" aria-modal="true" aria-label="Book appointment"
+            style={{background:card, border:"1px solid " + cbdr, borderRadius:16, padding:28, width:"100%", maxWidth:440, display:"flex", flexDirection:"column", gap:14, maxHeight:"90vh", overflowY:"auto"}}>
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
               <div style={{fontWeight:800, fontSize:16, color:tx}}>📅 Book Appointment</div>
-              <button onClick={() => setShowBooking(false)} style={{background:"transparent", border:"none", color:txf, cursor:"pointer", fontSize:20}}>×</button>
+              <button onClick={() => setShowBooking(false)} aria-label="Close booking dialog" style={{background:"transparent", border:"none", color:txf, cursor:"pointer", fontSize:20, padding:"4px 10px"}}>×</button>
             </div>
             <div style={{padding:"10px 12px", background:adim, border:"1px solid " + acc + "33", borderRadius:9, fontSize:13, color:tx}}>
               For: <strong>{selected._displayName || selected.phone}</strong>
             </div>
             <div>
               <div style={{fontSize:11.5, color:txm, marginBottom:5}}>Service *</div>
-              <select value={bookingForm.service} onChange={e => { const svc = services.find(s => s.name === e.target.value); setBookingForm(p => ({...p, service:e.target.value, amount:svc?.price?.toString()||p.amount})) }} style={inp}>
+              <select autoFocus aria-label="Service" value={bookingForm.service} onChange={e => { const svc = services.find(s => s.name === e.target.value); setBookingForm(p => ({...p, service:e.target.value, amount:svc?.price?.toString()||p.amount})) }} style={inp}>
                 <option value="">Select service</option>
                 {services.map(s => <option key={s.name} value={s.name}>{s.name} — ₹{s.price}</option>)}
                 <option value="Other">Other</option>

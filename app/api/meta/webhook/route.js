@@ -20,6 +20,7 @@ const { orchestrate }        = require("@/lib/ai/orchestrator")
 const { sendAndSave }        = require("@/lib/messaging/wa-send")
 const { isDuplicate, upsertCustomer, upsertConversation, saveInboundMessage, upsertLead, handleCompliance } = require("@/lib/crm/customer-engine")
 const { stopEnrollment }     = require("@/lib/sequences/sequence-engine")
+const { decrypt }            = require("@/lib/encryption")
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -30,14 +31,33 @@ const rateLimitMap = new Map()
 const RATE_LIMIT_WINDOW_MS = 60000
 const RATE_LIMIT_MAX = 100
 
-function isRateLimited(phone) {
+async function isRateLimited(phone) {
+  // Fast path: per-instance memory (only effective while the serverless
+  // instance stays warm — cheap first line of defense).
   const now  = Date.now()
   const data = rateLimitMap.get(phone) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS }
-  if (now > data.resetAt) { rateLimitMap.set(phone, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS }); return false }
-  if (data.count >= RATE_LIMIT_MAX) return true
-  data.count++
-  rateLimitMap.set(phone, data)
-  return false
+  if (now > data.resetAt) { rateLimitMap.set(phone, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS }) }
+  else {
+    if (data.count >= RATE_LIMIT_MAX) return true
+    data.count++
+    rateLimitMap.set(phone, data)
+  }
+
+  // Authoritative check: count this phone's inbound messages in the last
+  // window from the DB, which is shared across all serverless instances.
+  // Rate-limited messages are never saved, so the count self-caps.
+  try {
+    const since = new Date(now - RATE_LIMIT_WINDOW_MS).toISOString()
+    const { count } = await supabaseAdmin
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_phone", phone)
+      .eq("direction", "inbound")
+      .gte("created_at", since)
+    return (count || 0) >= RATE_LIMIT_MAX
+  } catch (e) {
+    return false // fail open — don't drop real customer messages on a DB blip
+  }
 }
 
 // ── CONTENT-BASED DEDUP ──────────────────────────────────────
@@ -142,7 +162,7 @@ async function POST(req) {
         await processMessage({
           message, contacts,
           userId: connection.user_id,
-          accessToken: connection.access_token,
+          accessToken: decrypt(connection.access_token),
           phoneNumberId
         })
       } catch(e) {
@@ -177,7 +197,7 @@ async function processMessage({ message, contacts, userId, accessToken, phoneNum
     return
   }
 
-  if (isRateLimited(msg.phone)) {
+  if (await isRateLimited(msg.phone)) {
     console.error("🚫 Rate limited:", msg.phone)
     return
   }
