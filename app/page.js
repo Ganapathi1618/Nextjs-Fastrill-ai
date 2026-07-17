@@ -155,8 +155,8 @@ export default function FastrillLanding() {
 
   const plans = [
     { tier: "Starter", monthly: 999, tag: "Solo operators & new businesses", cta: "Get started", cs: "out", feats: [["inc", "1 WhatsApp number"], ["inc", "300 AI conversations / month"], ["inc", "Booking automation"], ["inc", "10+ Indian languages"], ["exc", "Lead recovery"], ["exc", "WhatsApp campaigns"]] },
-    { tier: "Growth", monthly: 1999, tag: "For growing businesses", cta: "Start free trial", cs: "go", pop: true, feats: [["inc", "1 WhatsApp number"], ["inc", "Unlimited conversations"], ["inc", "Customer memory & context"], ["inc", "Lead recovery sequences"], ["inc", "WhatsApp campaigns"], ["inc", "Revenue analytics"]] },
-    { tier: "Pro", monthly: 4999, tag: "Multi-branch teams", cta: "Contact sales", cs: "out", feats: [["inc", "Up to 5 WhatsApp numbers"], ["inc", "Everything in Growth"], ["inc", "Multi-branch management"], ["inc", "Custom AI playbook"], ["inc", "Dedicated onboarding"], ["inc", "Priority support"]] },
+    { tier: "Growth", monthly: 1999, tag: "For growing businesses", cta: "Start free trial", cs: "go", pop: true, feats: [["inc", "1 WhatsApp number"], ["inc", "Unlimited conversations"], ["inc", "Customer memory & context"], ["inc", "Lead recovery sequences"], ["inc", "Appointment reminders"], ["inc", "Revenue analytics"]] },
+    { tier: "Pro", monthly: 4999, tag: "Multi-branch teams", cta: "Contact sales", cs: "out", feats: [["inc", "Up to 5 WhatsApp numbers"], ["inc", "Everything in Growth"], ["inc", "Bulk WhatsApp campaigns"], ["inc", "Multi-branch management"], ["inc", "Dedicated onboarding"], ["inc", "Priority support"]] },
   ]
 
   return (

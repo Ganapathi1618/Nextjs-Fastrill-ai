@@ -76,7 +76,7 @@ export default function Dashboard() {
         supabase.from("whatsapp_connections").select("id").eq("user_id",userId).maybeSingle(),
         supabase.from("business_settings").select("business_name").eq("user_id",userId).maybeSingle(),
         supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id",userId).gte("created_at",fromISO).limit(5000),
-        supabase.from("bookings").select("status,amount,ai_booked,booking_date,customer_name,service,booking_time").eq("user_id",userId).limit(2000),
+        supabase.from("bookings").select("id,status,amount,ai_booked,booking_date,customer_name,service,booking_time").eq("user_id",userId).limit(2000),
         supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id",userId).gte("created_at",fromISO).limit(1000),
         supabase.from("customers").select("tag,source,created_at").eq("user_id",userId).limit(5000),
       ])
@@ -195,7 +195,7 @@ export default function Dashboard() {
         .ttog{display:flex;align-items:center;gap:6px;padding:5px 10px;background:${ibg};border:1px solid ${cbdr};border-radius:8px;cursor:pointer;font-size:11.5px;color:${txm};font-family:'Plus Jakarta Sans',sans-serif;}
         .tpill{width:30px;height:16px;border-radius:100px;background:${dark?acc:"#d1d5db"};position:relative;flex-shrink:0;}
         .tpill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
-        .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:${sb};border-top:1px solid ${bdr};padding:6px 0;z-index:200;}
+        .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:${sb};border-top:1px solid ${bdr};padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:200;}
         @media(max-width:767px){.bnav{display:flex;justify-content:space-around;}.main{padding-bottom:60px;}}
         .bni{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
         .bnic{font-size:17px;color:rgba(255,255,255,0.3);}
@@ -491,8 +491,8 @@ export default function Dashboard() {
                     <div style={{fontSize:26,opacity:0.15}}>{"◷"}</div>
                     <div style={{fontSize:11.5,color:txf,textAlign:"center",lineHeight:1.5}}>No bookings today<br/>{connected?"Appear from WhatsApp chats":"Connect WhatsApp to start"}</div>
                   </div>
-                ):todayBookings.map(b=>(
-                  <div key={b.customer_name+b.booking_time} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${bdr}`}}>
+                ):todayBookings.map((b,i)=>(
+                  <div key={b.id||b.customer_name+b.booking_time+i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${bdr}`}}>
                     <div>
                       <div style={{fontWeight:600,fontSize:12.5,color:tx}}>{b.customer_name}</div>
                       <div style={{fontSize:11,color:txm}}>{b.service}</div>

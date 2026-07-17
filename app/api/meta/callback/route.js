@@ -1,24 +1,21 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-
-// UUID validation — ensures state parameter is a real Supabase user ID
-// Prevents null/undefined/"null" string attacks
-function isValidUUID(str) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
-}
+import { verifyOAuthState } from "@/lib/meta/oauth-state"
 
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url)
-    const code   = searchParams.get("code")
-    const userId = searchParams.get("state")
+    const code  = searchParams.get("code")
+    const state = searchParams.get("state")
 
-    // ── VALIDATE state parameter is a real UUID ─────────────────
-    // Industry standard: always validate state parameter in OAuth callbacks
-    // This catches: null, "null", undefined, empty string, tampered values
-    if (!userId || !isValidUUID(userId)) {
-      console.error("❌ Callback: Invalid or missing userId in state:", userId)
-      return NextResponse.redirect(new URL("/login?error=invalid_state", req.url))
+    // ── VERIFY signed state (CSRF protection) ───────────────────
+    // The state was minted by /api/meta/oauth-state for an authenticated
+    // session and is HMAC-signed with META_APP_SECRET + expiry. A forged
+    // or expired state fails here before any token exchange happens.
+    const userId = verifyOAuthState(state)
+    if (!userId) {
+      console.error("❌ Callback: state failed verification (forged, expired, or missing)")
+      return NextResponse.redirect(new URL("/dashboard/settings?error=invalid_state", req.url))
     }
 
     if (!code) {

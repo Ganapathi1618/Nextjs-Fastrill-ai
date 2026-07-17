@@ -158,6 +158,7 @@ export default function SettingsPage() {
   const [loading, setLoading]       = useState(true)
   const [saving, setSaving]         = useState(false)
   const [saved, setSaved]           = useState(false)
+  const [planExpired, setPlanExpired] = useState(false)
   const [saveError, setSaveError]   = useState("")
   const [dark, setDark]             = useState(true)
   const [mobOpen, setMobOpen]       = useState(false)
@@ -280,15 +281,19 @@ export default function SettingsPage() {
       setLoading(false)
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search)
-        if (params.get("expired") === "1") setTab("billing")
+        if (params.get("expired") === "1") { setTab("billing"); setPlanExpired(true) }
       }
     }
     load()
   }, [])
 
-  async function saveFeatureToggle(field, value) {
-
-    await supabase.from("business_settings").update({ [field]: value }).eq("user_id", userId)
+  // `rollback` reverts the optimistic UI toggle if the DB update fails
+  async function saveFeatureToggle(field, value, rollback) {
+    const { error } = await supabase.from("business_settings").update({ [field]: value }).eq("user_id", userId)
+    if (error) {
+      if (rollback) rollback()
+      showToast("Could not save this setting — please try again", "error")
+    }
   }
 
   async function handleSubscribe(planId) {
@@ -514,7 +519,7 @@ export default function SettingsPage() {
           .two-col{grid-template-columns:1fr!important;}
           .three-col{grid-template-columns:1fr 1fr!important;}
         }
-        .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);padding:6px 0;z-index:200;}
+        .bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:200;}
         @media(max-width:767px){.bottom-nav{display:flex;justify-content:space-around;}.s-main{padding-bottom:60px;}}
         .bnav{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;text-decoration:none;}
         .bnav-icon{font-size:17px;color:rgba(255,255,255,0.3);}
@@ -582,7 +587,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {typeof window !== "undefined" && new URLSearchParams(window.location.search).get("expired") === "1" && (
+          {planExpired && (
             <div style={{margin:"0 24px",marginTop:8,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"12px 16px",fontSize:13,color:"#f87171",display:"flex",alignItems:"center",gap:10}}>
               🔒 <strong>Your plan has expired.</strong> Upgrade below to continue using Fastrill.
             </div>
@@ -768,11 +773,11 @@ export default function SettingsPage() {
                                   </div>
                                   {svc.duration&&<span style={{fontSize:11.5,color:textMuted,flexShrink:0}}>{svc.duration} min</span>}
                                   <span style={{fontWeight:700,fontSize:13,color:accent,flexShrink:0}}>₹{parseInt(svc.price||0).toLocaleString()}</span>
-                                  <button onClick={()=>toggleService(svc.id,svc.is_active)} style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100,border:`1px solid ${svc.is_active===false?"rgba(251,113,133,0.3)":accent+"44"}`,background:svc.is_active===false?"rgba(251,113,133,0.08)":accent+"08",color:svc.is_active===false?"#fb7185":accent,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                                  <button onClick={()=>toggleService(svc.id,svc.is_active)} aria-label={(svc.is_active===false?"Enable ":"Disable ")+svc.name} style={{fontSize:10,fontWeight:700,padding:"6px 10px",borderRadius:100,border:`1px solid ${svc.is_active===false?"rgba(251,113,133,0.3)":accent+"44"}`,background:svc.is_active===false?"rgba(251,113,133,0.08)":accent+"08",color:svc.is_active===false?"#fb7185":accent,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                                     {svc.is_active===false?"Off":"On"}
                                   </button>
-                                  <button onClick={()=>setEditingId(svc.id)} style={{background:"transparent",border:"none",color:textMuted,cursor:"pointer",fontSize:11,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Edit</button>
-                                  <button onClick={()=>deleteService(svc.id)} style={{background:"transparent",border:"none",color:textFaint,cursor:"pointer",fontSize:16}}>×</button>
+                                  <button onClick={()=>setEditingId(svc.id)} aria-label={"Edit "+svc.name} style={{background:"transparent",border:"none",color:textMuted,cursor:"pointer",fontSize:11,padding:"8px 10px",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Edit</button>
+                                  <button onClick={()=>deleteService(svc.id)} aria-label={"Delete "+svc.name} style={{background:"transparent",border:"none",color:textFaint,cursor:"pointer",fontSize:16,padding:"6px 12px"}}>×</button>
                                 </div>
                               )}
                             </div>
@@ -936,15 +941,26 @@ export default function SettingsPage() {
                       <div style={{fontSize:36,marginBottom:12}}>💬</div>
                       <div style={{fontWeight:800,fontSize:16,color:text,marginBottom:6}}>Connect Your WhatsApp</div>
                       <div style={{fontSize:13,color:textMuted,marginBottom:20}}>Link your business WhatsApp to activate AI replies.</div>
-                      <button onClick={()=>{
+                      <button onClick={async ()=>{
                         // Guard: wait until userId is loaded from Supabase session
                         if (!userId) { alert("Please wait a moment and try again."); return }
                         const appId=process.env.NEXT_PUBLIC_META_APP_ID||""
                         const configId=process.env.NEXT_PUBLIC_META_CONFIG_ID||""
                         const redirectUri=(process.env.NEXT_PUBLIC_APP_URL||window.location.origin)+"/api/meta/callback"
-                        // Pass userId as state — industry standard OAuth2 pattern
-                        // Meta returns this unchanged in callback, no cookie needed
-                        window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}&state=${userId}`
+                        // Fetch an HMAC-signed, session-bound state from the server.
+                        // The callback verifies the signature — a forged state is rejected.
+                        try {
+                          const { data: { session } } = await supabase.auth.getSession()
+                          const res = await fetch("/api/meta/oauth-state", {
+                            method: "POST",
+                            headers: { "Authorization": `Bearer ${session?.access_token}` }
+                          })
+                          const d = await res.json()
+                          if (!d.state) { alert("Could not start the connection. Please try again."); return }
+                          window.location.href=`https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&config_id=${configId}&state=${encodeURIComponent(d.state)}`
+                        } catch(e) {
+                          alert("Could not start the connection. Please try again.")
+                        }
                       }} style={{background:"#1877f2",color:"#fff",border:"none",padding:"11px 24px",borderRadius:9,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                         Connect WhatsApp via Meta →
                       </button>
@@ -997,10 +1013,11 @@ export default function SettingsPage() {
                           </div>
                           <button className="tog" disabled={!planAllows(f.key)}
                             style={{background:f.state&&planAllows(f.key)?accent:"rgba(255,255,255,0.12)",opacity:planAllows(f.key)?1:0.4,cursor:planAllows(f.key)?"pointer":"not-allowed"}}
+                            role="switch" aria-checked={!!(f.state&&planAllows(f.key))} aria-label={f.label}
                             onClick={async()=>{
                               if(!planAllows(f.key))return
                               const newVal=!f.state; f.set(newVal)
-                              await saveFeatureToggle(f.field,newVal)
+                              await saveFeatureToggle(f.field,newVal,()=>f.set(!newVal))
                             }}>
                             <span style={{position:"absolute",top:3,width:16,height:16,borderRadius:"50%",background:"#fff",left:f.state&&planAllows(f.key)?"19px":"3px",transition:"left 0.2s",display:"block"}}/>
                           </button>

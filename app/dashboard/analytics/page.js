@@ -345,7 +345,7 @@ export default function Analytics() {
         .bottom-nav{
           display:none;position:fixed;bottom:0;left:0;right:0;
           background:#0c0c15;border-top:1px solid rgba(255,255,255,0.07);
-          padding:6px 0;z-index:200;
+          padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:200;
         }
         @media(max-width:767px){
           .bottom-nav{display:flex;justify-content:space-around;}

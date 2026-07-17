@@ -724,7 +724,7 @@ export default function Campaigns() {
         .dash-rev{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;}
         .hbtn{display:none;background:${ibg};border:1px solid ${cbdr};border-radius:7px;padding:5px 8px;cursor:pointer;font-size:16px;color:${tx};line-height:1;margin-right:4px;}
         .mob-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
-        .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:${sb};border-top:1px solid ${bdr};padding:5px 0;z-index:200;}
+        .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:${sb};border-top:1px solid ${bdr};padding:5px 0 calc(5px + env(safe-area-inset-bottom));z-index:200;}
         .bni{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
         .bnic{font-size:16px;color:${txf};}
         .bnil{font-size:9px;font-weight:600;color:${txf};}
@@ -811,7 +811,7 @@ export default function Campaigns() {
               <div style={{fontWeight:800,fontSize:22,color:tx}}>Campaigns — Pro Plan Only</div>
               <div style={{fontSize:14,color:txm,maxWidth:420,lineHeight:1.8,marginTop:4}}>
                 WhatsApp bulk campaigns are available on the{" "}
-                <strong style={{color:acc}}>Pro plan (₹3,999/month)</strong>.
+                <strong style={{color:acc}}>Pro plan (₹4,999/month)</strong>.
                 Upgrade to reach all your customers with personalised broadcasts.
               </div>
               <button

@@ -134,7 +134,7 @@ export default function Contacts() {
           [style*="grid-template-columns: 1fr 300px"]{grid-template-columns:1fr!important;}
           [style*="grid-template-columns: repeat(4"]{grid-template-columns:repeat(2,1fr)!important;}
         }
-        .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:${sb};border-top:1px solid ${bdr};padding:6px 0;z-index:200;}
+        .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:${sb};border-top:1px solid ${bdr};padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:200;}
         @media(max-width:767px){.bnav{display:flex;justify-content:space-around;}.main{padding-bottom:60px;}}
         .bni{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;border:none;background:transparent;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;flex:1;}
         .bnic{font-size:17px;color:rgba(255,255,255,0.3);}
