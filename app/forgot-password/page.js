@@ -34,10 +34,10 @@ export default function ForgotPasswordPage() {
     } finally { setLoading(false) }
   }
 
-  const wrap  = { minHeight: "100vh", background: "linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", fontFamily: "Inter, sans-serif" }
-  const card  = { background: "#111", border: "1px solid #222", borderRadius: "16px", padding: "32px" }
-  const inp   = { width: "100%", padding: "12px 14px", borderRadius: "10px", border: "1px solid #333", background: "#1a1a1a", color: "#fff", fontSize: "15px", outline: "none", boxSizing: "border-box", marginBottom: "16px" }
-  const btn   = (disabled) => ({ width: "100%", padding: "13px", borderRadius: "10px", border: "none", background: disabled ? "#333" : "linear-gradient(135deg, #00d4ff, #0099cc)", color: disabled ? "#666" : "#000", fontSize: "15px", fontWeight: "700", cursor: disabled ? "not-allowed" : "pointer" })
+  const wrap  = { minHeight: "100vh", background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,201,177,0.12), transparent), #08080e", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", fontFamily: "'Plus Jakarta Sans',sans-serif" }
+  const card  = { background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "32px", boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }
+  const inp   = { width: "100%", padding: "12px 14px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px", outline: "none", boxSizing: "border-box", marginBottom: "16px" }
+  const btn   = (disabled) => ({ width: "100%", padding: "13px", borderRadius: "10px", border: "none", background: disabled ? "rgba(255,255,255,0.14)" : "linear-gradient(135deg, #00C9B1, #00a98f)", color: disabled ? "#666" : "#000", fontSize: "15px", fontWeight: "700", cursor: disabled ? "not-allowed" : "pointer" })
 
   return (
     <div style={wrap}>
@@ -57,7 +57,7 @@ export default function ForgotPasswordPage() {
                 <button type="submit" disabled={loading} style={btn(loading)}>{loading ? "Sending..." : "Send reset link →"}</button>
               </form>
               <p style={{ textAlign: "center", marginTop: "20px" }}>
-                <a href="/login" style={{ color: "#00d4ff", fontSize: "14px", textDecoration: "none" }}>← Back to login</a>
+                <a href="/login" style={{ color: "#00C9B1", fontSize: "14px", textDecoration: "none" }}>← Back to login</a>
               </p>
             </>
           ) : (
@@ -67,9 +67,9 @@ export default function ForgotPasswordPage() {
               <p style={{ color: "#888", fontSize: "14px", marginBottom: "24px" }}>Reset link sent to<br /><span style={{ color: "#fff" }}>{email}</span></p>
               <p style={{ color: "#555", fontSize: "13px", marginBottom: "24px" }}>
                 Didn't get it? Check spam or{" "}
-                <button onClick={() => setSent(false)} style={{ background: "none", border: "none", color: "#00d4ff", cursor: "pointer", fontSize: "13px", padding: 0 }}>try again</button>
+                <button onClick={() => setSent(false)} style={{ background: "none", border: "none", color: "#00C9B1", cursor: "pointer", fontSize: "13px", padding: 0 }}>try again</button>
               </p>
-              <a href="/login" style={{ display: "block", padding: "13px", borderRadius: "10px", background: "#1a1a1a", border: "1px solid #333", color: "#fff", textDecoration: "none", fontSize: "15px", textAlign: "center" }}>← Back to login</a>
+              <a href="/login" style={{ display: "block", padding: "13px", borderRadius: "10px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", textDecoration: "none", fontSize: "15px", textAlign: "center" }}>← Back to login</a>
             </div>
           )}
         </div>

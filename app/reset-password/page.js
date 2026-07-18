@@ -45,17 +45,17 @@ export default function ResetPasswordPage() {
 
   const strength = password.length === 0 ? 0 : password.length < 6 ? 1 : password.length < 10 ? 2 : /[A-Z]/.test(password) && /[0-9]/.test(password) ? 4 : 3
   const strengthLabel = ["","Weak","Fair","Good","Strong"][strength]
-  const strengthColor = ["","#f87171","#fbbf24","#4ade80","#00d4ff"][strength]
+  const strengthColor = ["","#f87171","#fbbf24","#4ade80","#00C9B1"][strength]
 
   if (!mounted) return null
 
   return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", fontFamily:"Inter,sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:"radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,201,177,0.12), transparent), #08080e", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
       <div style={{ width:"100%", maxWidth:"420px" }}>
         <div style={{ textAlign:"center", marginBottom:"32px" }}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"10px"}}><img src="/logo.png" width="34" height="34" alt="Fastrill" style={{display:"block",objectFit:"contain",flexShrink:0}} /><span style={{fontWeight:800,fontSize:20,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>fast<span style={{color:"#00C9B1"}}>rill</span></span></div>
         </div>
-        <div style={{ background:"#111", border:"1px solid #222", borderRadius:"16px", padding:"32px" }}>
+        <div style={{ background:"#0f0f1a", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"16px", padding:"32px", boxShadow:"0 24px 64px rgba(0,0,0,0.55)" }}>
           {success ? (
             <div style={{ textAlign:"center" }}>
               <div style={{ fontSize:"48px", marginBottom:"16px" }}>✅</div>
@@ -69,18 +69,18 @@ export default function ResetPasswordPage() {
               {error && <div style={{ background:"#2d1515", border:"1px solid #f87171", borderRadius:"8px", padding:"12px", marginBottom:"20px", color:"#f87171", fontSize:"14px" }}>{error}</div>}
               <form onSubmit={handleReset}>
                 <label style={{ display:"block", color:"#aaa", fontSize:"13px", marginBottom:"6px" }}>New password</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimum 8 characters" required minLength={8} style={{ width:"100%", padding:"12px 14px", borderRadius:"10px", border:"1px solid #333", background:"#1a1a1a", color:"#fff", fontSize:"15px", outline:"none", boxSizing:"border-box", marginBottom:"8px" }} />
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimum 8 characters" required minLength={8} style={{ width:"100%", padding:"12px 14px", borderRadius:"10px", border:"1px solid rgba(255,255,255,0.12)", background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:"15px", outline:"none", boxSizing:"border-box", marginBottom:"8px" }} />
                 {password.length > 0 && (
                   <div style={{ marginBottom:"16px" }}>
-                    <div style={{ height:"4px", borderRadius:"2px", background:"#222", marginBottom:"4px" }}>
+                    <div style={{ height:"4px", borderRadius:"2px", background:"rgba(255,255,255,0.08)", marginBottom:"4px" }}>
                       <div style={{ height:"100%", width:(strength*25)+"%", borderRadius:"2px", background:strengthColor, transition:"all 0.3s" }} />
                     </div>
                     <span style={{ fontSize:"12px", color:strengthColor }}>{strengthLabel}</span>
                   </div>
                 )}
                 <label style={{ display:"block", color:"#aaa", fontSize:"13px", marginBottom:"6px" }}>Confirm password</label>
-                <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repeat your password" required style={{ width:"100%", padding:"12px 14px", borderRadius:"10px", border:confirm&&confirm!==password?"1px solid #f87171":"1px solid #333", background:"#1a1a1a", color:"#fff", fontSize:"15px", outline:"none", boxSizing:"border-box", marginBottom:"16px" }} />
-                <button type="submit" disabled={loading||!validSession} style={{ width:"100%", padding:"13px", borderRadius:"10px", border:"none", background:loading?"#333":"linear-gradient(135deg,#00d4ff,#0099cc)", color:loading?"#666":"#000", fontSize:"15px", fontWeight:"700", cursor:loading?"not-allowed":"pointer" }}>
+                <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repeat your password" required style={{ width:"100%", padding:"12px 14px", borderRadius:"10px", border:confirm&&confirm!==password?"1px solid #f87171":"1px solid rgba(255,255,255,0.12)", background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:"15px", outline:"none", boxSizing:"border-box", marginBottom:"16px" }} />
+                <button type="submit" disabled={loading||!validSession} style={{ width:"100%", padding:"13px", borderRadius:"10px", border:"none", background:loading?"rgba(255,255,255,0.14)":"linear-gradient(135deg,#00C9B1,#00a98f)", color:loading?"#666":"#000", fontSize:"15px", fontWeight:"700", cursor:loading?"not-allowed":"pointer" }}>
                   {loading ? "Updating..." : "Update password →"}
                 </button>
               </form>

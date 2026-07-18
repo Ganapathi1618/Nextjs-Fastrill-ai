@@ -51,7 +51,7 @@ export async function POST(req) {
       expiry.setDate(expiry.getDate() + 14)
     }
 
-    await supabaseAdmin.from("business_settings").insert({
+    const { error: insertError } = await supabaseAdmin.from("business_settings").insert({
       user_id:        userId,
       email:          userEmail,
       plan:           isEarlyAccess ? "starter" : "trial",
@@ -61,6 +61,10 @@ export async function POST(req) {
       campaigns_enabled:     false,
       created_at:     now.toISOString(),
     })
+    if (insertError) {
+      console.error("business_settings insert failed:", insertError.message)
+      return NextResponse.json({ error: "Account setup failed" }, { status: 500 })
+    }
 
     return NextResponse.json({
       status: "ok",
