@@ -3,10 +3,13 @@
 export const dynamic = "force-dynamic"
 
 import { useState } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase"
 
+// Shared cookie-based client — a standalone supabase-js client stored the
+// recovery session in localStorage, so the post-reset redirect to /dashboard
+// (which reads cookies) bounced the user back to /login.
 function getSupabase() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  return supabase
 }
 
 export default function ForgotPasswordPage() {

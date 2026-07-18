@@ -21,6 +21,7 @@ export async function POST(req) {
     if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const userId = user.id
+    const userEmail = user.email
 
     const { data: existing } = await supabaseAdmin
       .from("business_settings")
@@ -52,6 +53,7 @@ export async function POST(req) {
 
     await supabaseAdmin.from("business_settings").insert({
       user_id:        userId,
+      email:          userEmail,
       plan:           isEarlyAccess ? "starter" : "trial",
       plan_expires_at: expiry.toISOString(),
       reminders_enabled:     false,

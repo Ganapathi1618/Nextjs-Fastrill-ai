@@ -162,7 +162,6 @@ export default function FastrillLanding() {
   return (
     <>
       <style>{`
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,wght@1,400&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{background:#050608;color:#9CA3B0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
@@ -509,7 +508,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
         <div className="fl-nav-right">
           <a href="/login" className="fl-nav-signin">Sign in</a>
           <a href="/login" className="fl-nav-cta">Start free</a>
-          <button className="fl-hbg" onClick={() => setMobOpen(p => !p)}>&#9776;</button>
+          <button className="fl-hbg" onClick={() => setMobOpen(p => !p)} aria-label="Open menu" aria-expanded={mobOpen}>&#9776;</button>
         </div>
       </nav>
       <div className={`fl-mdraw${mobOpen ? " open" : ""}`}>

@@ -72,13 +72,15 @@ export default function Dashboard() {
       const fromDateStr = from.toISOString().split("T")[0]
       const todayStr    = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0")
 
-      const [{ data:wa },{ data:biz },{ data:msgs },{ data:allBks },{ data:leads },{ data:customers }] = await Promise.all([
+      // Customers are only ever counted — a head:true count query transfers
+      // zero rows instead of up to 5,000.
+      const [{ data:wa },{ data:biz },{ data:msgs },{ data:allBks },{ data:leads },{ count:customerCount }] = await Promise.all([
         supabase.from("whatsapp_connections").select("id").eq("user_id",userId).maybeSingle(),
         supabase.from("business_settings").select("business_name").eq("user_id",userId).maybeSingle(),
         supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id",userId).gte("created_at",fromISO).limit(5000),
         supabase.from("bookings").select("id,status,amount,ai_booked,booking_date,customer_name,service,booking_time").eq("user_id",userId).limit(2000),
         supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id",userId).gte("created_at",fromISO).limit(1000),
-        supabase.from("customers").select("tag,source,created_at").eq("user_id",userId).limit(5000),
+        supabase.from("customers").select("id",{ count:"exact", head:true }).eq("user_id",userId),
       ])
 
       if (!biz?.business_name) {
@@ -109,7 +111,7 @@ export default function Dashboard() {
       // outside the message window — convos undercounts and Book Rate exceeded 100%.
       // Every booking comes from a conversation, so clamp convos to at least bookings.
       const funnelConvos = Math.max(uniqueConvos, periodBks.length)
-      setFunnel({ customers:(customers||[]).length, convos:funnelConvos, booked:periodBks.length, completed:periodConfirmed.length, revenue })
+      setFunnel({ customers:customerCount||0, convos:funnelConvos, booked:periodBks.length, completed:periodConfirmed.length, revenue })
       setTodayBookings(bks.filter(b=>b.booking_date===todayStr&&b.status!=="cancelled").slice(0,4))
 
       const srcMap={}
@@ -122,7 +124,7 @@ export default function Dashboard() {
       if(aiHandled>0)                   score+=Math.min(20,aiHandled*2)
       if(bks.length>0)                  score+=15
       if((leads||[]).length>0)          score+=10
-      if((customers||[]).length>2)      score+=15
+      if((customerCount||0)>2)          score+=15
       if(aiBookings>0)                  score+=15
       setHealthScore(Math.min(100,score))
     } catch(e) { toast.error("Failed to load dashboard") }
@@ -169,8 +171,7 @@ export default function Dashboard() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+                *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         html,body{background:${bg}!important;color:${tx}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;background:${bg};}
         .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:none;}

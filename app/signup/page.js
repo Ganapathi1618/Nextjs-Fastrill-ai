@@ -2,13 +2,14 @@
 export const dynamic = "force-dynamic"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/lib/supabase"
 
+// The shared @supabase/ssr client stores the session in cookies — the rest of
+// the app (dashboard, onboarding, middleware) reads cookies. A standalone
+// supabase-js client here kept the session in localStorage, so verified
+// signups landed on /onboarding with "no session" and bounced to /login.
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+  return supabase
 }
 
 export default function SignupPage() {
@@ -68,11 +69,11 @@ export default function SignupPage() {
     }
   }, [])
 
-  useState(() => {
+  useEffect(() => {
     if (resendTimer <= 0) return
     const t = setTimeout(() => setResendTimer(r => r - 1), 1000)
     return () => clearTimeout(t)
-  })
+  }, [resendTimer])
 
   async function handleSignup(e) {
     e.preventDefault()
@@ -84,18 +85,16 @@ export default function SignupPage() {
 
     setLoading(true)
     try {
+      // signUp() itself emails the confirmation code ({{ .Token }} in the
+      // "Confirm signup" template). Do NOT call signInWithOtp() right after —
+      // Supabase allows one email per address per 60s, so that second call
+      // always failed silently and was why codes never arrived.
       const { data, error } = await getSupabase().auth.signUp({
         email:    email.trim().toLowerCase(),
         password: password,
         options:  { emailRedirectTo: undefined }
       })
       if (error) throw error
-
-      const { error: otpError } = await getSupabase().auth.signInWithOtp({
-        email:   email.trim().toLowerCase(),
-        options: { shouldCreateUser: false }
-      })
-      if (otpError) console.warn("OTP send warning:", otpError.message)
 
       setStep("otp")
       setMessage("We sent a 6-digit verification code to " + email)
@@ -114,11 +113,22 @@ export default function SignupPage() {
     if (!otp || otp.length < 6) { setError("Please enter the 6-digit code"); return }
     setLoading(true); setError("")
     try {
-      const { data, error } = await getSupabase().auth.verifyOtp({
+      // Codes from the confirm-signup email verify as type "signup";
+      // fall back to "email" for codes minted by a later resend/OTP flow.
+      let { data, error } = await getSupabase().auth.verifyOtp({
         email: email.trim().toLowerCase(),
         token: otp.trim(),
-        type:  "email"
+        type:  "signup"
       })
+      if (error) {
+        const fallback = await getSupabase().auth.verifyOtp({
+          email: email.trim().toLowerCase(),
+          token: otp.trim(),
+          type:  "email"
+        })
+        data = fallback.data
+        error = fallback.error
+      }
       if (error) throw error
 
       const session = data?.session
@@ -148,8 +158,10 @@ export default function SignupPage() {
     if (resendTimer > 0) return
     setLoading(true); setError(""); setMessage("")
     try {
+      // "email" is not a valid resend type — signup confirmations resend
+      // with type "signup". The old value made every resend fail.
       const { error } = await getSupabase().auth.resend({
-        type:  "email",
+        type:  "signup",
         email: email.trim().toLowerCase()
       })
       if (error) throw error
@@ -236,12 +248,12 @@ export default function SignupPage() {
               </div>
 
               <form onSubmit={handleSignup}>
-                <label style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>Email address</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required style={{ ...inputStyle, marginBottom: "16px" }} />
+                <label style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }} htmlFor="signup-email">Email address</label>
+                <input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required style={{ ...inputStyle, marginBottom: "16px" }} />
 
-                <label style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>Password</label>
+                <label style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }} htmlFor="signup-password">Password</label>
                 <div style={{ position: "relative", marginBottom: "8px" }}>
-                  <input type={showPass ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimum 8 characters" required minLength={8} style={{ ...inputStyle, paddingRight: "44px" }} />
+                  <input id="signup-password" type={showPass ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimum 8 characters" required minLength={8} style={{ ...inputStyle, paddingRight: "44px" }} />
                   <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: "13px" }}>
                     {showPass ? "Hide" : "Show"}
                   </button>
@@ -256,9 +268,9 @@ export default function SignupPage() {
                   </div>
                 )}
 
-                <label style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>Confirm password</label>
+                <label style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }} htmlFor="signup-confirm">Confirm password</label>
                 <div style={{ position: "relative", marginBottom: "20px" }}>
-                  <input type={showConfirm ? "text" : "password"} value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repeat your password" required style={{ ...inputStyle, paddingRight: "44px", border: confirm && confirm !== password ? "1px solid #f87171" : "1px solid #333" }} />
+                  <input id="signup-confirm" type={showConfirm ? "text" : "password"} value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repeat your password" required style={{ ...inputStyle, paddingRight: "44px", border: confirm && confirm !== password ? "1px solid #f87171" : "1px solid #333" }} />
                   <button type="button" onClick={() => setShowConfirm(v => !v)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: "13px" }}>
                     {showConfirm ? "Hide" : "Show"}
                   </button>

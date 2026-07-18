@@ -15,7 +15,11 @@ export async function GET(request) {
   }
 
   if (code) {
-    const response = NextResponse.next()
+    // Collect the session cookies here and attach them to the redirect
+    // response at the end. They were previously written onto a throwaway
+    // NextResponse.next(), so the browser never received them and only the
+    // URL-hash hand-off (which onboarding didn't parse) carried the session.
+    const pendingCookies = []
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -26,9 +30,7 @@ export async function GET(request) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(name, value, options)
-            })
+            pendingCookies.push(...cookiesToSet)
           },
         },
       }
@@ -91,6 +93,7 @@ export async function GET(request) {
 
         await supabaseAdmin.from("business_settings").insert({
           user_id: session.user.id,
+          email: session.user.email,
           plan: isEarlyAccess ? "starter" : "trial",
           plan_expires_at: expiry.toISOString(),
           reminders_enabled: false,
@@ -110,9 +113,13 @@ export async function GET(request) {
       dest = "/onboarding"
     }
 
-    return NextResponse.redirect(
+    const redirect = NextResponse.redirect(
       new URL(dest + "#" + hashParams.toString(), requestUrl.origin)
     )
+    pendingCookies.forEach(({ name, value, options }) => {
+      redirect.cookies.set(name, value, options)
+    })
+    return redirect
   }
 
   return NextResponse.redirect(new URL("/login", requestUrl.origin))
