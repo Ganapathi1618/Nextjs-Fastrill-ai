@@ -3,7 +3,7 @@ import { ToastProvider } from "@/components/Toast"
 
 export const metadata = {
   title: "Fastrill",
-  description: "WhatsApp AI Receptionist"
+  description: "The front desk for WhatsApp — instant replies, bookings, and follow-ups for service businesses"
 }
 
 export default function RootLayout({ children }) {

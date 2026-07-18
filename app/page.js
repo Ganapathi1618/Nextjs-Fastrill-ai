@@ -34,7 +34,7 @@ const DEMO_META = [
 
 const TESTIMONIALS = [
   { name: "Priya Nair", biz: "Glow Parlour, Hyderabad", result: "+43%", resultLabel: "bookings in month one", quote: "I was losing Saturday night bookings because nobody replied after 8 PM. Customers now book at midnight and wake up to a confirmation. It paid for itself in the first week.", initial: "P" },
-  { name: "Dr. Ravi Sharma", biz: "Skin First Clinic, Vijayawada", result: "₹22k", resultLabel: "saved per month", quote: "My patients message in Telugu and the AI replies in Telugu, books the slot, and follows up if they go quiet. I had to see it to believe it wasn’t a person.", initial: "R" },
+  { name: "Dr. Ravi Sharma", biz: "Skin First Clinic, Vijayawada", result: "₹22k", resultLabel: "saved per month", quote: "My patients message in Telugu and Fastrill replies in Telugu, books the slot, and follows up if they go quiet. I had to see it to believe it wasn’t a person.", initial: "R" },
   { name: "Sneha Reddy", biz: "Studio S, 2 branches, Bangalore", result: "0", resultLabel: "missed messages", quote: "Two branches, both inboxes handled at once. Our staff stopped checking phones and started focusing on the customer in front of them.", initial: "S" },
 ]
 
@@ -76,7 +76,7 @@ export default function FastrillLanding() {
   }, [])
 
   useEffect(() => {
-    document.body.style.background = light ? "#F8FAFC" : "#0A0F1C"
+    document.body.style.background = light ? "#FAFAFB" : "#0B0D13"
     localStorage.setItem("fastrill-lp-theme", light ? "light" : "dark")
   }, [light])
 
@@ -108,7 +108,7 @@ export default function FastrillLanding() {
   }, [])
 
   const plans = [
-    { tier: "Starter", monthly: 999, tag: "Solo operators & new businesses", cta: "Get started", cs: "out", feats: [["inc", "1 WhatsApp number"], ["inc", "300 AI conversations / month"], ["inc", "Booking automation"], ["inc", "10+ Indian languages"], ["exc", "Lead recovery"], ["exc", "WhatsApp campaigns"]] },
+    { tier: "Starter", monthly: 999, tag: "Solo operators & new businesses", cta: "Get started", cs: "out", feats: [["inc", "1 WhatsApp number"], ["inc", "300 conversations / month"], ["inc", "Booking automation"], ["inc", "10+ Indian languages"], ["exc", "Lead recovery"], ["exc", "WhatsApp campaigns"]] },
     { tier: "Growth", monthly: 1999, tag: "For growing businesses", cta: "Start free trial", cs: "go", pop: true, feats: [["inc", "1 WhatsApp number"], ["inc", "Unlimited conversations"], ["inc", "Customer memory & context"], ["inc", "Lead recovery sequences"], ["inc", "Appointment reminders"], ["inc", "Revenue analytics"]] },
     { tier: "Pro", monthly: 4999, tag: "Multi-branch teams", cta: "Contact sales", cs: "out", feats: [["inc", "Up to 5 WhatsApp numbers"], ["inc", "Everything in Growth"], ["inc", "Bulk WhatsApp campaigns"], ["inc", "Multi-branch management"], ["inc", "Dedicated onboarding"], ["inc", "Priority support"]] },
   ]
@@ -121,31 +121,31 @@ html{scroll-behavior:smooth}
 body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
 
 .flr{
-  --bg:#0A0F1C;--card:#111827;--card2:#0D1526;--well:#0C1322;
-  --ink:#F8FAFC;--ink2:#CBD5E1;--mut:#94A3B8;--mut2:#64748B;
-  --line:#1E293B;--line2:#2B3A52;
-  --accent:#2DD4BF;--accent-soft:rgba(45,212,191,.10);--accent-line:rgba(45,212,191,.35);
-  --cta:#22C55E;--cta-hov:#31D06C;--cta-fg:#04120A;
+  --bg:#0B0D13;--card:#12151E;--card2:#0E1119;--well:#0E1119;
+  --ink:#F5F6F8;--ink2:#C7CBD3;--mut:#9BA1AC;--mut2:#6B7180;
+  --line:#1E2330;--line2:#2C3344;
+  --accent:#8B93FF;--accent-soft:rgba(139,147,255,.09);--accent-line:rgba(139,147,255,.32);
+  --cta:#5A5FE8;--cta-hov:#6B70F0;--cta-fg:#FFFFFF;
   --danger:#F87171;
-  --wa-me:#124232;--wa-me-ink:#D7FBE8;
-  --sh-sm:0 1px 2px rgba(2,6,17,.5);
-  --sh-md:0 4px 16px rgba(2,6,17,.45);
-  --sh-lg:0 16px 48px rgba(2,6,17,.5);
+  --wa-me:#1F2447;--wa-me-ink:#DCE0FF;
+  --sh-sm:0 1px 2px rgba(3,5,12,.5);
+  --sh-md:0 4px 16px rgba(3,5,12,.45);
+  --sh-lg:0 16px 48px rgba(3,5,12,.5);
   background:var(--bg);color:var(--mut);
   font-family:'Inter',system-ui,-apple-system,sans-serif;
   font-size:16px;line-height:1.6;min-height:100vh;
 }
 .flr.lt{
-  --bg:#F8FAFC;--card:#FFFFFF;--card2:#F1F5F9;--well:#F1F5F9;
-  --ink:#0F172A;--ink2:#334155;--mut:#64748B;--mut2:#94A3B8;
-  --line:#E2E8F0;--line2:#CBD5E1;
-  --accent:#0F766E;--accent-soft:rgba(15,118,110,.07);--accent-line:rgba(15,118,110,.3);
-  --cta:#16A34A;--cta-hov:#15803D;--cta-fg:#FFFFFF;
+  --bg:#FAFAFB;--card:#FFFFFF;--card2:#F4F5F7;--well:#F4F5F7;
+  --ink:#16181D;--ink2:#3F4450;--mut:#5F6672;--mut2:#9AA0AB;
+  --line:#E7E8EC;--line2:#D3D5DC;
+  --accent:#4F46E5;--accent-soft:rgba(79,70,229,.06);--accent-line:rgba(79,70,229,.28);
+  --cta:#4F46E5;--cta-hov:#4338CA;--cta-fg:#FFFFFF;
   --danger:#DC2626;
-  --wa-me:#DCFCE7;--wa-me-ink:#14532D;
-  --sh-sm:0 1px 2px rgba(15,23,42,.05);
-  --sh-md:0 4px 16px rgba(15,23,42,.06);
-  --sh-lg:0 16px 48px rgba(15,23,42,.09);
+  --wa-me:#EEF0FF;--wa-me-ink:#3730A3;
+  --sh-sm:0 1px 2px rgba(22,24,29,.05);
+  --sh-md:0 4px 16px rgba(22,24,29,.06);
+  --sh-lg:0 16px 48px rgba(22,24,29,.09);
 }
 
 .fade{opacity:0;transform:translateY(14px);transition:opacity .55s ease,transform .55s ease}
@@ -256,7 +256,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
 /* ── SECTIONS ── */
 .section{padding:clamp(72px,9vw,110px) clamp(20px,4vw,44px)}
 .section.alt{background:var(--card2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.flr.lt .section.alt{background:#F1F5F9}
+.flr.lt .section.alt{background:#F4F5F7}
 .section-in{max-width:1120px;margin:0 auto}
 .label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
 .h2{font-weight:700;font-size:clamp(26px,3.3vw,40px);color:var(--ink);letter-spacing:-.025em;line-height:1.14;margin-bottom:14px}
@@ -455,7 +455,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
       {/* HERO */}
       <section className="hero">
         <div className="hero-in">
-          <div className="eyebrow">AI-powered WhatsApp automation</div>
+          <div className="eyebrow">The front desk for WhatsApp</div>
           <h1 className="h1">
             Your leads are messaging.<br />
             <em>Nobody is replying.</em>
@@ -492,7 +492,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
               <div className="pv-main">
                 <div className="pv-head">
                   <div className="pv-title">Riya Salon<small>Saturday, 29 March</small></div>
-                  <div className="pv-live">AI responding</div>
+                  <div className="pv-live">Replying instantly</div>
                 </div>
                 <div className="pv-kpis">
                   {[["Conversations today", "128", "+18% vs last week"], ["Bookings this week", "47", "+9 today"], ["Avg. response time", "1.8s", "24/7 coverage"], ["Revenue this month", "₹1,84,500", "+31% vs Feb"]].map(([l, v, d]) => (
@@ -518,7 +518,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
                           <div className="pv-row-n">{n}</div>
                           <div className="pv-row-m">{m}</div>
                         </div>
-                        <div className={`pv-pill${ai ? "" : " off"}`}>{ai ? "AI" : "Manual"}</div>
+                        <div className={`pv-pill${ai ? "" : " off"}`}>{ai ? "Auto" : "You"}</div>
                       </div>
                     ))}
                   </div>
@@ -527,7 +527,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
                       <div className="pv-av">A</div>
                       <div>
                         <div className="pv-chat-n">Anita Verma</div>
-                        <div className="pv-chat-s">via WhatsApp · AI handling</div>
+                        <div className="pv-chat-s">via WhatsApp · answered instantly</div>
                       </div>
                     </div>
                     <div className="pv-chat-b">
@@ -536,7 +536,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
                       <div className="bub c">3 PM please</div>
                       <div className="bub a">Perfect — confirming Keratin Treatment for tomorrow at 3:00 PM. See you then, Anita!</div>
                       <div className="pv-confirm"><Ic name="check" size={12} /> Booking confirmed · ₹2,800</div>
-                      <div className="bub-meta">Replied in 1.6s — no staff involved</div>
+                      <div className="bub-meta">Replied in 1.6 seconds — while the owner was with a client</div>
                     </div>
                   </div>
                 </div>
@@ -548,7 +548,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
         {/* STATS */}
         <div className="stats">
           <div className="stats-in">
-            {[["3,200+", "Bookings automated monthly"], ["99%", "Message delivery rate"], ["1.8s", "Average AI response"], ["10+", "Indian languages"]].map(([n, l]) => (
+            {[["3,200+", "Bookings automated monthly"], ["99%", "Message delivery rate"], ["1.8s", "Average reply time"], ["10+", "Indian languages"]].map(([n, l]) => (
               <div key={l} className="stat"><b>{n}</b><span>{l}</span></div>
             ))}
           </div>
@@ -682,9 +682,9 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
             <div className="module-text fade">
               <div className="module-tag"><Ic name="inbox" size={14} /> 03 · Smart inbox</div>
               <h3 className="module-title">One inbox. Every conversation. Full control.</h3>
-              <p className="module-desc">See every conversation live, take over manually whenever you want, and let the AI pick back up the moment you&apos;re done.</p>
+              <p className="module-desc">See every conversation live, take over manually whenever you want, and let Fastrill pick back up the moment you&apos;re done.</p>
               <ul className="module-list">
-                <li><Ic name="check" size={14} />Toggle AI off for any single conversation</li>
+                <li><Ic name="check" size={14} />Take over any conversation in one tap</li>
                 <li><Ic name="check" size={14} />Full customer history and tags in one view</li>
                 <li><Ic name="check" size={14} />Works across 10+ Indian languages</li>
                 <li><Ic name="check" size={14} />Real-time conversation updates</li>
@@ -701,7 +701,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
                   <div key={c.n} className="inbox-row">
                     <div className="mock-av">{c.n.charAt(0)}</div>
                     <div className="inbox-mid"><div className="inbox-n">{c.n}</div><div className="inbox-m">{c.m}</div></div>
-                    <div className="inbox-right"><div className="inbox-t">{c.t}</div><div className={`pv-pill${c.on ? "" : " off"}`}>{c.on ? "AI on" : "Manual"}</div></div>
+                    <div className="inbox-right"><div className="inbox-t">{c.t}</div><div className={`pv-pill${c.on ? "" : " off"}`}>{c.on ? "Auto" : "You"}</div></div>
                   </div>
                 ))}
               </div>
@@ -716,7 +716,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
           <div className="fade">
             <div className="label">Live demo</div>
             <h2 className="h2">See it convert in real time</h2>
-            <p className="lead">Pick a scenario and watch the AI handle the entire conversation — any language, any hour.</p>
+            <p className="lead">Pick a scenario and watch Fastrill handle the entire conversation — any language, any hour.</p>
           </div>
           <div className="demo-layout">
             <div className="demo-tabs fade">
@@ -885,7 +885,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
                 <img src="/logo.png" alt="Fastrill" />
                 <span>fastrill</span>
               </a>
-              <p className="ft-tag">AI-powered WhatsApp automation for Indian service businesses. Built by Solvabil Pvt. Ltd.</p>
+              <p className="ft-tag">The front desk for WhatsApp — built for Indian service businesses. Built by Solvabil Pvt. Ltd.</p>
             </div>
             {[
               { h: "Product", lks: [["How it works", "#product"], ["Pricing", "#pricing"], ["Live demo", "#demo"]] },
@@ -912,9 +912,9 @@ function FAQSection() {
   const [open, setOpen] = useState(null)
   const faqs = [
     { q: "Do I need to change my WhatsApp number?", a: "No. You keep your existing WhatsApp Business number. Fastrill connects via Meta’s official Business API — customers message the same number they always have." },
-    { q: "How long does setup take?", a: "About 10 minutes from account creation to your first AI reply. Connect WhatsApp, add your services and hours, go live." },
+    { q: "How long does setup take?", a: "About 10 minutes from account creation to your first automatic reply. Connect WhatsApp, add your services and hours, go live." },
     { q: "Which Indian languages does Fastrill support?", a: "Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi and English — auto-detected per conversation. No configuration needed." },
-    { q: "Can I take over and reply manually?", a: "Yes, always. Toggle AI off for any conversation — you reply manually, AI waits. Toggle back on when done. You’re always in control." },
+    { q: "Can I take over and reply manually?", a: "Yes, always. Pause auto-replies for any conversation and reply yourself — Fastrill waits, and picks back up when you’re done. You’re always in control." },
     { q: "Is there a free trial?", a: "Yes — 14 days, full Growth plan access, no credit card required. If it doesn’t pay for itself, you don’t pay." },
     { q: "How is Fastrill different from a chatbot?", a: "Chatbots follow scripts. Fastrill understands context — it reads the customer’s intent, checks your real availability, books the slot, and follows up if they go quiet. It’s a revenue system, not a decision tree." },
   ]
