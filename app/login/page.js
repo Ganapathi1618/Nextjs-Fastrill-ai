@@ -74,16 +74,16 @@ export default function LoginPage() {
 
   const inputStyle = {
     width: "100%", padding: "12px 14px", borderRadius: "10px",
-    border: "1px solid #333", background: "#1a1a1a", color: "#fff",
+    border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#fff",
     fontSize: "15px", outline: "none", boxSizing: "border-box"
   }
 
   // Show spinner while processing Google OAuth token
   if (signingIn) {
     return (
-      <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter,sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,201,177,0.12), transparent), #08080e", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ width: "48px", height: "48px", border: "3px solid #00d4ff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+          <div style={{ width: "48px", height: "48px", border: "3px solid #00C9B1", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
           <p style={{ color: "#888", fontSize: "14px" }}>Signing you in...</p>
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
@@ -92,7 +92,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", fontFamily: "Inter,sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,201,177,0.12), transparent), #08080e", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
       <div style={{ width: "100%", maxWidth: "420px" }}>
 
         {/* Logo */}
@@ -104,7 +104,7 @@ export default function LoginPage() {
           <p style={{ color: "#888", marginTop: "8px", fontSize: "14px" }}>WhatsApp AI for your business</p>
         </div>
 
-        <div style={{ background: "#111", border: "1px solid #222", borderRadius: "16px", padding: "32px" }}>
+        <div style={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "32px", boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }}>
 
           {error && (
             <div style={{ background: "#2d1515", border: "1px solid #f87171", borderRadius: "8px", padding: "12px", marginBottom: "20px", color: "#f87171", fontSize: "14px" }}>
@@ -119,7 +119,7 @@ export default function LoginPage() {
           <button
             onClick={handleGoogle}
             disabled={loading}
-            style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #333", background: "#1a1a1a", color: "#fff", fontSize: "14px", fontWeight: "500", cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "20px", opacity: loading ? 0.6 : 1 }}
+            style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "14px", fontWeight: "500", cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "20px", opacity: loading ? 0.6 : 1 }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -131,9 +131,9 @@ export default function LoginPage() {
           </button>
 
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-            <div style={{ flex: 1, height: "1px", background: "#222" }} />
+            <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
             <span style={{ color: "#555", fontSize: "13px" }}>or sign in with email</span>
-            <div style={{ flex: 1, height: "1px", background: "#222" }} />
+            <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
           </div>
 
           <form onSubmit={handleLogin}>
@@ -149,16 +149,16 @@ export default function LoginPage() {
             </div>
 
             <div style={{ textAlign: "right", marginBottom: "20px" }}>
-              <a href="/forgot-password" style={{ color: "#00d4ff", fontSize: "13px", textDecoration: "none" }}>Forgot password?</a>
+              <a href="/forgot-password" style={{ color: "#00C9B1", fontSize: "13px", textDecoration: "none" }}>Forgot password?</a>
             </div>
 
-            <button type="submit" disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "none", background: loading ? "#333" : "linear-gradient(135deg,#00d4ff,#0099cc)", color: loading ? "#666" : "#000", fontSize: "15px", fontWeight: "700", cursor: loading ? "not-allowed" : "pointer" }}>
+            <button type="submit" disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "none", background: loading ? "rgba(255,255,255,0.14)" : "linear-gradient(135deg,#00C9B1,#00a98f)", color: loading ? "#666" : "#000", fontSize: "15px", fontWeight: "700", cursor: loading ? "not-allowed" : "pointer" }}>
               {loading ? "Signing in..." : "Sign In →"}
             </button>
           </form>
 
           <p style={{ textAlign: "center", marginTop: "20px", color: "#666", fontSize: "14px" }}>
-            Don't have an account? <a href="/signup" style={{ color: "#00d4ff", textDecoration: "none", fontWeight: "600" }}>Sign up free</a>
+            Don't have an account? <a href="/signup" style={{ color: "#00C9B1", textDecoration: "none", fontWeight: "600" }}>Sign up free</a>
           </p>
         </div>
       </div>

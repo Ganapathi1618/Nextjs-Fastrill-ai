@@ -28,7 +28,7 @@ export default function SignupPage() {
 
   const strength = password.length === 0 ? 0 : password.length < 6 ? 1 : password.length < 10 ? 2 : /[A-Z]/.test(password) && /[0-9]/.test(password) ? 4 : 3
   const strengthLabel = ["","Weak","Fair","Good","Strong"][strength]
-  const strengthColor = ["","#f87171","#fbbf24","#4ade80","#00d4ff"][strength]
+  const strengthColor = ["","#f87171","#fbbf24","#4ade80","#00C9B1"][strength]
 
   useEffect(() => {
     const hash = window.location.hash
@@ -188,16 +188,16 @@ export default function SignupPage() {
 
   const inputStyle = {
     width: "100%", padding: "12px 14px", borderRadius: "10px",
-    border: "1px solid #333", background: "#1a1a1a", color: "#fff",
+    border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#fff",
     fontSize: "15px", outline: "none", boxSizing: "border-box"
   }
 
   // Spinner while processing Google OAuth
   if (signingIn) {
     return (
-      <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter,sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,201,177,0.12), transparent), #08080e", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ width: "48px", height: "48px", border: "3px solid #00d4ff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+          <div style={{ width: "48px", height: "48px", border: "3px solid #00C9B1", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
           <p style={{ color: "#888", fontSize: "14px" }}>Setting up your account...</p>
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
@@ -206,7 +206,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "linear-gradient(135deg,#0a0a0a 0%,#1a1a2e 100%)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", fontFamily: "Inter,sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,201,177,0.12), transparent), #08080e", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
       <div style={{ width: "100%", maxWidth: "420px" }}>
 
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
@@ -217,7 +217,7 @@ export default function SignupPage() {
           <p style={{ color: "#888", marginTop: "8px", fontSize: "14px" }}>WhatsApp AI for your business</p>
         </div>
 
-        <div style={{ background: "#111", border: "1px solid #222", borderRadius: "16px", padding: "32px" }}>
+        <div style={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "32px", boxShadow: "0 24px 64px rgba(0,0,0,0.55)" }}>
 
           {error   && <div style={{ background: "#2d1515", border: "1px solid #f87171", borderRadius: "8px", padding: "12px", marginBottom: "20px", color: "#f87171", fontSize: "14px" }}>{error}</div>}
           {message && <div style={{ background: "#0d2d1a", border: "1px solid #4ade80", borderRadius: "8px", padding: "12px", marginBottom: "20px", color: "#4ade80", fontSize: "14px" }}>{message}</div>}
@@ -230,7 +230,7 @@ export default function SignupPage() {
               <button
                 onClick={handleGoogle}
                 disabled={loading}
-                style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #333", background: "#1a1a1a", color: "#fff", fontSize: "14px", fontWeight: "500", cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "20px", opacity: loading ? 0.6 : 1 }}
+                style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "14px", fontWeight: "500", cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "20px", opacity: loading ? 0.6 : 1 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -242,9 +242,9 @@ export default function SignupPage() {
               </button>
 
               <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-                <div style={{ flex: 1, height: "1px", background: "#222" }} />
+                <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
                 <span style={{ color: "#555", fontSize: "13px" }}>or sign up with email</span>
-                <div style={{ flex: 1, height: "1px", background: "#222" }} />
+                <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
               </div>
 
               <form onSubmit={handleSignup}>
@@ -261,7 +261,7 @@ export default function SignupPage() {
 
                 {password.length > 0 && (
                   <div style={{ marginBottom: "12px" }}>
-                    <div style={{ height: "4px", borderRadius: "2px", background: "#222", marginBottom: "4px" }}>
+                    <div style={{ height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.08)", marginBottom: "4px" }}>
                       <div style={{ height: "100%", width: (strength * 25) + "%", borderRadius: "2px", background: strengthColor, transition: "all 0.3s" }} />
                     </div>
                     <span style={{ fontSize: "12px", color: strengthColor }}>{strengthLabel}</span>
@@ -270,23 +270,23 @@ export default function SignupPage() {
 
                 <label style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }} htmlFor="signup-confirm">Confirm password</label>
                 <div style={{ position: "relative", marginBottom: "20px" }}>
-                  <input id="signup-confirm" type={showConfirm ? "text" : "password"} value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repeat your password" required style={{ ...inputStyle, paddingRight: "44px", border: confirm && confirm !== password ? "1px solid #f87171" : "1px solid #333" }} />
+                  <input id="signup-confirm" type={showConfirm ? "text" : "password"} value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repeat your password" required style={{ ...inputStyle, paddingRight: "44px", border: confirm && confirm !== password ? "1px solid #f87171" : "1px solid rgba(255,255,255,0.12)" }} />
                   <button type="button" onClick={() => setShowConfirm(v => !v)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: "13px" }}>
                     {showConfirm ? "Hide" : "Show"}
                   </button>
                 </div>
                 {confirm && confirm !== password && <p style={{ color: "#f87171", fontSize: "12px", marginTop: "-16px", marginBottom: "12px" }}>Passwords do not match</p>}
 
-                <button type="submit" disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "none", background: loading ? "#333" : "linear-gradient(135deg,#00d4ff,#0099cc)", color: loading ? "#666" : "#000", fontSize: "15px", fontWeight: "700", cursor: loading ? "not-allowed" : "pointer" }}>
+                <button type="submit" disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "none", background: loading ? "rgba(255,255,255,0.14)" : "linear-gradient(135deg,#00C9B1,#00a98f)", color: loading ? "#666" : "#000", fontSize: "15px", fontWeight: "700", cursor: loading ? "not-allowed" : "pointer" }}>
                   {loading ? "Creating account..." : "Create Account →"}
                 </button>
               </form>
 
               <p style={{ textAlign: "center", marginTop: "20px", color: "#666", fontSize: "14px" }}>
-                Already have an account? <a href="/login" style={{ color: "#00d4ff", textDecoration: "none", fontWeight: "600" }}>Sign in</a>
+                Already have an account? <a href="/login" style={{ color: "#00C9B1", textDecoration: "none", fontWeight: "600" }}>Sign in</a>
               </p>
               <p style={{ textAlign: "center", marginTop: "12px", color: "#555", fontSize: "12px" }}>
-                By signing up you agree to our <a href="/terms" style={{ color: "#00d4ff", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "#00d4ff", textDecoration: "none" }}>Privacy Policy</a>
+                By signing up you agree to our <a href="/terms" style={{ color: "#00C9B1", textDecoration: "none" }}>Terms</a> and <a href="/privacy" style={{ color: "#00C9B1", textDecoration: "none" }}>Privacy Policy</a>
               </p>
             </>
           )}
@@ -304,20 +304,20 @@ export default function SignupPage() {
                   type="text" value={otp}
                   onChange={e => setOtp(e.target.value.replace(/\D/g,"").substring(0,6))}
                   placeholder="000000" maxLength={6} autoFocus
-                  style={{ width: "100%", padding: "16px", borderRadius: "10px", border: "1px solid #333", background: "#1a1a1a", color: "#fff", fontSize: "28px", fontWeight: "700", textAlign: "center", outline: "none", letterSpacing: "8px", boxSizing: "border-box", marginBottom: "16px" }}
+                  style={{ width: "100%", padding: "16px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "28px", fontWeight: "700", textAlign: "center", outline: "none", letterSpacing: "8px", boxSizing: "border-box", marginBottom: "16px" }}
                 />
-                <button type="submit" disabled={loading || otp.length < 6} style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "none", background: otp.length < 6 ? "#222" : "linear-gradient(135deg,#00d4ff,#0099cc)", color: otp.length < 6 ? "#555" : "#000", fontSize: "15px", fontWeight: "700", cursor: otp.length < 6 ? "not-allowed" : "pointer", marginBottom: "16px" }}>
+                <button type="submit" disabled={loading || otp.length < 6} style={{ width: "100%", padding: "13px", borderRadius: "10px", border: "none", background: otp.length < 6 ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg,#00C9B1,#00a98f)", color: otp.length < 6 ? "#555" : "#000", fontSize: "15px", fontWeight: "700", cursor: otp.length < 6 ? "not-allowed" : "pointer", marginBottom: "16px" }}>
                   {loading ? "Verifying..." : "Verify & Continue →"}
                 </button>
               </form>
 
               <div style={{ textAlign: "center", marginBottom: "12px" }}>
-                <button onClick={handleResend} disabled={resendTimer > 0 || loading} style={{ background: "none", border: "none", color: resendTimer > 0 ? "#555" : "#00d4ff", fontSize: "14px", cursor: resendTimer > 0 ? "not-allowed" : "pointer" }}>
+                <button onClick={handleResend} disabled={resendTimer > 0 || loading} style={{ background: "none", border: "none", color: resendTimer > 0 ? "#555" : "#00C9B1", fontSize: "14px", cursor: resendTimer > 0 ? "not-allowed" : "pointer" }}>
                   {resendTimer > 0 ? "Resend in " + resendTimer + "s" : "Resend code"}
                 </button>
               </div>
 
-              <button onClick={() => { setStep("form"); setOtp(""); setError(""); setMessage("") }} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #333", background: "transparent", color: "#888", fontSize: "14px", cursor: "pointer" }}>
+              <button onClick={() => { setStep("form"); setOtp(""); setError(""); setMessage("") }} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "#888", fontSize: "14px", cursor: "pointer" }}>
                 ← Change email or password
               </button>
             </>

@@ -61,53 +61,48 @@ export async function GET(request) {
 
     const { data: settings } = await supabaseAdmin
       .from("business_settings")
-      .select("id")
+      .select("user_id")
       .eq("user_id", session.user.id)
       .maybeSingle()
 
     if (!settings) {
-      const { data: existing } = await supabaseAdmin
-        .from("business_settings")
-        .select("user_id")
-        .eq("user_id", session.user.id)
-        .maybeSingle()
+      const { data: configRow } = await supabaseAdmin
+        .from("app_config")
+        .select("value")
+        .eq("key", "early_access_count")
+        .single()
+      const { data: limitRow } = await supabaseAdmin
+        .from("app_config")
+        .select("value")
+        .eq("key", "early_access_limit")
+        .single()
 
-      if (!existing) {
-        const { data: configRow } = await supabaseAdmin
+      const count = parseInt(configRow?.value || "0")
+      const limit = parseInt(limitRow?.value || "20")
+      const isEarlyAccess = count < limit
+
+      const expiry = new Date()
+      expiry.setDate(expiry.getDate() + (isEarlyAccess ? 30 : 14))
+
+      const { error: insertError } = await supabaseAdmin.from("business_settings").insert({
+        user_id: session.user.id,
+        email: session.user.email,
+        plan: isEarlyAccess ? "starter" : "trial",
+        plan_expires_at: expiry.toISOString(),
+        reminders_enabled: false,
+        lead_recovery_enabled: false,
+        campaigns_enabled: false,
+        created_at: new Date().toISOString(),
+      })
+      if (insertError) {
+        console.error("business_settings insert failed:", insertError.message)
+      }
+
+      if (isEarlyAccess) {
+        await supabaseAdmin
           .from("app_config")
-          .select("value")
+          .update({ value: String(count + 1) })
           .eq("key", "early_access_count")
-          .single()
-        const { data: limitRow } = await supabaseAdmin
-          .from("app_config")
-          .select("value")
-          .eq("key", "early_access_limit")
-          .single()
-
-        const count = parseInt(configRow?.value || "0")
-        const limit = parseInt(limitRow?.value || "20")
-        const isEarlyAccess = count < limit
-
-        const expiry = new Date()
-        expiry.setDate(expiry.getDate() + (isEarlyAccess ? 30 : 14))
-
-        await supabaseAdmin.from("business_settings").insert({
-          user_id: session.user.id,
-          email: session.user.email,
-          plan: isEarlyAccess ? "starter" : "trial",
-          plan_expires_at: expiry.toISOString(),
-          reminders_enabled: false,
-          lead_recovery_enabled: false,
-          campaigns_enabled: false,
-          created_at: new Date().toISOString(),
-        })
-
-        if (isEarlyAccess) {
-          await supabaseAdmin
-            .from("app_config")
-            .update({ value: String(count + 1) })
-            .eq("key", "early_access_count")
-        }
       }
 
       dest = "/onboarding"
