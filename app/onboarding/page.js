@@ -265,8 +265,7 @@ export default function OnboardingPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
+                *{box-sizing:border-box;margin:0;padding:0;}
         body{background:${bg};font-family:'Plus Jakarta Sans',sans-serif;color:${text};}
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         .biz-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}

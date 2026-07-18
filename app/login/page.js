@@ -137,12 +137,12 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleLogin}>
-            <label style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>Email address</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required style={{ ...inputStyle, marginBottom: "16px" }} />
+            <label htmlFor="login-email" style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>Email address</label>
+            <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required style={{ ...inputStyle, marginBottom: "16px" }} />
 
-            <label style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>Password</label>
+            <label htmlFor="login-password" style={{ display: "block", color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>Password</label>
             <div style={{ position: "relative", marginBottom: "8px" }}>
-              <input type={showPass ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" required style={{ ...inputStyle, paddingRight: "44px" }} />
+              <input id="login-password" type={showPass ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" required style={{ ...inputStyle, paddingRight: "44px" }} />
               <button type="button" onClick={() => setShowPass(v => !v)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#666", cursor: "pointer", fontSize: "13px" }}>
                 {showPass ? "Hide" : "Show"}
               </button>

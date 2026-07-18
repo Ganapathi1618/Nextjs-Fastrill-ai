@@ -21,7 +21,8 @@ export async function middleware(request) {
     return NextResponse.next()
   }
 
-  if (!pathname.startsWith("/api/")) {
+  const isProtectedPage = pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding")
+  if (!pathname.startsWith("/api/") && !isProtectedPage) {
     return NextResponse.next()
   }
 
@@ -52,6 +53,9 @@ export async function middleware(request) {
   const user = session?.user
 
   if (!user) {
+    if (isProtectedPage) {
+      return NextResponse.redirect(new URL("/login", request.url))
+    }
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -61,5 +65,8 @@ export async function middleware(request) {
 export const config = {
   matcher: [
     "/api/:path*",
+    "/dashboard/:path*",
+    "/dashboard",
+    "/onboarding",
   ],
 }
