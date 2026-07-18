@@ -93,6 +93,7 @@ export async function GET(request) {
 
         await supabaseAdmin.from("business_settings").insert({
           user_id: session.user.id,
+          email: session.user.email,
           plan: isEarlyAccess ? "starter" : "trial",
           plan_expires_at: expiry.toISOString(),
           reminders_enabled: false,
