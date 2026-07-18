@@ -50,10 +50,10 @@ export default function Dashboard() {
           window.history.replaceState(null, "", window.location.pathname)
         }
       }
-      const { data } = await supabase.auth.getUser()
-      if (!data?.user) { router.push("/login"); return }
-      setUserEmail(data.user.email || "")
-      setUserId(data.user.id)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { router.push("/login"); return }
+      setUserEmail(session.user.email || "")
+      setUserId(session.user.id)
     }
     initAuth()
   }, [])

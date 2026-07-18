@@ -2,14 +2,7 @@
 export const dynamic = "force-dynamic"
 
 import { useState, useEffect } from "react"
-import { createClient } from "@supabase/supabase-js"
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
-}
+import { supabase } from "@/lib/supabase"
 
 const BIZ_TYPES = [
   { id:"Salon",              icon:"✂️",  desc:"Hair, cuts, styling" },
@@ -142,8 +135,8 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     async function init() {
-      const supabase = getSupabase()
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
       if (!user) { window.location.href = "/login"; return }
       setUserId(user.id)
       const { data: biz } = await supabase
@@ -175,7 +168,6 @@ export default function OnboardingPage() {
     if (!bizType)        { setError("Please select your business type"); return false }
     setSaving(true); setError("")
     try {
-      const supabase = getSupabase()
       const { error } = await supabase.from("business_settings").upsert({
         user_id:       userId,
         business_name: bizName.trim(),
@@ -196,7 +188,6 @@ export default function OnboardingPage() {
     if (!selected.length) { setError("Please add at least one service"); return false }
     setSaving(true); setError("")
     try {
-      const supabase = getSupabase()
       await supabase.from("services").delete().eq("user_id", userId)
       const rows = selected.map(s => ({
         user_id:      userId,
@@ -218,7 +209,6 @@ export default function OnboardingPage() {
   async function saveStep3() {
     setSaving(true); setError("")
     try {
-      const supabase = getSupabase()
       const { error } = await supabase.from("business_settings").upsert({
         user_id:         userId,
         ai_language:     language,
