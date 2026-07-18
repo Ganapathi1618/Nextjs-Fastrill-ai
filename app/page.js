@@ -177,15 +177,60 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
 @media(max-width:900px){.nav-links,.nav-signin,.nav-cta{display:none}.hbg{display:inline-flex}}
 
 /* ── HERO ── */
-.hero{padding:clamp(112px,14vh,160px) clamp(20px,4vw,44px) clamp(48px,6vw,72px)}
-.hero-in{max-width:1120px;margin:0 auto;text-align:center}
+.hero{padding:clamp(104px,13vh,148px) clamp(20px,4vw,44px) clamp(48px,6vw,72px)}
+.hero-in{max-width:1120px;margin:0 auto}
+.hero-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:clamp(36px,5vw,72px);align-items:center}
 .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:22px}
 .eyebrow::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent)}
-.h1{font-weight:700;font-size:clamp(36px,5.4vw,62px);line-height:1.06;letter-spacing:-.032em;color:var(--ink);max-width:820px;margin:0 auto 20px}
+.h1{font-weight:700;font-size:clamp(34px,4.6vw,56px);line-height:1.07;letter-spacing:-.032em;color:var(--ink);margin:0 0 20px}
 .h1 em{font-style:normal;color:var(--accent)}
-.hero-sub{font-size:clamp(15px,1.5vw,17.5px);color:var(--mut);line-height:1.7;max-width:560px;margin:0 auto 30px}
+.hero-sub{font-size:clamp(15px,1.5vw,17px);color:var(--mut);line-height:1.7;max-width:520px;margin:0 0 30px}
 .hero-sub strong{color:var(--ink2);font-weight:600}
-.hero-btns{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
+.hero-btns{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+@media(max-width:900px){.hero-grid{grid-template-columns:1fr;text-align:center}.hero-sub{margin-left:auto;margin-right:auto}.hero-btns,.hero-trust{justify-content:center}}
+
+/* ── PHONE DEMO ── */
+.ph-stage{position:relative;display:flex;justify-content:center;padding:24px 0}
+.ph-stage::before{content:'';position:absolute;inset:0;margin:auto;width:min(440px,100%);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(230,168,84,.10) 0%,rgba(230,168,84,.03) 45%,transparent 66%)}
+.ph-stage::after{content:'';position:absolute;inset:0;margin:auto;width:min(390px,90%);aspect-ratio:1;border-radius:50%;border:1px solid rgba(230,168,84,.20);box-shadow:0 0 0 32px rgba(230,168,84,.03)}
+.flr.lt .ph-stage::before{background:radial-gradient(circle,rgba(217,119,6,.09) 0%,rgba(217,119,6,.03) 45%,transparent 66%)}
+.flr.lt .ph-stage::after{border-color:rgba(217,119,6,.20);box-shadow:0 0 0 32px rgba(217,119,6,.03)}
+.ph-frame{position:relative;z-index:1;width:280px;background:#0E0F12;border-radius:38px;padding:10px;box-shadow:0 24px 64px rgba(3,5,12,.55),0 0 0 1px rgba(255,255,255,.07)}
+.ph-screen{border-radius:30px;overflow:hidden;background:#EFE7DB;display:flex;flex-direction:column;height:520px}
+.ph-status{background:#075E54;color:#fff;font-size:9.5px;display:flex;justify-content:space-between;padding:7px 16px 0;font-weight:600}
+.ph-head{background:#075E54;color:#fff;display:flex;align-items:center;gap:9px;padding:8px 12px 10px}
+.ph-back{font-size:15px;opacity:.9}
+.ph-avatar{width:30px;height:30px;border-radius:50%;background:#F3C26B;color:#7C3E0A;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.ph-name{font-size:12.5px;font-weight:600;line-height:1.2}
+.ph-onl{font-size:9.5px;opacity:.85}
+.ph-chat{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:7px;overflow:hidden;position:relative;
+  background-color:#EFE7DB;
+  background-image:radial-gradient(rgba(124,62,10,.05) 1px,transparent 1px);background-size:18px 18px}
+.ph-bub{max-width:82%;padding:7px 10px 6px;border-radius:9px;font-size:11.5px;line-height:1.45;color:#1B1B18;box-shadow:0 1px 1px rgba(0,0,0,.08);animation:phin .3s ease both;white-space:pre-wrap}
+.ph-bub.c{background:#DCF8C6;align-self:flex-end;border-top-right-radius:2px}
+.ph-bub.a{background:#FFFFFF;align-self:flex-start;border-top-left-radius:2px}
+.ph-time{display:block;font-size:8.5px;color:rgba(27,27,24,.45);text-align:right;margin-top:2px}
+.ph-time .tick{color:#4FB6EC;font-weight:700}
+@keyframes phin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.ph-typing{align-self:flex-start;background:#FFFFFF;border-radius:9px;border-top-left-radius:2px;padding:10px 13px;display:flex;gap:4px;box-shadow:0 1px 1px rgba(0,0,0,.08);animation:phin .25s ease both}
+.ph-typing i{width:5px;height:5px;border-radius:50%;background:#9B9B93;animation:phdot 1.1s infinite}
+.ph-typing i:nth-child(2){animation-delay:.18s}
+.ph-typing i:nth-child(3){animation-delay:.36s}
+@keyframes phdot{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+.ph-card{align-self:flex-start;max-width:88%;background:#FFFFFF;border-radius:10px;border-top-left-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.1);overflow:hidden;animation:phin .3s ease both}
+.ph-card-top{display:flex;align-items:center;gap:8px;background:#F0FAF0;padding:9px 12px;border-bottom:1px solid #E4EDE2}
+.ph-card-check{width:20px;height:20px;border-radius:50%;background:#25A55A;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ph-card-title{font-size:11.5px;font-weight:700;color:#14532D}
+.ph-card-body{padding:9px 12px 7px}
+.ph-card-row{display:flex;justify-content:space-between;gap:14px;font-size:10.5px;color:#4B4B44;padding:2.5px 0}
+.ph-card-row b{color:#1B1B18;font-weight:600}
+.ph-card-foot{font-size:9px;color:rgba(27,27,24,.5);padding:0 12px 8px;display:flex;justify-content:space-between;align-items:center}
+.ph-card-foot .tick{color:#4FB6EC;font-weight:700}
+.ph-inputbar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#F2EBDF}
+.ph-input{flex:1;background:#fff;border-radius:100px;font-size:10.5px;color:#A7A79E;padding:8px 13px}
+.ph-send{width:30px;height:30px;border-radius:50%;background:#00897B;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ph-caption{position:absolute;bottom:-6px;left:0;right:0;text-align:center;font-size:11.5px;color:var(--mut2)}
+@media(max-width:900px){.ph-frame{width:260px}.ph-screen{height:480px}}
 .btn-p{display:inline-flex;align-items:center;gap:8px;background:var(--cta);color:var(--cta-fg);padding:13px 26px;border-radius:10px;font-weight:600;font-size:15px;text-decoration:none;transition:background .15s,transform .15s;border:none;cursor:pointer;font-family:inherit}
 .btn-p:hover{background:var(--cta-hov);transform:translateY(-1px)}
 .btn-s{display:inline-flex;align-items:center;gap:8px;background:var(--card);color:var(--ink);padding:13px 22px;border-radius:10px;font-weight:600;font-size:14.5px;text-decoration:none;border:1px solid var(--line);transition:border-color .15s,background .15s;box-shadow:var(--sh-sm)}
@@ -455,22 +500,27 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
       {/* HERO */}
       <section className="hero">
         <div className="hero-in">
-          <div className="eyebrow">The front desk for WhatsApp</div>
-          <h1 className="h1">
-            Your leads are messaging.<br />
-            <em>Nobody is replying.</em>
-          </h1>
-          <p className="hero-sub">
-            Most businesses reply in <strong>hours</strong> — or never. Fastrill replies in <strong>under 2 seconds</strong>, understands the customer, and books the appointment automatically.
-          </p>
-          <div className="hero-btns">
-            <a href="/signup" className="btn-p">Start free trial <Ic name="arrow" size={15} /></a>
-            <a href="#demo" className="btn-s">See it in action</a>
-          </div>
-          <div className="hero-trust">
-            <span><Ic name="shield" size={13} /> No credit card required</span>
-            <span><Ic name="clock" size={13} /> Setup in 10 minutes</span>
-            <span><Ic name="globe" size={13} /> 10+ Indian languages</span>
+          <div className="hero-grid">
+            <div>
+              <div className="eyebrow">The front desk for WhatsApp</div>
+              <h1 className="h1">
+                Your leads are messaging.<br />
+                <em>Nobody is replying.</em>
+              </h1>
+              <p className="hero-sub">
+                Most businesses reply in <strong>hours</strong> — or never. Fastrill replies in <strong>under 2 seconds</strong>, understands the customer, and books the appointment automatically.
+              </p>
+              <div className="hero-btns">
+                <a href="/signup" className="btn-p">Start free trial <Ic name="arrow" size={15} /></a>
+                <a href="#demo" className="btn-s">See it in action</a>
+              </div>
+              <div className="hero-trust" style={{ justifyContent: "flex-start" }}>
+                <span><Ic name="shield" size={13} /> No credit card required</span>
+                <span><Ic name="clock" size={13} /> Setup in 10 minutes</span>
+                <span><Ic name="globe" size={13} /> 10+ Indian languages</span>
+              </div>
+            </div>
+            <PhoneDemo />
           </div>
         </div>
 
@@ -904,6 +954,83 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
           </div>
         </div>
       </footer>
+    </div>
+  )
+}
+
+const PHONE_SCRIPT = [
+  { t: "c", m: "Namaste! Kal facial ho payega?", time: "9:41 PM" },
+  { t: "typing", dur: 1100 },
+  { t: "a", m: "Namaste Anita ji! Haan bilkul 🙏\nKal 11:00 AM ya 4:00 PM free hai.\nKaunsa time theek rahega?", time: "9:41 PM" },
+  { t: "c", m: "4 baje perfect 👍", time: "9:42 PM" },
+  { t: "typing", dur: 1100 },
+  { t: "card", time: "9:42 PM" },
+]
+
+function PhoneDemo() {
+  const [step, setStep] = useState(0)
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setStep(PHONE_SCRIPT.length)
+      return
+    }
+    const item = PHONE_SCRIPT[step]
+    const delay = step >= PHONE_SCRIPT.length ? 3600 : (item.t === "typing" ? item.dur : 1250)
+    const t = setTimeout(() => {
+      setStep(s => (s >= PHONE_SCRIPT.length ? 0 : s + 1))
+    }, delay)
+    return () => clearTimeout(t)
+  }, [step])
+
+  const visible = PHONE_SCRIPT.slice(0, step + 1).filter((it, i) => it.t !== "typing" || i === step)
+
+  return (
+    <div className="ph-stage" aria-hidden="true">
+      <div className="ph-frame">
+        <div className="ph-screen">
+          <div className="ph-status"><span>9:42</span><span>▂▄▆ ⌁ ▉</span></div>
+          <div className="ph-head">
+            <span className="ph-back">‹</span>
+            <div className="ph-avatar">L</div>
+            <div>
+              <div className="ph-name">Lakshmi Beauty Parlour</div>
+              <div className="ph-onl">online</div>
+            </div>
+          </div>
+          <div className="ph-chat">
+            {visible.map((it, i) => {
+              if (it.t === "typing") return <div key={`ty-${i}`} className="ph-typing"><i /><i /><i /></div>
+              if (it.t === "card") return (
+                <div key="card" className="ph-card">
+                  <div className="ph-card-top">
+                    <div className="ph-card-check"><Ic name="check" size={11} /></div>
+                    <div className="ph-card-title">Appointment Confirmed</div>
+                  </div>
+                  <div className="ph-card-body">
+                    <div className="ph-card-row"><span>Service</span><b>Gold Facial</b></div>
+                    <div className="ph-card-row"><span>Date</span><b>Kal · Sat, 29 March</b></div>
+                    <div className="ph-card-row"><span>Time</span><b>4:00 PM</b></div>
+                    <div className="ph-card-row"><span>Amount</span><b>₹1,200</b></div>
+                  </div>
+                  <div className="ph-card-foot"><span>Milte hai kal! 💐</span><span>{it.time} <span className="tick">✓✓</span></span></div>
+                </div>
+              )
+              return (
+                <div key={`${it.t}-${i}`} className={`ph-bub ${it.t}`}>
+                  {it.m}
+                  <span className="ph-time">{it.time}{it.t === "c" && <> <span className="tick">✓✓</span></>}</span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="ph-inputbar">
+            <div className="ph-input">Message</div>
+            <div className="ph-send"><Ic name="send" size={13} /></div>
+          </div>
+        </div>
+      </div>
+      <div className="ph-caption">Replied &amp; booked in seconds — while the owner was busy</div>
     </div>
   )
 }
