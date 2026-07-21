@@ -14,6 +14,20 @@
 
 BEGIN;
 
+-- business_knowledge is upserted with category "business_info", but the
+-- live table was missing the column entirely — add it before constraining.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'business_knowledge')
+     AND NOT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'business_knowledge' AND column_name = 'category'
+     )
+  THEN
+    ALTER TABLE business_knowledge ADD COLUMN category text NOT NULL DEFAULT 'business_info';
+  END IF;
+END $$;
+
 DO $$
 DECLARE
   t record;
