@@ -44,13 +44,17 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_count  int;
-  v_limit  int;
+  v_count  int := 0;
+  v_limit  int := 20;
   v_early  boolean;
 BEGIN
-  SELECT COALESCE(value::int, 0)  INTO v_count FROM app_config WHERE key = 'early_access_count';
-  SELECT COALESCE(value::int, 20) INTO v_limit FROM app_config WHERE key = 'early_access_limit';
-  v_early := COALESCE(v_count, 0) < COALESCE(v_limit, 20);
+  BEGIN
+    SELECT COALESCE(value::int, 0)  INTO v_count FROM app_config WHERE key = 'early_access_count';
+    SELECT COALESCE(value::int, 20) INTO v_limit FROM app_config WHERE key = 'early_access_limit';
+  EXCEPTION WHEN OTHERS THEN
+    v_count := 0; v_limit := 0; -- app_config missing/broken → plain trial
+  END;
+  v_early := COALESCE(v_count, 0) < COALESCE(v_limit, 0);
 
   INSERT INTO business_settings (
     user_id, email, plan, plan_expires_at,
@@ -68,6 +72,11 @@ BEGIN
     UPDATE app_config SET value = (v_count + 1)::text WHERE key = 'early_access_count';
   END IF;
 
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Never let provisioning failure block the signup itself; the client
+  -- fallback (/api/onboarding/init) will retry row creation.
+  RAISE WARNING 'handle_new_user failed for %: %', NEW.id, SQLERRM;
   RETURN NEW;
 END;
 $$;
