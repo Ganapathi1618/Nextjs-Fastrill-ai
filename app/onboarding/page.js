@@ -143,6 +143,20 @@ export default function OnboardingPage() {
         .from("business_settings").select("business_name")
         .eq("user_id", user.id).maybeSingle()
       if (biz?.business_name) { window.location.href = "/dashboard"; return }
+      // No row yet means the post-signup init never ran (failed fetch,
+      // closed tab, OTP edge case). Provision it here so the upserts
+      // below have a plan-bearing row to land on.
+      if (!biz) {
+        try {
+          await fetch("/api/onboarding/init", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${session.access_token}`
+            }
+          })
+        } catch {}
+      }
       setLoading(false)
     }
     init()
@@ -163,21 +177,34 @@ export default function OnboardingPage() {
   const showDuration  = !skipTime
   const svcCategory   = SECTOR_CATEGORIES[bizType] || SECTOR_CATEGORIES["default"]
 
+  // upsert(onConflict:"user_id") needs a UNIQUE constraint on user_id
+  // (added in migration 002). If the DB doesn't have it yet, fall back
+  // to update-then-insert so onboarding data is never silently lost.
+  async function saveSettings(fields) {
+    const payload = { user_id: userId, ...fields, updated_at: new Date().toISOString() }
+    const { error } = await supabase.from("business_settings")
+      .upsert(payload, { onConflict: "user_id" })
+    if (!error) return
+    const { data: existing } = await supabase.from("business_settings")
+      .select("user_id").eq("user_id", userId).maybeSingle()
+    const fallback = existing
+      ? await supabase.from("business_settings").update(payload).eq("user_id", userId)
+      : await supabase.from("business_settings").insert(payload)
+    if (fallback.error) throw fallback.error
+  }
+
   async function saveStep1() {
     if (!bizName.trim()) { setError("Please enter your business name"); return false }
     if (!bizType)        { setError("Please select your business type"); return false }
     setSaving(true); setError("")
     try {
-      const { error } = await supabase.from("business_settings").upsert({
-        user_id:       userId,
+      await saveSettings({
         business_name: bizName.trim(),
         business_type: bizType,
         location:      location.trim(),
         working_hours: hours.trim(),
         phone:         phone.trim(),
-        updated_at:    new Date().toISOString()
-      }, { onConflict: "user_id" })
-      if (error) throw error
+      })
       return true
     } catch(e) { setError(e.message || "Save failed"); return false }
     finally { setSaving(false) }
@@ -209,13 +236,10 @@ export default function OnboardingPage() {
   async function saveStep3() {
     setSaving(true); setError("")
     try {
-      const { error } = await supabase.from("business_settings").upsert({
-        user_id:         userId,
+      await saveSettings({
         ai_language:     language,
         ai_instructions: instructions.trim(),
-        updated_at:      new Date().toISOString()
-      }, { onConflict: "user_id" })
-      if (error) throw error
+      })
       return true
     } catch(e) { setError(e.message || "Save failed"); return false }
     finally { setSaving(false) }
