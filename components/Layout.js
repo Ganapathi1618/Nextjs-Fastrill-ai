@@ -80,8 +80,9 @@ export default function DashboardLayout({ children, activeId, title, topbarRight
         }
         .dl-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:199;}
         @media(max-width:767px){.dl-overlay.open{display:block;}}
-        .dl-logo{padding:22px 20px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:block;border-bottom:1px solid ${border};}
-        .dl-logo span{color:${accent};}
+        .dl-logo{padding:22px 20px 18px;font-weight:800;font-size:20px;letter-spacing:-0.3px;color:${text};text-decoration:none;display:flex;align-items:center;gap:9px;border-bottom:1px solid ${border};}
+        .dl-logo img{display:block;object-fit:contain;flex-shrink:0;}
+        .dl-logo span{color:${dark ? "#00C9B1" : "#009a89"};}
         .nav-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${textFaint};font-weight:600;}
         .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
         .nav-item:hover{background:${inputBg};color:${text};}
@@ -119,7 +120,10 @@ export default function DashboardLayout({ children, activeId, title, topbarRight
         <div className={"dl-overlay" + (sidebarOpen ? " open" : "")} onClick={() => setSidebarOpen(false)} />
 
         <aside className={"dl-sidebar" + (sidebarOpen ? " open" : "")}>
-          <a href="/dashboard" className="dl-logo">fast<span>rill</span></a>
+          <a href="/dashboard" className="dl-logo">
+            <img src="/logo.png" width="26" height="26" alt="Fastrill" />
+            <span style={{color:text}}>fast<span>rill</span></span>
+          </a>
           <div className="nav-section">Platform</div>
           {NAV.map(item => (
             <button key={item.id}

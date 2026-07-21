@@ -60,20 +60,46 @@ function getSectorCategories(bizType) {
 const PLANS = [
   {
     id:"starter", name:"Starter", price:"₹999", period:"/month",
-    description:"Perfect to get started", color:"#00C9B1",
-    features:["AI WhatsApp receptionist","Booking, reschedule, cancel","Telugu, Hindi, English","Dashboard & analytics","Up to 500 conversations/month"],
-    locked:["Appointment reminders","Lead recovery","Bulk campaigns"]
+    description:"Your 24/7 AI receptionist — never miss an enquiry", color:"#00C9B1",
+    usp:"1 WhatsApp number",
+    features:[
+      "AI replies in under 5 seconds, 24/7",
+      "Booking, reschedule & cancel on autopilot",
+      "Speaks 10 Indian languages",
+      "Full customer & lead CRM",
+      "Dashboard & basic analytics",
+      "Up to 500 conversations/month",
+    ],
+    locked:["Appointment reminders","Lead recovery follow-ups","Bulk campaigns","Extra WhatsApp numbers"]
   },
   {
     id:"growth", name:"Growth", price:"₹1,999", period:"/month",
-    description:"Most popular for growing businesses", color:"#6366f1", popular:true,
-    features:["Everything in Starter","Appointment reminders (24hr before)","Lead recovery follow-ups","Unlimited conversations","Priority support"],
-    locked:["Bulk campaigns"]
+    description:"Recover lost revenue while you sleep", color:"#6366f1", popular:true,
+    usp:"Up to 3 WhatsApp numbers",
+    features:[
+      "Everything in Starter",
+      "Connect up to 3 WhatsApp numbers",
+      "Appointment reminders (24hr before) — fewer no-shows",
+      "Lead recovery — auto follow-up with leads who ghosted",
+      "Unlimited conversations",
+      "Booking analytics & peak-hour insights",
+      "Priority support",
+    ],
+    locked:["Bulk campaigns","Customer segments"]
   },
   {
     id:"pro", name:"Pro", price:"₹4,999", period:"/month",
-    description:"For high-volume businesses", color:"#f59e0b",
-    features:["Everything in Growth","Bulk WhatsApp campaigns","Customer segments","Advanced analytics","Dedicated support"],
+    description:"A full marketing engine for multi-branch businesses", color:"#f59e0b",
+    usp:"Up to 5 WhatsApp numbers",
+    features:[
+      "Everything in Growth",
+      "Connect up to 5 WhatsApp numbers — one per branch",
+      "Bulk WhatsApp campaigns to your whole customer base",
+      "Smart customer segments (regulars, VIPs, gone-quiet)",
+      "Festival & offer broadcast templates",
+      "Advanced analytics & revenue reports",
+      "Dedicated support with onboarding call",
+    ],
     locked:[]
   },
 ]
@@ -1046,6 +1072,11 @@ export default function SettingsPage() {
                             <span style={{fontWeight:800,fontSize:26,color:text}}>{plan.price}</span>
                             <span style={{fontSize:12,color:textMuted}}>{plan.period}</span>
                           </div>
+                          {plan.usp&&(
+                            <div style={{display:"inline-block",fontSize:10.5,fontWeight:700,color:plan.color,background:plan.color+"14",border:`1px solid ${plan.color}33`,borderRadius:100,padding:"3px 10px",marginBottom:12}}>
+                              📱 {plan.usp}
+                            </div>
+                          )}
                           {plan.features.map(f=>(
                             <div key={f} className="plan-feat"><span style={{color:plan.color,fontSize:14}}>✓</span> {f}</div>
                           ))}
