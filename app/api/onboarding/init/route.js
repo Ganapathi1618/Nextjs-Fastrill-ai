@@ -20,74 +20,30 @@ export async function POST(req) {
     )
     if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const userId = user.id
-    const userEmail = user.email
+    // All provisioning logic lives in the provision_business_settings SQL
+    // function (migration 004): it takes a per-user advisory lock so this
+    // route can't race the auth-signup trigger, and the early-access slot
+    // is claimed in a single atomic UPDATE so concurrent signups can't
+    // over-grant slots or lose counter increments.
+    const { data: result, error: rpcError } = await supabaseAdmin.rpc(
+      "provision_business_settings",
+      { p_user_id: user.id, p_email: user.email }
+    )
 
-    // Check if business_settings already exists for this user
-    const { data: existing } = await supabaseAdmin
-      .from("business_settings")
-      .select("user_id")
-      .eq("user_id", userId)
-      .maybeSingle()
-
-    if (existing) {
-      return NextResponse.json({ status: "already_initialized" })
-    }
-
-    // Check early access count
-    const { data: configRow } = await supabaseAdmin
-      .from("app_config")
-      .select("value")
-      .eq("key", "early_access_count")
-      .single()
-
-    const { data: limitRow } = await supabaseAdmin
-      .from("app_config")
-      .select("value")
-      .eq("key", "early_access_limit")
-      .single()
-
-    const count = parseInt(configRow?.value || "0")
-    const limit = parseInt(limitRow?.value || "20")
-    const isEarlyAccess = count < limit
-
-    // Set plan and expiry
-    const now = new Date()
-    const expiry = new Date()
-    if (isEarlyAccess) {
-      expiry.setDate(expiry.getDate() + 30) // 1 month free starter
-    } else {
-      expiry.setDate(expiry.getDate() + 14) // 14 day trial
-    }
-
-    const { error: insertError } = await supabaseAdmin.from("business_settings").insert({
-      user_id:        userId,
-      email:          userEmail,
-      plan:           isEarlyAccess ? "starter" : "trial",
-      plan_expires_at: expiry.toISOString(),
-      reminders_enabled:     false,
-      lead_recovery_enabled: false,
-      campaigns_enabled:     false,
-      created_at:     now.toISOString(),
-    })
-    if (insertError) {
-      console.error("business_settings insert failed:", insertError.message)
+    if (rpcError) {
+      console.error("provision_business_settings failed:", rpcError.message)
       return NextResponse.json({ error: "Account setup failed" }, { status: 500 })
     }
 
-    // Increment early access count if applicable
-    if (isEarlyAccess) {
-      await supabaseAdmin
-        .from("app_config")
-        .update({ value: String(count + 1) })
-        .eq("key", "early_access_count")
+    if (result?.status === "already_initialized") {
+      return NextResponse.json({ status: "already_initialized" })
     }
 
     return NextResponse.json({
-      status: "ok",
-      plan: isEarlyAccess ? "starter" : "trial",
-      earlyAccess: isEarlyAccess,
-      spotsLeft: isEarlyAccess ? limit - count - 1 : 0
+      status:      "ok",
+      plan:        result?.plan || "trial",
+      earlyAccess: result?.early_access || false,
+      spotsLeft:   result?.spots_left ?? 0,
     })
 
   } catch(e) {

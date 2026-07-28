@@ -2,24 +2,23 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { enrollLead } from "@/lib/sequences/sequence-engine"
+import { verifyCronAuth } from "@/lib/cron-auth"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-function nowIST() {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }))
-}
-
 export async function GET(req) {
-  const authHeader = req.headers.get("authorization")
-  if (authHeader !== "Bearer " + process.env.CRON_SECRET) {
+  if (!verifyCronAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {
-    const now         = nowIST()
+    // Cutoffs are compared against last_message_at, which is stored as true
+    // UTC (toISOString). The old nowIST() shifted the epoch by +5:30, which
+    // moved the whole 24–72h window 5.5 hours off.
+    const now         = new Date()
     const cutoffStart = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString()
     const cutoffEnd   = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
 

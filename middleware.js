@@ -49,8 +49,10 @@ export async function middleware(request) {
     }
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user
+  // getUser() validates the JWT against the Supabase Auth server on every
+  // request. Never use getSession() here — it only decodes the cookie
+  // without verifying it, so a forged cookie would pass the gate.
+  const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     if (isProtectedPage) {
