@@ -47,7 +47,9 @@ async function POST(req) {
       return NextResponse.json({ error: "WhatsApp not connected" }, { status: 400 })
     }
 
-    const accessToken = wa.access_token.includes(":") ? decrypt(wa.access_token) : wa.access_token
+    // decrypt() handles prefixed, legacy-encrypted, and plaintext values
+    // itself and throws on corrupted ciphertext — no format guessing here.
+    const accessToken = decrypt(wa.access_token)
 
     console.log("[send-message] token starts with:", accessToken?.substring(0, 10))
     console.log("[send-message] phone_number_id:", wa.phone_number_id)

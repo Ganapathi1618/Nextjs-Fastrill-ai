@@ -61,6 +61,11 @@ async function isRateLimited(phone) {
 }
 
 // ── CONTENT-BASED DEDUP ──────────────────────────────────────
+// Per-instance only: two serverless instances won't share this map, so it
+// can miss. That's acceptable — this is just a courtesy guard against a
+// user double-sending identical text. Actual webhook RETRY dedup (Meta
+// redelivering the same message) is handled by isDuplicate(), which
+// checks messages.wa_message_id in the DB and works across instances.
 const recentMessages = new Map()
 function isDuplicateContent(phone, text) {
   const key  = phone + "|" + (text || "").toLowerCase().trim()

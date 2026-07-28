@@ -4,10 +4,10 @@
 
 import { NextResponse } from "next/server"
 import { processDueEnrollments } from "@/lib/sequences/sequence-engine"
+import { verifyCronAuth } from "@/lib/cron-auth"
 
 export async function GET(req) {
-  const authHeader = req.headers.get("authorization")
-  if (authHeader !== "Bearer " + process.env.CRON_SECRET) {
+  if (!verifyCronAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

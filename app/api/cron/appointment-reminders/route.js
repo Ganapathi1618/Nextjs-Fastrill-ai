@@ -7,6 +7,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendAndSave } from "@/lib/messaging/wa-send"
 import { decrypt } from "@/lib/encryption"
+import { verifyCronAuth } from "@/lib/cron-auth"
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -99,8 +100,7 @@ function buildReminderMessage(name, service, dateStr, timeStr, bizName, type) {
 }
 
 export async function GET(req) {
-  const authHeader = req.headers.get("authorization")
-  if (authHeader !== "Bearer " + process.env.CRON_SECRET) {
+  if (!verifyCronAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
