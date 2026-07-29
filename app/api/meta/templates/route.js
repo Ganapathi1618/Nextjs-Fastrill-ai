@@ -37,7 +37,7 @@ async function GET(req) {
     let wabaId = wa.waba_id
     if (!wabaId) {
       const r = await fetch(
-        `https://graph.facebook.com/v18.0/${wa.phone_number_id}?fields=whatsapp_business_account&access_token=${accessToken}`
+        `https://graph.facebook.com/v22.0/${wa.phone_number_id}?fields=whatsapp_business_account&access_token=${accessToken}`
       )
       const d = await r.json()
       if (d.error) {
@@ -54,7 +54,7 @@ async function GET(req) {
     }
 
     const r2 = await fetch(
-      `https://graph.facebook.com/v18.0/${wabaId}/message_templates?limit=100&fields=id,name,category,language,components,status&access_token=${accessToken}`
+      `https://graph.facebook.com/v22.0/${wabaId}/message_templates?limit=100&fields=id,name,category,language,components,status&access_token=${accessToken}`
     )
     const data = await r2.json()
     if (data.error) {

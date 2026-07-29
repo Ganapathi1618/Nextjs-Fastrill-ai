@@ -40,7 +40,7 @@ export async function GET(req) {
     const redirectUri = (process.env.NEXT_PUBLIC_APP_URL || "https://fastrill.com") + "/api/meta/callback"
 
     const tokenRes  = await fetch(
-      `https://graph.facebook.com/v18.0/oauth/access_token` +
+      `https://graph.facebook.com/v22.0/oauth/access_token` +
       `?client_id=${appId}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&client_secret=${appSecret}` +
@@ -58,7 +58,7 @@ export async function GET(req) {
     let wabaId = null, phoneNumberId = null, displayPhoneNumber = null
 
     try {
-      const r = await fetch(`https://graph.facebook.com/v18.0/me/businesses?access_token=${accessToken}`)
+      const r = await fetch(`https://graph.facebook.com/v22.0/me/businesses?access_token=${accessToken}`)
       const d = await r.json()
       wabaId = d?.data?.[0]?.id || null
     } catch(e) {
@@ -67,7 +67,7 @@ export async function GET(req) {
 
     if (!wabaId) {
       try {
-        const r = await fetch(`https://graph.facebook.com/v18.0/me?fields=whatsapp_business_account&access_token=${accessToken}`)
+        const r = await fetch(`https://graph.facebook.com/v22.0/me?fields=whatsapp_business_account&access_token=${accessToken}`)
         const d = await r.json()
         wabaId = d?.whatsapp_business_account?.id || null
       } catch(e) {
@@ -77,7 +77,7 @@ export async function GET(req) {
 
     if (wabaId) {
       try {
-        const r = await fetch(`https://graph.facebook.com/v18.0/${wabaId}/phone_numbers?access_token=${accessToken}`)
+        const r = await fetch(`https://graph.facebook.com/v22.0/${wabaId}/phone_numbers?access_token=${accessToken}`)
         const d = await r.json()
         phoneNumberId      = d?.data?.[0]?.id || null
         displayPhoneNumber = d?.data?.[0]?.display_phone_number || null
@@ -108,7 +108,7 @@ export async function GET(req) {
     if (phoneNumberId) {
       try {
         await fetch(
-          `https://graph.facebook.com/v18.0/${phoneNumberId}/subscribed_apps`,
+          `https://graph.facebook.com/v22.0/${phoneNumberId}/subscribed_apps`,
           {
             method:  "POST",
             headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
