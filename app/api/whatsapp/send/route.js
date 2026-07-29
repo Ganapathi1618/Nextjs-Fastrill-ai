@@ -54,7 +54,7 @@ export async function POST(req) {
     const accessToken = decrypt(conn.access_token)
 
     const waRes = await fetch(
-      "https://graph.facebook.com/v18.0/" + conn.phone_number_id + "/messages",
+      "https://graph.facebook.com/v22.0/" + conn.phone_number_id + "/messages",
       {
         method: "POST",
         headers: {

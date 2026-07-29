@@ -70,7 +70,7 @@ async function POST(req) {
     console.log("[send-message] sending to Meta:", JSON.stringify(payload))
 
     const res = await fetch(
-      `https://graph.facebook.com/v18.0/${wa.phone_number_id}/messages`,
+      `https://graph.facebook.com/v22.0/${wa.phone_number_id}/messages`,
       {
         method: "POST",
         headers: {
