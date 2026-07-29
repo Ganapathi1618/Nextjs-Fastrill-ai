@@ -107,6 +107,43 @@ function verifySignature(rawBody, signatureHeader) {
   return crypto.timingSafeEqual(receivedBuf, expectedBuf)
 }
 
+// ── DELIVERY STATUS TRACKING ─────────────────────────────────
+// Meta accepts a send with HTTP 200 (so we record "sent"), then delivery
+// can still fail ASYNCHRONOUSLY — expired token quality, WABA payment
+// issue, tier limits, number blocks. The failure reason only ever arrives
+// here, as a status event with an errors[] array. Log it loudly and flip
+// the message row to "failed" so the dashboard stops showing replies the
+// customer never received.
+async function recordStatusUpdate(s) {
+  if (!s?.id || !["delivered", "read", "failed"].includes(s.status)) return
+
+  if (s.status === "failed") {
+    console.error("📵 WA delivery FAILED:", JSON.stringify({
+      waMessageId: s.id,
+      recipient:   s.recipient_id,
+      errors:      s.errors || [],
+    }))
+  }
+
+  // Update status on its own first — it must never be blocked by the
+  // timestamp column below.
+  const { error } = await supabaseAdmin.from("messages")
+    .update({ status: s.status })
+    .eq("wa_message_id", s.id)
+  if (error) {
+    console.error("⚠️ Could not record status", s.status, "for", s.id, ":", error.message)
+    return
+  }
+
+  // Timestamp column (delivered_at / read_at / failed_at) is best-effort:
+  // if the column doesn't exist this fails alone instead of silently
+  // killing the status update too, which is what happened before.
+  const { error: tsError } = await supabaseAdmin.from("messages")
+    .update({ [s.status + "_at"]: new Date().toISOString() })
+    .eq("wa_message_id", s.id)
+  if (tsError) console.warn("⚠️ Could not set " + s.status + "_at for", s.id, ":", tsError.message)
+}
+
 async function GET(req) {
   const { searchParams } = new URL(req.url)
   const mode      = searchParams.get("hub.mode")
@@ -132,50 +169,57 @@ async function POST(req) {
 
     const body = JSON.parse(rawBody)
 
-    const statuses = body?.entry?.[0]?.changes?.[0]?.value?.statuses
-    const hasMsg   = body?.entry?.[0]?.changes?.[0]?.value?.messages
-    if (statuses && !hasMsg) {
-      for (const s of statuses) {
-        if (s.id && ["delivered","read","failed"].includes(s.status)) {
-          supabaseAdmin.from("messages")
-            .update({ status: s.status, [s.status + "_at"]: new Date().toISOString() })
-            .eq("wa_message_id", s.id).then(() => {}).catch(() => {})
+    // Meta batches webhooks: one POST can carry MULTIPLE entries/changes,
+    // and statuses can arrive in the same batch as messages. The old code
+    // only looked at entry[0].changes[0] and skipped statuses entirely
+    // whenever a message was present — so delivery-failure notifications
+    // (the only place Meta says WHY a customer didn't receive a message)
+    // were being dropped on the floor.
+    const values = []
+    for (const entry of body?.entry || []) {
+      for (const change of entry?.changes || []) {
+        if (change?.value) values.push(change.value)
+      }
+    }
+
+    let sawMessages = false
+    for (const value of values) {
+      for (const s of value.statuses || []) {
+        await recordStatusUpdate(s)
+      }
+
+      const phoneNumberId = value?.metadata?.phone_number_id
+      const messages      = value?.messages || []
+      const contacts      = value?.contacts || []
+      if (!messages.length) continue
+      sawMessages = true
+
+      const { data: connection } = await supabaseAdmin
+        .from("whatsapp_connections")
+        .select("user_id, access_token")
+        .eq("phone_number_id", phoneNumberId)
+        .single()
+
+      if (!connection) {
+        console.error("❌ No WA connection for phoneNumberId:", phoneNumberId)
+        continue
+      }
+
+      for (const message of messages) {
+        try {
+          await processMessage({
+            message, contacts,
+            userId: connection.user_id,
+            accessToken: decrypt(connection.access_token),
+            phoneNumberId
+          })
+        } catch(e) {
+          console.error("❌ processMessage error:", e.message)
         }
       }
-      return NextResponse.json({ status: "status_update" })
-    }
-    if (!hasMsg) return NextResponse.json({ status: "no_message" })
-
-    const value         = body.entry[0].changes[0].value
-    const phoneNumberId = value?.metadata?.phone_number_id
-    const messages      = value?.messages || []
-    const contacts      = value?.contacts || []
-
-    const { data: connection } = await supabaseAdmin
-      .from("whatsapp_connections")
-      .select("user_id, access_token")
-      .eq("phone_number_id", phoneNumberId)
-      .single()
-
-    if (!connection) {
-      console.error("❌ No WA connection for phoneNumberId:", phoneNumberId)
-      return NextResponse.json({ status: "no_connection" })
     }
 
-    for (const message of messages) {
-      try {
-        await processMessage({
-          message, contacts,
-          userId: connection.user_id,
-          accessToken: decrypt(connection.access_token),
-          phoneNumberId
-        })
-      } catch(e) {
-        console.error("❌ processMessage error:", e.message)
-      }
-    }
-
-    return NextResponse.json({ status: "ok" })
+    return NextResponse.json({ status: sawMessages ? "ok" : "no_message" })
   } catch(err) {
     console.error("❌ Webhook fatal:", err.message)
     return NextResponse.json({ status: "error" }, { status: 200 })
