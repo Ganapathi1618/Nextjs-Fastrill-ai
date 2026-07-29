@@ -194,6 +194,8 @@ async function POST(req) {
       if (!messages.length) continue
       sawMessages = true
 
+      console.log("📞 Inbound phoneNumberId:", phoneNumberId)
+
       const { data: connection } = await supabaseAdmin
         .from("whatsapp_connections")
         .select("user_id, access_token")
@@ -204,6 +206,7 @@ async function POST(req) {
         console.error("❌ No WA connection for phoneNumberId:", phoneNumberId)
         continue
       }
+      console.log("✅ Found connection for userId:", connection.user_id, "token starts:", connection.access_token?.slice(0,10))
 
       for (const message of messages) {
         try {
