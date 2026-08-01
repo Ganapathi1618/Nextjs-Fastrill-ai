@@ -63,20 +63,20 @@ export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState(null)
 
   return (
-    <div style={{ background: "#0B0D13", minHeight: "100vh", fontFamily: "'Inter',system-ui,sans-serif", color: "#C7CBD3" }}>
+    <div style={{ background: "#fff", minHeight: "100vh", fontFamily: "'Inter',system-ui,sans-serif", color: "#C7CBD3" }}>
       <MarketingNav />
 
       <style>{`
         .chk{color:#5A5FE8;font-weight:700;margin-right:9px}
         .xmark{color:rgba(255,255,255,.2);margin-right:9px}
-        .plan-card{background:#12151E;border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:clamp(24px,3vw,34px);display:flex;flex-direction:column;position:relative}
+        .plan-card{background:#fff;border:1px solid #E5E7EB;border-radius:18px;padding:clamp(24px,3vw,34px);display:flex;flex-direction:column;position:relative}
         .plan-card.pop{border-color:rgba(37,211,102,.35);box-shadow:0 0 0 1px rgba(37,211,102,.15),0 16px 48px rgba(0,0,0,.4)}
-        .badge{position:absolute;top:0;left:50%;transform:translate(-50%,-50%);background:#5A5FE8;color:#0B0D13;font-size:11px;font-weight:800;padding:4px 16px;border-radius:100px;white-space:nowrap;font-family:'Plus Jakarta Sans',sans-serif}
+        .badge{position:absolute;top:0;left:50%;transform:translate(-50%,-50%);background:#5A5FE8;color:#fff;font-size:11px;font-weight:800;padding:4px 16px;border-radius:100px;white-space:nowrap;font-family:'Plus Jakarta Sans',sans-serif}
         .ft-li{display:flex;align-items:flex-start;font-size:13.5px;color:#C7CBD3;margin-bottom:10px;line-height:1.5}
-        .ft-li.miss{color:rgba(255,255,255,.25)}
-        .faq-item{border-bottom:1px solid rgba(255,255,255,.07)}
+        .ft-li.miss{color:#9CA3AF}
+        .faq-item{border-bottom:1px solid #E5E7EB}
         .faq-btn{width:100%;background:none;border:none;padding:20px 0;text-align:left;font-size:15px;font-weight:600;color:#F5F6F8;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:16px;font-family:inherit}
-        .faq-ans{font-size:14px;color:rgba(255,255,255,.5);line-height:1.8;max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s}
+        .faq-ans{font-size:14px;color:#6B7280;line-height:1.8;max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s}
         .faq-ans.open{max-height:200px;padding-bottom:20px}
       `}</style>
 
@@ -87,12 +87,12 @@ export default function PricingPage() {
           <h1 style={{ fontSize: "clamp(34px,5vw,54px)", fontWeight: 800, color: "#fff", letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 16, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
             One missed booking costs more<br />than a month of Fastrill
           </h1>
-          <p style={{ fontSize: 17, color: "rgba(255,255,255,.5)", lineHeight: 1.7, marginBottom: 32 }}>Simple plans. No hidden fees. Cancel anytime.</p>
+          <p style={{ fontSize: 17, color: "#6B7280", lineHeight: 1.7, marginBottom: 32 }}>Simple plans. No hidden fees. Cancel anytime.</p>
 
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#12151E", border: "1px solid rgba(255,255,255,.08)", borderRadius: 100, padding: 4 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#fff", border: "1px solid #E5E7EB", borderRadius: 100, padding: 4 }}>
             {["monthly", "annual"].map(b => (
-              <button key={b} onClick={() => setBilling(b)} style={{ padding: "8px 20px", borderRadius: 100, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit", background: billing === b ? "rgba(37,211,102,.15)" : "transparent", color: billing === b ? "#5A5FE8" : "rgba(255,255,255,.4)", display: "flex", alignItems: "center", gap: 8, transition: "all .15s" }}>
-                {b === "monthly" ? "Monthly" : <>Annual <span style={{ fontSize: 10, fontWeight: 800, background: "#5A5FE8", color: "#0B0D13", padding: "2px 8px", borderRadius: 100 }}>Save 17%</span></>}
+              <button key={b} onClick={() => setBilling(b)} style={{ padding: "8px 20px", borderRadius: 100, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit", background: billing === b ? "rgba(37,211,102,.15)" : "transparent", color: billing === b ? "#5A5FE8" : "#6B7280", display: "flex", alignItems: "center", gap: 8, transition: "all .15s" }}>
+                {b === "monthly" ? "Monthly" : <>Annual <span style={{ fontSize: 10, fontWeight: 800, background: "#5A5FE8", color: "#fff", padding: "2px 8px", borderRadius: 100 }}>Save 17%</span></>}
               </button>
             ))}
           </div>
@@ -107,36 +107,36 @@ export default function PricingPage() {
             return (
               <div key={plan.tier} className={`plan-card${plan.pop ? " pop" : ""}`}>
                 {plan.pop && <div className="badge">Most popular</div>}
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: plan.pop ? "#5A5FE8" : "rgba(255,255,255,.3)", marginBottom: 6 }}>{plan.tier}</div>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)", marginBottom: 20, minHeight: 36 }}>{plan.tag}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: plan.pop ? "#5A5FE8" : "#9CA3AF", marginBottom: 6 }}>{plan.tier}</div>
+                <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 20, minHeight: 36 }}>{plan.tag}</div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 4 }}>
                   <span style={{ fontSize: 18, fontWeight: 600, color: "#fff" }}>₹</span>
                   <span style={{ fontSize: 42, fontWeight: 800, color: "#fff", letterSpacing: "-.03em", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{price.toLocaleString("en-IN")}</span>
                 </div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,.3)", marginBottom: 24 }}>per month + GST{billing === "annual" && ` · ₹${(price * 12).toLocaleString("en-IN")}/yr`}</div>
-                <hr style={{ border: "none", borderTop: "1px solid rgba(255,255,255,.07)", marginBottom: 20 }} />
+                <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 24 }}>per month + GST{billing === "annual" && ` · ₹${(price * 12).toLocaleString("en-IN")}/yr`}</div>
+                <hr style={{ border: "none", borderTop: "1px solid #E5E7EB", marginBottom: 20 }} />
                 <ul style={{ listStyle: "none", flex: 1, marginBottom: 24 }}>
                   {plan.feats.map(f => <li key={f} className="ft-li"><span className="chk">✓</span>{f}</li>)}
                   {plan.missing.map(f => <li key={f} className="ft-li miss"><span className="xmark">✗</span>{f}</li>)}
                 </ul>
-                <Link href={plan.href} style={{ display: "block", textAlign: "center", padding: "13px", borderRadius: 10, fontWeight: 700, fontSize: 14, textDecoration: "none", background: plan.pop ? "#5A5FE8" : "transparent", color: plan.pop ? "#0B0D13" : "#fff", border: plan.pop ? "none" : "1px solid rgba(255,255,255,.12)", transition: "all .15s", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{plan.cta}</Link>
+                <Link href={plan.href} style={{ display: "block", textAlign: "center", padding: "13px", borderRadius: 10, fontWeight: 700, fontSize: 14, textDecoration: "none", background: plan.pop ? "#5A5FE8" : "transparent", color: plan.pop ? "#fff" : "#fff", border: plan.pop ? "none" : "1px solid rgba(255,255,255,.12)", transition: "all .15s", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{plan.cta}</Link>
               </div>
             )
           })}
         </div>
-        <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: "rgba(255,255,255,.25)" }}>14-day free trial · No credit card · Cancel anytime</p>
+        <p style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: "#9CA3AF" }}>14-day free trial · No credit card · Cancel anytime</p>
       </section>
 
       {/* COMPARISON TABLE */}
-      <section style={{ padding: "60px clamp(16px,4vw,44px)", background: "#0D0F17", borderTop: "1px solid rgba(255,255,255,.06)" }}>
+      <section style={{ padding: "60px clamp(16px,4vw,44px)", background: "#F9FAFB", borderTop: "1px solid #F3F4F6" }}>
         <div style={{ maxWidth: 900, margin: "0 auto" }}>
           <h2 style={{ fontSize: "clamp(24px,3vw,36px)", fontWeight: 800, color: "#fff", textAlign: "center", marginBottom: 40, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>What's included in each plan</h2>
-          <div style={{ overflowX: "auto", borderRadius: 14, border: "1px solid rgba(255,255,255,.08)" }}>
+          <div style={{ overflowX: "auto", borderRadius: 14, border: "1px solid #E5E7EB" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 540 }}>
               <thead>
                 <tr>
                   {["Feature", "Starter ₹999", "Growth ₹1,999", "Pro ₹4,999"].map((h, i) => (
-                    <th key={h} style={{ padding: "14px 18px", textAlign: i === 0 ? "left" : "center", fontSize: 12, fontWeight: 700, color: i === 2 ? "#5A5FE8" : "rgba(255,255,255,.4)", background: i === 2 ? "rgba(37,211,102,.06)" : "#13161F", borderBottom: "1px solid rgba(255,255,255,.07)", letterSpacing: ".04em", textTransform: "uppercase" }}>{h}</th>
+                    <th key={h} style={{ padding: "14px 18px", textAlign: i === 0 ? "left" : "center", fontSize: 12, fontWeight: 700, color: i === 2 ? "#5A5FE8" : "#6B7280", background: i === 2 ? "rgba(37,211,102,.06)" : "#13161F", borderBottom: "1px solid #E5E7EB", letterSpacing: ".04em", textTransform: "uppercase" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -175,7 +175,7 @@ export default function PricingPage() {
             <div key={i} className="faq-item">
               <button className="faq-btn" onClick={() => setOpenFaq(openFaq === i ? null : i)}>
                 {f.q}
-                <span style={{ fontSize: 20, color: "rgba(255,255,255,.3)", flexShrink: 0, transition: "transform .2s", display: "block", transform: openFaq === i ? "rotate(45deg)" : "none" }}>+</span>
+                <span style={{ fontSize: 20, color: "#9CA3AF", flexShrink: 0, transition: "transform .2s", display: "block", transform: openFaq === i ? "rotate(45deg)" : "none" }}>+</span>
               </button>
               <div className={`faq-ans${openFaq === i ? " open" : ""}`}>{f.a}</div>
             </div>
@@ -185,10 +185,10 @@ export default function PricingPage() {
 
       {/* CTA */}
       <section style={{ padding: "0 clamp(16px,4vw,44px) 100px", textAlign: "center" }}>
-        <div style={{ maxWidth: 560, margin: "0 auto", background: "#12151E", border: "1px solid rgba(255,255,255,.08)", borderRadius: 20, padding: "clamp(40px,5vw,60px)" }}>
+        <div style={{ maxWidth: 560, margin: "0 auto", background: "#fff", border: "1px solid #E5E7EB", borderRadius: 20, padding: "clamp(40px,5vw,60px)" }}>
           <h2 style={{ fontSize: "clamp(22px,3vw,32px)", fontWeight: 800, color: "#fff", marginBottom: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Start your 14-day free trial</h2>
-          <p style={{ fontSize: 15, color: "rgba(255,255,255,.45)", marginBottom: 28 }}>No credit card. Full Growth plan access. Cancel anytime.</p>
-          <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#5A5FE8", color: "#0B0D13", padding: "14px 28px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Get started free →</Link>
+          <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 28 }}>No credit card. Full Growth plan access. Cancel anytime.</p>
+          <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#5A5FE8", color: "#fff", padding: "14px 28px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Get started free →</Link>
         </div>
       </section>
 
