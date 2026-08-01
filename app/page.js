@@ -877,30 +877,57 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
         </div>
       </section>
 
-      {/* FOUNDER */}
-
-      <section className="section">
-        <div className="founder">
+      {/* HOW IT WORKS */}
+      <section className="section alt">
+        <div className="section-in">
           <div className="fade center">
-            <div className="label">Why we built this</div>
-            <h2 className="h2">A letter from the founder</h2>
+            <div className="label">Setup</div>
+            <h2 className="h2">Live in 10 minutes, not 10 days</h2>
+            <p className="lead center">No developers needed. No API docs. Just connect your WhatsApp and you&apos;re ready.</p>
           </div>
-          <div className="founder-letter fade">
-            I&apos;ve spent years in digital marketing — running ads, building funnels, optimising campaigns for businesses across India. Every lead costs money. Real money.
-            <br /><br />
-            And yet, the single most common thing I saw across <strong>every single client</strong> — salons, clinics, gyms, coaching centres — was this:
-            <span className="founder-pull">&ldquo;Leads were arriving. And dying in the WhatsApp inbox.&rdquo;</span>
-            A customer messages at 10 PM, ready to book. Nobody replies until morning. By then, they&apos;ve moved on. You spent &#8377;300 on that click. It just evaporated.
-            <br /><br />
-            I saw a salon owner in Hyderabad spending <strong>&#8377;40,000 a month on Instagram ads</strong>. Almost 60% of the leads who messaged never got a reply within the hour. Not because of bad ads — because of slow replies.
-            <br /><br />
-            <strong>The problem was never the ads. It was always the follow-up.</strong>
-            <br /><br />
-            So we built Fastrill — not as another chatbot, but as a revenue recovery system that sits between your ad spend and your bank account, and makes sure every lead gets an instant reply, in their language, at any hour.
-            <div className="founder-sign">
-              <div className="founder-av">G</div>
-              <div><div className="founder-n">Ganapathi</div><div className="founder-r">Founder, Fastrill — Solvabil Pvt. Ltd.</div></div>
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginTop: 52 }}>
+            {[
+              { step: "01", title: "Connect your WhatsApp", desc: "Link your WhatsApp Business number via the official Meta API — the same number your customers already know. Takes 3 minutes.", icon: "msg" },
+              { step: "02", title: "Tell Fastrill about your business", desc: "Add your services, prices, working hours, and team. Fastrill learns your business and starts handling conversations exactly as you would.", icon: "settings" },
+              { step: "03", title: "Watch it handle conversations", desc: "From the first message to the confirmed booking — Fastrill replies, qualifies, books, and follows up. You get notified when a booking lands.", icon: "check" },
+            ].map(s => (
+              <div key={s.step} className="card fade" style={{ position: "relative", paddingTop: 36 }}>
+                <div style={{ position: "absolute", top: 22, left: 26, fontSize: 11, fontWeight: 700, letterSpacing: ".06em", color: "var(--accent)", opacity: .6 }}>{s.step}</div>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--accent-soft)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                  <Ic name={s.icon} size={18} />
+                </div>
+                <div className="card-title">{s.title}</div>
+                <p className="card-desc">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* INDUSTRIES */}
+      <section className="section">
+        <div className="section-in">
+          <div className="fade center">
+            <div className="label">Industries</div>
+            <h2 className="h2">Built for every service business in India</h2>
+            <p className="lead center">Whether you run a salon or a hospital, Fastrill speaks the language of your business — and your customers.</p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginTop: 44 }}>
+            {[
+              { emoji: "💇", title: "Salons & Spas", desc: "Book appointments, send reminders, win back silent customers. Your front desk — 24/7.", href: "/industries/salons" },
+              { emoji: "🏥", title: "Clinics & Healthcare", desc: "Patient scheduling in Hindi, Telugu, Tamil and more. Reduce no-shows automatically.", href: "/industries/clinics" },
+              { emoji: "📚", title: "Coaching & Education", desc: "Enroll students, send class reminders, and follow up with leads in their language.", href: "/industries/coaching" },
+              { emoji: "🏠", title: "Real Estate", desc: "Qualify leads 24/7, schedule site visits, and nurture long sales cycles automatically.", href: "/industries/real-estate" },
+              { emoji: "🏋️", title: "Gyms & Fitness", desc: "Fill time slots, renew memberships, and send class reminders without staff effort.", href: "/industries/gyms" },
+              { emoji: "🍽️", title: "Restaurants & Cafés", desc: "Take reservations, handle delivery queries, and run re-engagement campaigns that fill tables.", href: "/signup" },
+            ].map(ind => (
+              <a key={ind.title} href={ind.href} className="card fade" style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 10, cursor: "pointer" }}>
+                <div style={{ fontSize: 28 }}>{ind.emoji}</div>
+                <div className="card-title" style={{ marginBottom: 0 }}>{ind.title}</div>
+                <p className="card-desc" style={{ flex: 1 }}>{ind.desc}</p>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", marginTop: 6, display: "flex", alignItems: "center", gap: 5 }}>Learn more <Ic name="arrow" size={11} /></div>
+              </a>
+            ))}
           </div>
         </div>
       </section>

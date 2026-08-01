@@ -9,7 +9,7 @@ export default function MarketingFooter() {
           <div>
             <Link href="/" style={{display:"flex",alignItems:"center",gap:9,textDecoration:"none",marginBottom:14}}>
               <img src="/logo.png" alt="Fastrill" style={{width:26,height:26,objectFit:"contain"}} />
-              <span style={{fontWeight:800,fontSize:17,color:"#fff",letterSpacing:"-.03em",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>fast<span style={{color:"#25D366"}}>rill</span></span>
+              <span style={{fontWeight:800,fontSize:17,color:"#fff",letterSpacing:"-.03em",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>fast<span style={{color:"#00D4AA"}}>rill</span></span>
             </Link>
             <p style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.8,maxWidth:240}}>The AI operating system for WhatsApp customer communication. Built for Indian service businesses.</p>
             <p style={{fontSize:12,color:"rgba(255,255,255,.25)",marginTop:12}}>By Solvabil Pvt. Ltd.</p>

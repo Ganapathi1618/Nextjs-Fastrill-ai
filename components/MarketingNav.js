@@ -55,7 +55,8 @@ export default function MarketingNav() {
         .mn-logo{display:flex;align-items:center;gap:9px;text-decoration:none;flex-shrink:0}
         .mn-logo img{width:28px;height:28px;object-fit:contain}
         .mn-logo span{font-weight:800;font-size:18px;color:#fff;letter-spacing:-.03em;font-family:'Plus Jakarta Sans',sans-serif}
-        .mn-logo span em{font-style:normal;color:#25D366}
+        .mn-logo span em{font-style:normal;color:#00D4AA}
+
         .mn-center{display:flex;align-items:center;gap:2px;margin:0 auto}
         .mn-item{position:relative}
         .mn-btn{display:flex;align-items:center;gap:5px;padding:8px 13px;font-size:13.5px;font-weight:500;color:rgba(255,255,255,.75);background:none;border:none;cursor:pointer;border-radius:8px;font-family:inherit;transition:color .15s,background .15s;text-decoration:none;white-space:nowrap}
@@ -71,8 +72,8 @@ export default function MarketingNav() {
         .mn-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
         .mn-signin{font-size:13.5px;font-weight:500;color:rgba(255,255,255,.65);text-decoration:none;padding:8px 13px;border-radius:8px;transition:color .15s}
         .mn-signin:hover{color:#fff}
-        .mn-cta{display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;padding:9px 18px;border-radius:9px;font-weight:700;font-size:13.5px;text-decoration:none;transition:background .15s;font-family:'Plus Jakarta Sans',sans-serif}
-        .mn-cta:hover{background:#20B558}
+        .mn-cta{display:inline-flex;align-items:center;gap:6px;background:#5A5FE8;color:#fff;padding:9px 18px;border-radius:9px;font-weight:700;font-size:13.5px;text-decoration:none;transition:background .15s;font-family:'Plus Jakarta Sans',sans-serif}
+        .mn-cta:hover{background:#4449D0}
         .mn-hbg{display:none;background:none;border:1px solid rgba(255,255,255,.15);border-radius:8px;width:36px;height:36px;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.7);font-size:16px}
         .mn-mob{position:fixed;top:64px;left:0;right:0;z-index:490;background:#0D0F17;border-bottom:1px solid rgba(255,255,255,.08);padding:12px 16px 20px;transform:translateY(-110%);transition:transform .22s ease;box-shadow:0 8px 32px rgba(0,0,0,.4)}
         .mn-mob.open{transform:none}
@@ -83,7 +84,7 @@ export default function MarketingNav() {
         .mn-mob-sub.open{display:flex}
         .mn-mob-sublink{display:block;padding:9px 10px;font-size:13px;color:rgba(255,255,255,.55);text-decoration:none;border-radius:7px}
         .mn-mob-sublink:hover{color:#fff;background:rgba(255,255,255,.06)}
-        .mn-mob-cta{margin-top:14px;display:block;text-align:center;background:#25D366;color:#fff;padding:13px;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none}
+        .mn-mob-cta{margin-top:14px;display:block;text-align:center;background:#5A5FE8;color:#fff;padding:13px;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none}
         @media(max-width:860px){.mn-center{display:none}.mn-signin{display:none}.mn-hbg{display:inline-flex}}
       `}</style>
 

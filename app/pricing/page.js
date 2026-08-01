@@ -67,11 +67,11 @@ export default function PricingPage() {
       <MarketingNav />
 
       <style>{`
-        .chk{color:#25D366;font-weight:700;margin-right:9px}
+        .chk{color:#5A5FE8;font-weight:700;margin-right:9px}
         .xmark{color:rgba(255,255,255,.2);margin-right:9px}
         .plan-card{background:#12151E;border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:clamp(24px,3vw,34px);display:flex;flex-direction:column;position:relative}
         .plan-card.pop{border-color:rgba(37,211,102,.35);box-shadow:0 0 0 1px rgba(37,211,102,.15),0 16px 48px rgba(0,0,0,.4)}
-        .badge{position:absolute;top:0;left:50%;transform:translate(-50%,-50%);background:#25D366;color:#0B0D13;font-size:11px;font-weight:800;padding:4px 16px;border-radius:100px;white-space:nowrap;font-family:'Plus Jakarta Sans',sans-serif}
+        .badge{position:absolute;top:0;left:50%;transform:translate(-50%,-50%);background:#5A5FE8;color:#0B0D13;font-size:11px;font-weight:800;padding:4px 16px;border-radius:100px;white-space:nowrap;font-family:'Plus Jakarta Sans',sans-serif}
         .ft-li{display:flex;align-items:flex-start;font-size:13.5px;color:#C7CBD3;margin-bottom:10px;line-height:1.5}
         .ft-li.miss{color:rgba(255,255,255,.25)}
         .faq-item{border-bottom:1px solid rgba(255,255,255,.07)}
@@ -83,7 +83,7 @@ export default function PricingPage() {
       {/* HERO */}
       <section style={{ paddingTop: 130, paddingBottom: 60, paddingLeft: "clamp(16px,4vw,44px)", paddingRight: "clamp(16px,4vw,44px)", textAlign: "center" }}>
         <div style={{ maxWidth: 640, margin: "0 auto" }}>
-          <div style={{ display: "inline-block", background: "rgba(37,211,102,.1)", color: "#25D366", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100, marginBottom: 22, border: "1px solid rgba(37,211,102,.2)" }}>Pricing</div>
+          <div style={{ display: "inline-block", background: "rgba(37,211,102,.1)", color: "#5A5FE8", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100, marginBottom: 22, border: "1px solid rgba(37,211,102,.2)" }}>Pricing</div>
           <h1 style={{ fontSize: "clamp(34px,5vw,54px)", fontWeight: 800, color: "#fff", letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 16, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
             One missed booking costs more<br />than a month of Fastrill
           </h1>
@@ -91,8 +91,8 @@ export default function PricingPage() {
 
           <div style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#12151E", border: "1px solid rgba(255,255,255,.08)", borderRadius: 100, padding: 4 }}>
             {["monthly", "annual"].map(b => (
-              <button key={b} onClick={() => setBilling(b)} style={{ padding: "8px 20px", borderRadius: 100, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit", background: billing === b ? "rgba(37,211,102,.15)" : "transparent", color: billing === b ? "#25D366" : "rgba(255,255,255,.4)", display: "flex", alignItems: "center", gap: 8, transition: "all .15s" }}>
-                {b === "monthly" ? "Monthly" : <>Annual <span style={{ fontSize: 10, fontWeight: 800, background: "#25D366", color: "#0B0D13", padding: "2px 8px", borderRadius: 100 }}>Save 17%</span></>}
+              <button key={b} onClick={() => setBilling(b)} style={{ padding: "8px 20px", borderRadius: 100, fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "inherit", background: billing === b ? "rgba(37,211,102,.15)" : "transparent", color: billing === b ? "#5A5FE8" : "rgba(255,255,255,.4)", display: "flex", alignItems: "center", gap: 8, transition: "all .15s" }}>
+                {b === "monthly" ? "Monthly" : <>Annual <span style={{ fontSize: 10, fontWeight: 800, background: "#5A5FE8", color: "#0B0D13", padding: "2px 8px", borderRadius: 100 }}>Save 17%</span></>}
               </button>
             ))}
           </div>
@@ -107,7 +107,7 @@ export default function PricingPage() {
             return (
               <div key={plan.tier} className={`plan-card${plan.pop ? " pop" : ""}`}>
                 {plan.pop && <div className="badge">Most popular</div>}
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: plan.pop ? "#25D366" : "rgba(255,255,255,.3)", marginBottom: 6 }}>{plan.tier}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: plan.pop ? "#5A5FE8" : "rgba(255,255,255,.3)", marginBottom: 6 }}>{plan.tier}</div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)", marginBottom: 20, minHeight: 36 }}>{plan.tag}</div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 4 }}>
                   <span style={{ fontSize: 18, fontWeight: 600, color: "#fff" }}>₹</span>
@@ -119,7 +119,7 @@ export default function PricingPage() {
                   {plan.feats.map(f => <li key={f} className="ft-li"><span className="chk">✓</span>{f}</li>)}
                   {plan.missing.map(f => <li key={f} className="ft-li miss"><span className="xmark">✗</span>{f}</li>)}
                 </ul>
-                <Link href={plan.href} style={{ display: "block", textAlign: "center", padding: "13px", borderRadius: 10, fontWeight: 700, fontSize: 14, textDecoration: "none", background: plan.pop ? "#25D366" : "transparent", color: plan.pop ? "#0B0D13" : "#fff", border: plan.pop ? "none" : "1px solid rgba(255,255,255,.12)", transition: "all .15s", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{plan.cta}</Link>
+                <Link href={plan.href} style={{ display: "block", textAlign: "center", padding: "13px", borderRadius: 10, fontWeight: 700, fontSize: 14, textDecoration: "none", background: plan.pop ? "#5A5FE8" : "transparent", color: plan.pop ? "#0B0D13" : "#fff", border: plan.pop ? "none" : "1px solid rgba(255,255,255,.12)", transition: "all .15s", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{plan.cta}</Link>
               </div>
             )
           })}
@@ -136,7 +136,7 @@ export default function PricingPage() {
               <thead>
                 <tr>
                   {["Feature", "Starter ₹999", "Growth ₹1,999", "Pro ₹4,999"].map((h, i) => (
-                    <th key={h} style={{ padding: "14px 18px", textAlign: i === 0 ? "left" : "center", fontSize: 12, fontWeight: 700, color: i === 2 ? "#25D366" : "rgba(255,255,255,.4)", background: i === 2 ? "rgba(37,211,102,.06)" : "#13161F", borderBottom: "1px solid rgba(255,255,255,.07)", letterSpacing: ".04em", textTransform: "uppercase" }}>{h}</th>
+                    <th key={h} style={{ padding: "14px 18px", textAlign: i === 0 ? "left" : "center", fontSize: 12, fontWeight: 700, color: i === 2 ? "#5A5FE8" : "rgba(255,255,255,.4)", background: i === 2 ? "rgba(37,211,102,.06)" : "#13161F", borderBottom: "1px solid rgba(255,255,255,.07)", letterSpacing: ".04em", textTransform: "uppercase" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -157,7 +157,7 @@ export default function PricingPage() {
                   <tr key={feat} style={{ borderBottom: "1px solid rgba(255,255,255,.05)" }}>
                     <td style={{ padding: "12px 18px", color: "rgba(255,255,255,.7)", fontWeight: 500 }}>{feat}</td>
                     {vals.map((v, i) => (
-                      <td key={i} style={{ padding: "12px 18px", textAlign: "center", background: i === 1 ? "rgba(37,211,102,.04)" : "transparent", color: v === "✓" ? "#25D366" : v === "✗" ? "rgba(255,255,255,.2)" : "#fff", fontWeight: v === "✓" || v === "✗" ? 700 : 500 }}>{v}</td>
+                      <td key={i} style={{ padding: "12px 18px", textAlign: "center", background: i === 1 ? "rgba(37,211,102,.04)" : "transparent", color: v === "✓" ? "#5A5FE8" : v === "✗" ? "rgba(255,255,255,.2)" : "#fff", fontWeight: v === "✓" || v === "✗" ? 700 : 500 }}>{v}</td>
                     ))}
                   </tr>
                 ))}
@@ -188,7 +188,7 @@ export default function PricingPage() {
         <div style={{ maxWidth: 560, margin: "0 auto", background: "#12151E", border: "1px solid rgba(255,255,255,.08)", borderRadius: 20, padding: "clamp(40px,5vw,60px)" }}>
           <h2 style={{ fontSize: "clamp(22px,3vw,32px)", fontWeight: 800, color: "#fff", marginBottom: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Start your 14-day free trial</h2>
           <p style={{ fontSize: 15, color: "rgba(255,255,255,.45)", marginBottom: 28 }}>No credit card. Full Growth plan access. Cancel anytime.</p>
-          <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#25D366", color: "#0B0D13", padding: "14px 28px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Get started free →</Link>
+          <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#5A5FE8", color: "#0B0D13", padding: "14px 28px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Get started free →</Link>
         </div>
       </section>
 
