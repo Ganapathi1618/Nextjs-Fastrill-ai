@@ -108,9 +108,9 @@ export default function FastrillLanding() {
   }, [])
 
   const plans = [
-    { tier: "Starter", monthly: 999, tag: "Solo operators & new businesses", cta: "Get started", cs: "out", feats: [["inc", "1 WhatsApp number"], ["inc", "300 conversations / month"], ["inc", "Booking automation"], ["inc", "10+ Indian languages"], ["exc", "Lead recovery"], ["exc", "WhatsApp campaigns"]] },
+    { tier: "Starter", monthly: 999, tag: "Solo operators & new businesses", cta: "Get started", cs: "out", feats: [["inc", "1 WhatsApp number"], ["inc", "300 conversations / month"], ["inc", "Booking automation"], ["inc", "10+ Indian languages"], ["inc", "Bulk WhatsApp campaigns"], ["exc", "Lead recovery sequences"], ["exc", "Appointment reminders"], ["exc", "Revenue analytics"]] },
     { tier: "Growth", monthly: 1999, tag: "For growing businesses", cta: "Start free trial", cs: "go", pop: true, feats: [["inc", "1 WhatsApp number"], ["inc", "Unlimited conversations"], ["inc", "Customer memory & context"], ["inc", "Lead recovery sequences"], ["inc", "Appointment reminders"], ["inc", "Revenue analytics"]] },
-    { tier: "Pro", monthly: 4999, tag: "Multi-branch teams", cta: "Contact sales", cs: "out", feats: [["inc", "Up to 5 WhatsApp numbers"], ["inc", "Everything in Growth"], ["inc", "Bulk WhatsApp campaigns"], ["inc", "Multi-branch management"], ["inc", "Dedicated onboarding"], ["inc", "Priority support"]] },
+    { tier: "Pro", monthly: 4999, tag: "Multi-branch teams", cta: "Contact sales", cs: "out", feats: [["inc", "Up to 5 WhatsApp numbers"], ["inc", "Everything in Growth"], ["inc", "Multi-branch management"], ["inc", "Dedicated onboarding"], ["inc", "Priority support"]] },
   ]
 
   return (
@@ -380,6 +380,19 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
 .wa-b .bub{font-size:12.5px;animation:msgin .22s ease both}
 @keyframes msgin{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 @media(max-width:760px){.demo-layout{grid-template-columns:1fr}.demo-tabs{display:grid;grid-template-columns:repeat(3,1fr)}}
+
+/* ── COMPETITOR TABLE ── */
+.vs-wrap{overflow-x:auto;margin-top:44px;border-radius:14px;border:1px solid var(--line);box-shadow:var(--sh-md)}
+.vs-table{width:100%;border-collapse:collapse;font-size:13px;min-width:600px}
+.vs-table th{padding:13px 18px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut2);background:var(--card2);border-bottom:1px solid var(--line);text-align:left}
+.vs-table th.hl{background:var(--accent-soft);color:var(--accent);border-bottom-color:var(--accent-line)}
+.vs-table td{padding:13px 18px;border-bottom:1px solid var(--line);color:var(--ink2);vertical-align:middle}
+.vs-table tr:last-child td{border-bottom:none}
+.vs-table td.hl{background:var(--accent-soft);font-weight:600;color:var(--ink)}
+.vs-table td.feat{font-weight:500;color:var(--ink);max-width:200px}
+.vs-yes{color:#22C55E;font-weight:700}
+.vs-no{color:var(--mut2)}
+.vs-part{color:#F59E0B;font-weight:600}
 
 /* ── COMPARISON ── */
 .cmp{max-width:760px;margin:44px auto 0}
@@ -816,8 +829,54 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
+      {/* COMPETITOR COMPARISON */}
       <section className="section alt">
+        <div className="section-in">
+          <div className="fade center">
+            <div className="label">How we compare</div>
+            <h2 className="h2">Why businesses choose <em>Fastrill</em></h2>
+            <p className="lead center">Most WhatsApp tools broadcast. Fastrill actually understands, replies, and books — in your customer&apos;s language.</p>
+          </div>
+          <div className="vs-wrap fade">
+            <table className="vs-table">
+              <thead>
+                <tr>
+                  <th style={{minWidth:190}}>Feature</th>
+                  <th className="hl">Fastrill</th>
+                  <th>WATI</th>
+                  <th>Interakt</th>
+                  <th>WappBiz</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ["AI conversations (not scripted)", "✓", "✗", "✗", "✗"],
+                  ["Auto-booking via WhatsApp", "✓", "✗", "✗", "✗"],
+                  ["10+ Indian languages, auto-detected", "✓", "✗", "Partial", "✗"],
+                  ["Bulk WhatsApp campaigns", "✓", "✓", "✓", "✓"],
+                  ["Lead recovery sequences", "✓", "Partial", "✗", "✗"],
+                  ["Revenue attribution per campaign", "✓", "✗", "Partial", "✗"],
+                  ["Starts at ₹999/month", "✓", "✗", "✗", "✗"],
+                  ["Built for Indian SMBs", "✓", "✗", "Partial", "Partial"],
+                  ["Replies in under 2 seconds", "✓", "✗", "✗", "✗"],
+                ].map(([feat, f, wati, int, wbiz]) => (
+                  <tr key={feat}>
+                    <td className="feat">{feat}</td>
+                    <td className="hl"><span className={f === "✓" ? "vs-yes" : "vs-no"}>{f}</span></td>
+                    <td><span className={wati === "✓" ? "vs-yes" : wati === "Partial" ? "vs-part" : "vs-no"}>{wati}</span></td>
+                    <td><span className={int === "✓" ? "vs-yes" : int === "Partial" ? "vs-part" : "vs-no"}>{int}</span></td>
+                    <td><span className={wbiz === "✓" ? "vs-yes" : wbiz === "Partial" ? "vs-part" : "vs-no"}>{wbiz}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="fade center" style={{marginTop:18,fontSize:12,color:"var(--mut2)"}}>Pricing and features based on publicly available information. Last checked July 2026.</p>
+        </div>
+      </section>
+
+      {/* TESTIMONIALS */}
+      <section className="section">
         <div className="section-in">
           <div className="fade">
             <div className="label">What customers say</div>
@@ -843,6 +902,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
       </section>
 
       {/* FOUNDER */}
+
       <section className="section">
         <div className="founder">
           <div className="fade center">
