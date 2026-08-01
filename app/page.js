@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import MarketingNav from "@/components/MarketingNav"
+import MarketingFooter from "@/components/MarketingFooter"
 
 const DEMOS = {
   booking: [
@@ -482,33 +484,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
 @media(max-width:760px){.ft-top{grid-template-columns:1fr}}
       `}</style>
 
-      {/* NAV */}
-      <nav className={`nav${scrolled ? " sc" : ""}`}>
-        <a href="/" className="logo">
-          <img src="/logo.png" alt="Fastrill" />
-          <span>fastrill</span>
-        </a>
-        <ul className="nav-links">
-          {[["#problem", "Problem"], ["#product", "Product"], ["#demo", "Demo"], ["#pricing", "Pricing"]].map(([h, l]) => (
-            <li key={h}><a href={h}>{l}</a></li>
-          ))}
-        </ul>
-        <div className="nav-right">
-          <button className="theme-btn" onClick={() => setLight(v => !v)} aria-label={light ? "Switch to dark mode" : "Switch to light mode"}>
-            <Ic name={light ? "moon" : "sun"} size={15} />
-          </button>
-          <a href="/login" className="nav-signin">Sign in</a>
-          <a href="/signup" className="nav-cta">Start free</a>
-          <button className="hbg" onClick={() => setMobOpen(p => !p)} aria-label="Open menu" aria-expanded={mobOpen}>&#9776;</button>
-        </div>
-      </nav>
-      <div className={`mdraw${mobOpen ? " open" : ""}`}>
-        {[["#problem", "Problem"], ["#product", "Product"], ["#demo", "Demo"], ["#pricing", "Pricing"]].map(([h, l]) => (
-          <a key={h} href={h} onClick={() => setMobOpen(false)}>{l}</a>
-        ))}
-        <a href="/login" onClick={() => setMobOpen(false)}>Sign in</a>
-        <a href="/signup" className="mdraw-cta" onClick={() => setMobOpen(false)}>Start free trial</a>
-      </div>
+      <MarketingNav />
 
       {/* HERO */}
       <section className="hero">
@@ -986,34 +962,7 @@ body{-webkit-font-smoothing:antialiased;overflow-x:hidden}
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="footer">
-        <div className="ft">
-          <div className="ft-top">
-            <div>
-              <a href="/" className="logo">
-                <img src="/logo.png" alt="Fastrill" />
-                <span>fastrill</span>
-              </a>
-              <p className="ft-tag">The front desk for WhatsApp — built for Indian service businesses. Built by Solvabil Pvt. Ltd.</p>
-            </div>
-            {[
-              { h: "Product", lks: [["How it works", "#product"], ["Pricing", "#pricing"], ["Live demo", "#demo"]] },
-              { h: "Company", lks: [["Our story", "#"], ["Contact", "mailto:team@fastrill.com"], ["Call us", "tel:+916309279265"]] },
-              { h: "Legal", lks: [["Privacy policy", "/privacy"], ["Terms of service", "/terms"]] },
-            ].map(col => (
-              <div key={col.h}>
-                <div className="ft-hd">{col.h}</div>
-                <ul className="ft-lks">{col.lks.map(([n, h]) => <li key={n}><a href={h}>{n}</a></li>)}</ul>
-              </div>
-            ))}
-          </div>
-          <div className="ft-bot">
-            <span>&copy; 2026 Fastrill, a product by Solvabil Pvt. Ltd.</span>
-            <span>Made with conviction in India</span>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   )
 }
