@@ -77,6 +77,15 @@ export default function FastrillLanding() {
     return () => timers.forEach(clearTimeout)
   }, [demoKey])
 
+  useEffect(() => {
+    const io = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target) } }),
+      { threshold: 0.05, rootMargin: "0px 0px -20px 0px" }
+    )
+    document.querySelectorAll(".fade").forEach(el => io.observe(el))
+    return () => io.disconnect()
+  }, [])
+
   const plans = [
     { tier: "Starter", monthly: 999, tag: "Solo operators & new businesses", cta: "Get started", cs: "out", feats: [["inc", "1 WhatsApp number"], ["inc", "300 conversations / month"], ["inc", "Booking automation"], ["inc", "10+ Indian languages"], ["inc", "Bulk WhatsApp campaigns"], ["exc", "Lead recovery sequences"], ["exc", "Appointment reminders"], ["exc", "Revenue analytics"]] },
     { tier: "Growth", monthly: 1999, tag: "For growing businesses", cta: "Start free trial", cs: "go", pop: true, feats: [["inc", "1 WhatsApp number"], ["inc", "Unlimited conversations"], ["inc", "Customer memory & context"], ["inc", "Lead recovery sequences"], ["inc", "Appointment reminders"], ["inc", "Revenue analytics"]] },
@@ -93,7 +102,7 @@ export default function FastrillLanding() {
         /* ── FADE IN ── */
         .fade{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease}
         .fade.in{opacity:1;transform:none}
-        @media(prefers-reduced-motion:reduce){.fade{opacity:1;transform:none;transition:none}}
+        @media(prefers-reduced-motion:reduce){.fade{opacity:1 !important;transform:none !important;transition:none}}
 
         /* ── BUTTONS ── */
         .btn-primary{display:inline-flex;align-items:center;gap:8px;background:#5A5FE8;color:#fff;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;transition:background .15s,transform .1s;border:none;cursor:pointer;font-family:inherit;white-space:nowrap}
@@ -390,7 +399,7 @@ export default function FastrillLanding() {
 
       {/* STATS */}
       <div className="stats-strip">
-        <div className="stats-strip-inner">
+        <div className="stats-strip-inner fade in">
           {[["3,200+", "Bookings automated monthly"], ["99%", "Message delivery rate"], ["1.8s", "Average reply time"], ["10+", "Indian languages"]].map(([n, l]) => (
             <div key={l}><b>{n}</b><span>{l}</span></div>
           ))}
