@@ -92,8 +92,8 @@ export default function FastrillLanding() {
     <div style={{ background: "#fff", color: "#374151", fontFamily: "'Inter',system-ui,sans-serif", minHeight: "100vh" }}>
       <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html{scroll-behavior:smooth}
-        body{-webkit-font-smoothing:antialiased;overflow-x:hidden;background:#fff}
+        html{scroll-behavior:smooth;overflow-x:hidden;max-width:100vw}
+        body{-webkit-font-smoothing:antialiased;overflow-x:hidden;background:#fff;max-width:100vw}
         .fade{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease}
         .fade.in{opacity:1;transform:none}
         @media(prefers-reduced-motion:reduce){.fade{opacity:1 !important;transform:none !important;transition:none}}
@@ -118,7 +118,7 @@ export default function FastrillLanding() {
         .hero-trust svg{color:#1D6AF5}
 
         /* HERO VISUAL */
-        .hero-vis{position:relative;display:flex;justify-content:center;align-items:center;min-height:520px}
+        .hero-vis{position:relative;display:flex;justify-content:center;align-items:center;min-height:520px;overflow:visible}
         .hero-glow{position:absolute;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(29,106,245,.12) 0%,transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
 
         /* FLOATING CHIPS */
