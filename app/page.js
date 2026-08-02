@@ -165,16 +165,26 @@ export default function FastrillLanding() {
         .ph-bar-input{flex:1;background:#fff;border-radius:100px;font-size:10px;color:#AAA;padding:7px 11px}
         .ph-bar-send{width:28px;height:28px;border-radius:50%;background:#00897B;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 
+        /* MOBILE CHIP ROW */
+        .mob-chips{display:none}
         @media(max-width:860px){
-          .hero-inner{grid-template-columns:1fr;text-align:center}
+          .hero{padding-top:100px;padding-bottom:40px}
+          .hero-inner{grid-template-columns:1fr;text-align:center;gap:0}
           .hero-sub{margin-left:auto;margin-right:auto}
           .hero-btns{justify-content:center}
           .hero-trust{justify-content:center}
-          .hero-badge{margin:0 auto 26px}
-          .hero-vis{min-height:380px}
-          .ph-frame{width:230px}
-          .ph-screen{height:420px}
+          .hero-badge{margin:0 auto 22px}
+          .hero-vis{min-height:0;margin-top:32px;order:2}
+          .hero-inner>div:first-child{order:1}
+          .ph-frame{width:220px;margin:0 auto}
+          .ph-screen{height:400px}
           .chip{display:none}
+          .mob-chips{display:flex;gap:10px;overflow-x:auto;padding:0 0 4px;scrollbar-width:none;margin-top:20px;justify-content:center;flex-wrap:wrap}
+          .mob-chips::-webkit-scrollbar{display:none}
+          .mob-chip{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid #E5E7EB;border-radius:100px;padding:7px 12px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.06);flex-shrink:0}
+          .mob-chip-icon{font-size:14px}
+          .mob-chip-val{font-size:13px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif}
+          .mob-chip-lbl{font-size:11px;color:#6B7280;font-weight:500}
         }
 
         /* LOGOS STRIP */
@@ -392,6 +402,13 @@ export default function FastrillLanding() {
               <span><Ic name="shield" size={13} /> No credit card</span>
               <span><Ic name="clock" size={13} /> Setup in 10 minutes</span>
               <span><Ic name="globe" size={13} /> 10+ Indian languages</span>
+            </div>
+            {/* Mobile chip row — hidden on desktop, shown on mobile */}
+            <div className="mob-chips">
+              <div className="mob-chip"><span className="mob-chip-icon">⚡</span><span className="mob-chip-val" style={{color:"#1D6AF5"}}>{"< 2s"}</span><span className="mob-chip-lbl">reply time</span></div>
+              <div className="mob-chip"><span className="mob-chip-icon">📅</span><span className="mob-chip-val" style={{color:"#059669"}}>3,200+</span><span className="mob-chip-lbl">bookings/mo</span></div>
+              <div className="mob-chip"><span className="mob-chip-icon">🌐</span><span className="mob-chip-val" style={{color:"#D97706"}}>10+</span><span className="mob-chip-lbl">languages</span></div>
+              <div className="mob-chip"><span className="mob-chip-icon">📊</span><span className="mob-chip-val" style={{color:"#7C3AED"}}>98%</span><span className="mob-chip-lbl">open rate</span></div>
             </div>
           </div>
 
