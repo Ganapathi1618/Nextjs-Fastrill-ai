@@ -33,8 +33,12 @@ const NAV = [
   { id:"sequences", label:"Sequences",      icon:"⟳", path:"/dashboard/sequences" },
   { id:"leads",     label:"Lead Recovery",  icon:"◉", path:"/dashboard/leads" },
   { id:"contacts",  label:"Customers",      icon:"◑", path:"/dashboard/contacts" },
-  { id:"analytics", label:"Analytics",      icon:"▦", path:"/dashboard/analytics" },
-  { id:"settings",  label:"Settings",       icon:"◌", path:"/dashboard/settings" },
+  { id:"analytics",    label:"Analytics",      icon:"▦", path:"/dashboard/analytics" },
+  { id:"templates",   label:"WA Templates",  icon:"◫", path:"/dashboard/templates" },
+  { id:"integrations",label:"Integrations",  icon:"⊞", path:"/dashboard/integrations" },
+  { id:"reports",     label:"Reports",        icon:"▣", path:"/dashboard/reports" },
+  { id:"referrals",   label:"Refer & Earn",   icon:"◈", path:"/dashboard/referrals" },
+  { id:"settings",    label:"Settings",       icon:"◌", path:"/dashboard/settings" },
 ]
 
 const SEGMENTS = [
