@@ -8,6 +8,8 @@ const NAV = [
   { id:"overview",  label:"Revenue Engine", icon:"⬡", path:"/dashboard" },
   { id:"inbox",     label:"Conversations",  icon:"◎", path:"/dashboard/conversations" },
   { id:"bookings",  label:"Bookings",       icon:"◷", path:"/dashboard/bookings" },
+  { id:"pipeline",  label:"CRM Pipeline",   icon:"⬦", path:"/dashboard/pipeline" },
+  { id:"team",      label:"Team",           icon:"⊕", path:"/dashboard/team" },
   { id:"campaigns", label:"Campaigns",      icon:"◆", path:"/dashboard/campaigns" },
   { id:"sequences", label:"Sequences",      icon:"⟳", path:"/dashboard/sequences" },
   { id:"leads",     label:"Lead Recovery",  icon:"◉", path:"/dashboard/leads" },
