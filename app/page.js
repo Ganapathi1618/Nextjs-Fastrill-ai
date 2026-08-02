@@ -105,23 +105,23 @@ export default function FastrillLanding() {
         @media(prefers-reduced-motion:reduce){.fade{opacity:1 !important;transform:none !important;transition:none}}
 
         /* ── BUTTONS ── */
-        .btn-primary{display:inline-flex;align-items:center;gap:8px;background:#5A5FE8;color:#fff;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;transition:background .15s,transform .1s;border:none;cursor:pointer;font-family:inherit;white-space:nowrap}
-        .btn-primary:hover{background:#4449D0;transform:translateY(-1px)}
+        .btn-primary{display:inline-flex;align-items:center;gap:8px;background:#1D6AF5;color:#fff;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;transition:background .15s,transform .1s;border:none;cursor:pointer;font-family:inherit;white-space:nowrap}
+        .btn-primary:hover{background:#1558D0;transform:translateY(-1px)}
         .btn-secondary{display:inline-flex;align-items:center;gap:8px;background:#fff;color:#374151;padding:14px 24px;border-radius:10px;font-weight:600;font-size:15px;text-decoration:none;border:1.5px solid #E5E7EB;transition:border-color .15s,background .15s;white-space:nowrap}
         .btn-secondary:hover{border-color:#9CA3AF;background:#F9FAFB}
 
         /* ── HERO ── */
         .hero{padding:clamp(108px,14vh,160px) clamp(16px,4vw,52px) clamp(60px,8vw,100px);background:#fff}
         .hero-inner{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:1.1fr 0.9fr;gap:clamp(40px,6vw,80px);align-items:center}
-        .hero-eyebrow{display:inline-flex;align-items:center;gap:8px;background:#EEF0FF;color:#5A5FE8;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:6px 14px;border-radius:100px;margin-bottom:24px}
+        .hero-eyebrow{display:inline-flex;align-items:center;gap:8px;background:#EEF0FF;color:#1D6AF5;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:6px 14px;border-radius:100px;margin-bottom:24px}
         .hero-h1{font-size:clamp(36px,5vw,60px);font-weight:800;color:#111827;line-height:1.08;letter-spacing:-.03em;margin-bottom:22px;font-family:'Plus Jakarta Sans',sans-serif}
-        .hero-h1 em{font-style:normal;color:#5A5FE8}
+        .hero-h1 em{font-style:normal;color:#1D6AF5}
         .hero-sub{font-size:clamp(15px,1.6vw,18px);color:#6B7280;line-height:1.75;max-width:500px;margin-bottom:32px}
         .hero-sub strong{color:#374151;font-weight:600}
         .hero-btns{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:28px}
         .hero-trust{display:flex;align-items:center;gap:20px;font-size:13px;color:#9CA3AF;flex-wrap:wrap}
         .hero-trust span{display:flex;align-items:center;gap:6px;color:#6B7280}
-        .hero-trust svg{color:#5A5FE8}
+        .hero-trust svg{color:#1D6AF5}
         @media(max-width:860px){
           .hero-inner{grid-template-columns:1fr;text-align:center}
           .hero-sub{margin-left:auto;margin-right:auto}
@@ -177,9 +177,9 @@ export default function FastrillLanding() {
         .sec{padding:clamp(64px,8vw,100px) clamp(16px,4vw,52px)}
         .sec-alt{background:#F9FAFB}
         .sec-inner{max-width:1120px;margin:0 auto}
-        .sec-label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5A5FE8;margin-bottom:14px}
+        .sec-label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#1D6AF5;margin-bottom:14px}
         .sec-h2{font-size:clamp(26px,3.5vw,42px);font-weight:800;color:#111827;letter-spacing:-.03em;line-height:1.12;margin-bottom:14px;font-family:'Plus Jakarta Sans',sans-serif}
-        .sec-h2 em{font-style:normal;color:#5A5FE8}
+        .sec-h2 em{font-style:normal;color:#1D6AF5}
         .sec-lead{font-size:16px;color:#6B7280;line-height:1.75;max-width:540px}
 
         /* ── TIMELINE ── */
@@ -196,7 +196,7 @@ export default function FastrillLanding() {
         /* ── PROBLEM CARDS ── */
         .cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:44px}
         .card{background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;padding:28px 24px}
-        .card-num{font-size:12px;font-weight:700;letter-spacing:.06em;color:#5A5FE8;margin-bottom:12px}
+        .card-num{font-size:12px;font-weight:700;letter-spacing:.06em;color:#1D6AF5;margin-bottom:12px}
         .card-title{font-size:16px;font-weight:700;color:#111827;margin-bottom:8px}
         .card-desc{font-size:14px;color:#6B7280;line-height:1.7}
         .card-tag{display:inline-block;margin-top:16px;font-size:11.5px;font-weight:600;color:#EF4444;background:#FEF2F2;border-radius:6px;padding:3px 10px}
@@ -207,17 +207,17 @@ export default function FastrillLanding() {
         .module:last-child{border-bottom:none}
         .module.rev .module-text{order:2}
         .module.rev .module-vis{order:1}
-        .module-tag{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5A5FE8;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+        .module-tag{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#1D6AF5;margin-bottom:12px;display:flex;align-items:center;gap:8px}
         .module-title{font-size:clamp(20px,2.5vw,28px);font-weight:800;color:#111827;letter-spacing:-.025em;line-height:1.2;margin-bottom:10px;font-family:'Plus Jakarta Sans',sans-serif}
         .module-desc{font-size:14.5px;color:#6B7280;line-height:1.75;margin-bottom:18px}
         .module-list{list-style:none;display:flex;flex-direction:column;gap:10px}
         .module-list li{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:#374151}
-        .module-list li svg{color:#5A5FE8;flex-shrink:0;margin-top:2px}
+        .module-list li svg{color:#1D6AF5;flex-shrink:0;margin-top:2px}
         .mock{background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.06);max-width:420px;margin:0 auto}
         .mock-hd{background:#F9FAFB;padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #E5E7EB}
-        .mock-av{width:32px;height:32px;border-radius:50%;background:#EEF0FF;color:#5A5FE8;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+        .mock-av{width:32px;height:32px;border-radius:50%;background:#EEF0FF;color:#1D6AF5;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
         .mock-name{font-size:13px;font-weight:700;color:#111827}
-        .mock-sub{font-size:10.5px;color:#5A5FE8}
+        .mock-sub{font-size:10.5px;color:#1D6AF5}
         .mock-body{padding:16px;display:flex;flex-direction:column;gap:8px}
         .bub{max-width:82%;padding:9px 12px;border-radius:12px;font-size:12.5px;line-height:1.5;white-space:pre-wrap}
         .bub.c{background:#F3F4F6;color:#374151;align-self:flex-start;border-bottom-left-radius:4px}
@@ -228,17 +228,17 @@ export default function FastrillLanding() {
         .dash-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
         .dash-kpi-l{font-size:10.5px;color:#9CA3AF;margin-bottom:3px}
         .dash-kpi-v{font-weight:700;font-size:18px;color:#111827;letter-spacing:-.01em}
-        .dash-kpi-v.accent{color:#5A5FE8}
+        .dash-kpi-v.accent{color:#1D6AF5}
         .dash-roi{background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;padding:12px 14px}
         .dash-roi-row{display:flex;justify-content:space-between;font-size:12.5px;color:#6B7280;padding:4px 0}
         .dash-roi-row strong{color:#111827}
-        .dash-roi-row strong.accent{color:#5A5FE8}
+        .dash-roi-row strong.accent{color:#1D6AF5}
         .inbox-row{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #F3F4F6}
         .inbox-row:last-child{border-bottom:none}
         .inbox-mid{flex:1;min-width:0}
         .inbox-name{font-size:13px;font-weight:600;color:#111827;margin-bottom:2px}
         .inbox-msg{font-size:11.5px;color:#9CA3AF;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .pill{font-size:9.5px;font-weight:700;padding:3px 9px;border-radius:100px;background:#EEF0FF;color:#5A5FE8;flex-shrink:0}
+        .pill{font-size:9.5px;font-weight:700;padding:3px 9px;border-radius:100px;background:#EEF0FF;color:#1D6AF5;flex-shrink:0}
         .pill.off{background:#F3F4F6;color:#9CA3AF}
         @media(max-width:800px){.module,.module.rev{grid-template-columns:1fr}.module.rev .module-text{order:1}.module.rev .module-vis{order:2}}
 
@@ -247,8 +247,8 @@ export default function FastrillLanding() {
         .demo-tabs{display:flex;flex-direction:column;gap:8px}
         .demo-tab{background:#fff;border:1.5px solid #E5E7EB;border-radius:12px;padding:14px 16px;cursor:pointer;text-align:left;font-family:inherit;width:100%;transition:border-color .15s}
         .demo-tab:hover{border-color:#C7C9F8}
-        .demo-tab.on{border-color:#5A5FE8;background:#EEF0FF}
-        .demo-tab-icon{color:#5A5FE8;margin-bottom:8px}
+        .demo-tab.on{border-color:#1D6AF5;background:#EEF0FF}
+        .demo-tab-icon{color:#1D6AF5;margin-bottom:8px}
         .demo-tab-label{font-size:13.5px;font-weight:700;color:#111827;margin-bottom:2px}
         .demo-tab-sub{font-size:11.5px;color:#9CA3AF}
         .demo-wa{background:#fff;border:1.5px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.06)}
@@ -264,7 +264,7 @@ export default function FastrillLanding() {
         .ba-col.after{border-color:#C7C9F8}
         .ba-head{padding:14px 20px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
         .ba-head.before{background:#FEF2F2;color:#DC2626;border-bottom:1px solid #FEE2E2}
-        .ba-head.after{background:#EEF0FF;color:#5A5FE8;border-bottom:1px solid #C7C9F8}
+        .ba-head.after{background:#EEF0FF;color:#1D6AF5;border-bottom:1px solid #C7C9F8}
         .ba-list{list-style:none;padding:16px 20px;display:flex;flex-direction:column;gap:12px}
         .ba-list li{display:flex;align-items:flex-start;gap:10px;font-size:13.5px}
         .ba-list.before li{color:#6B7280}
@@ -275,7 +275,7 @@ export default function FastrillLanding() {
         .vs-wrap{overflow-x:auto;margin-top:44px;border:1.5px solid #E5E7EB;border-radius:16px}
         .vs-table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:580px}
         .vs-table th{padding:14px 18px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9CA3AF;background:#F9FAFB;border-bottom:1.5px solid #E5E7EB;text-align:left}
-        .vs-table th.hl{background:#EEF0FF;color:#5A5FE8;border-bottom-color:#C7C9F8}
+        .vs-table th.hl{background:#EEF0FF;color:#1D6AF5;border-bottom-color:#C7C9F8}
         .vs-table td{padding:13px 18px;border-bottom:1px solid #F3F4F6;color:#6B7280;vertical-align:middle}
         .vs-table tr:last-child td{border-bottom:none}
         .vs-table td.hl{background:#F5F6FF;font-weight:600;color:#111827}
@@ -287,11 +287,11 @@ export default function FastrillLanding() {
         /* ── TESTIMONIALS ── */
         .tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:44px}
         .tcard{background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;padding:28px;display:flex;flex-direction:column}
-        .tcard-metric{font-size:30px;font-weight:800;color:#5A5FE8;letter-spacing:-.02em;line-height:1;font-family:'Plus Jakarta Sans',sans-serif}
+        .tcard-metric{font-size:30px;font-weight:800;color:#1D6AF5;letter-spacing:-.02em;line-height:1;font-family:'Plus Jakarta Sans',sans-serif}
         .tcard-metric-l{font-size:12px;color:#9CA3AF;margin:5px 0 20px}
         .tcard-q{font-size:14px;color:#374151;line-height:1.75;flex:1}
         .tcard-auth{display:flex;align-items:center;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #F3F4F6}
-        .tcard-av{width:36px;height:36px;border-radius:50%;background:#EEF0FF;color:#5A5FE8;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+        .tcard-av{width:36px;height:36px;border-radius:50%;background:#EEF0FF;color:#1D6AF5;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
         .tcard-name{font-size:13.5px;font-weight:700;color:#111827}
         .tcard-biz{font-size:12px;color:#9CA3AF;margin-top:2px}
         @media(max-width:800px){.tgrid{grid-template-columns:1fr;max-width:440px;margin-left:auto;margin-right:auto}}
@@ -299,7 +299,7 @@ export default function FastrillLanding() {
         /* ── HOW IT WORKS ── */
         .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
         .step{background:#fff;border:1.5px solid #E5E7EB;border-radius:16px;padding:28px 24px}
-        .step-num{width:36px;height:36px;border-radius:50%;background:#5A5FE8;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;margin-bottom:16px;font-family:'Plus Jakarta Sans',sans-serif}
+        .step-num{width:36px;height:36px;border-radius:50%;background:#1D6AF5;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;margin-bottom:16px;font-family:'Plus Jakarta Sans',sans-serif}
         .step-title{font-size:16px;font-weight:700;color:#111827;margin-bottom:8px}
         .step-desc{font-size:14px;color:#6B7280;line-height:1.7}
         @media(max-width:700px){.steps{grid-template-columns:1fr}}
@@ -311,7 +311,7 @@ export default function FastrillLanding() {
         .ind-emoji{font-size:28px}
         .ind-title{font-size:15.5px;font-weight:700;color:#111827}
         .ind-desc{font-size:13.5px;color:#6B7280;line-height:1.6;flex:1}
-        .ind-link{font-size:12.5px;font-weight:700;color:#5A5FE8;display:flex;align-items:center;gap:4px;margin-top:4px}
+        .ind-link{font-size:12.5px;font-weight:700;color:#1D6AF5;display:flex;align-items:center;gap:4px;margin-top:4px}
         @media(max-width:700px){.ind-grid{grid-template-columns:1fr 1fr}}
         @media(max-width:440px){.ind-grid{grid-template-columns:1fr}}
 
@@ -322,8 +322,8 @@ export default function FastrillLanding() {
         .bt-save{font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;background:#DCFCE7;color:#15803D}
         .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
         .plan{background:#fff;border:1.5px solid #E5E7EB;border-radius:18px;padding:clamp(22px,3vw,30px);position:relative;display:flex;flex-direction:column}
-        .plan.pop{border-color:#5A5FE8;box-shadow:0 8px 32px rgba(90,95,232,.12)}
-        .plan-badge{position:absolute;top:0;left:24px;transform:translateY(-50%);background:#5A5FE8;color:#fff;font-size:11px;font-weight:700;padding:4px 14px;border-radius:100px}
+        .plan.pop{border-color:#1D6AF5;box-shadow:0 8px 32px rgba(90,95,232,.12)}
+        .plan-badge{position:absolute;top:0;left:24px;transform:translateY(-50%);background:#1D6AF5;color:#fff;font-size:11px;font-weight:700;padding:4px 14px;border-radius:100px}
         .plan-tier{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#9CA3AF;margin-bottom:4px}
         .plan-tag{font-size:13px;color:#9CA3AF;margin-bottom:16px}
         .plan-price{display:flex;align-items:baseline;gap:2px}
@@ -333,12 +333,12 @@ export default function FastrillLanding() {
         .plan-hr{border:none;border-top:1px solid #F3F4F6;margin:12px 0 14px}
         .plan-feats{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:22px;flex:1}
         .plan-feats li{display:flex;align-items:flex-start;gap:9px;font-size:13.5px;color:#374151}
-        .plan-feats li svg{color:#5A5FE8;flex-shrink:0;margin-top:2px}
+        .plan-feats li svg{color:#1D6AF5;flex-shrink:0;margin-top:2px}
         .plan-feats li.exc{color:#D1D5DB}
         .plan-feats li.exc svg{color:#D1D5DB}
         .plan-btn{display:block;text-align:center;padding:13px;border-radius:10px;font-weight:700;font-size:14px;text-decoration:none;transition:background .15s}
-        .plan-btn.go{background:#5A5FE8;color:#fff}
-        .plan-btn.go:hover{background:#4449D0}
+        .plan-btn.go{background:#1D6AF5;color:#fff}
+        .plan-btn.go:hover{background:#1558D0}
         .plan-btn.out{background:#F9FAFB;color:#374151;border:1.5px solid #E5E7EB}
         .plan-btn.out:hover{background:#F3F4F6}
         @media(max-width:800px){.pgrid{grid-template-columns:1fr;max-width:420px;margin:0 auto}}
@@ -351,13 +351,13 @@ export default function FastrillLanding() {
         .fp{width:24px;height:24px;border-radius:50%;border:1.5px solid #E5E7EB;display:flex;align-items:center;justify-content:center;font-size:14px;color:#9CA3AF;flex-shrink:0;transition:transform .2s,color .2s,border-color .2s}
         .fa{font-size:14.5px;color:#6B7280;line-height:1.8;max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s ease}
         .fi.op .fa{max-height:220px;padding:0 0 20px}
-        .fi.op .fp{color:#5A5FE8;border-color:#5A5FE8;transform:rotate(45deg)}
+        .fi.op .fp{color:#1D6AF5;border-color:#1D6AF5;transform:rotate(45deg)}
 
         /* ── CTA SECTION ── */
-        .cta-sec{background:linear-gradient(135deg,#5A5FE8 0%,#7C3AED 100%);padding:clamp(60px,8vw,100px) clamp(16px,4vw,52px);text-align:center}
+        .cta-sec{background:linear-gradient(135deg,#1D6AF5 0%,#1D6AF5 100%);padding:clamp(60px,8vw,100px) clamp(16px,4vw,52px);text-align:center}
         .cta-sec h2{font-size:clamp(28px,4vw,48px);font-weight:800;color:#fff;letter-spacing:-.03em;margin-bottom:14px;font-family:'Plus Jakarta Sans',sans-serif}
         .cta-sec p{font-size:16px;color:rgba(255,255,255,.8);margin-bottom:32px}
-        .btn-white{display:inline-flex;align-items:center;gap:8px;background:#fff;color:#5A5FE8;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;transition:background .15s}
+        .btn-white{display:inline-flex;align-items:center;gap:8px;background:#fff;color:#1D6AF5;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;transition:background .15s}
         .btn-white:hover{background:#F5F6FF}
         .btn-ghost{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);color:#fff;padding:14px 24px;border-radius:10px;font-weight:600;font-size:15px;text-decoration:none;border:1.5px solid rgba(255,255,255,.3);transition:background .15s}
         .btn-ghost:hover{background:rgba(255,255,255,.22)}
@@ -632,7 +632,7 @@ export default function FastrillLanding() {
               <div className="ba-head after">With Fastrill</div>
               <ul className="ba-list after">
                 {["Reply in under 2 seconds — 24/7", "Books appointments at 2 AM automatically", "Every lead captured and followed up", "Staff focused on the customer in front of them", "Every booking tracked to source and campaign"].map(t => (
-                  <li key={t}><span style={{ color: "#5A5FE8", marginTop: 3 }}><Ic name="check" size={14} /></span>{t}</li>
+                  <li key={t}><span style={{ color: "#1D6AF5", marginTop: 3 }}><Ic name="check" size={14} /></span>{t}</li>
                 ))}
               </ul>
             </div>

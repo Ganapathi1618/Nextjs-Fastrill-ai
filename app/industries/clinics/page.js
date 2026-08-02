@@ -15,11 +15,11 @@ export default function ClinicsPage() {
       <section style={{ paddingTop: 130, paddingBottom: 80, paddingLeft: "clamp(16px,4vw,44px)", paddingRight: "clamp(16px,4vw,44px)" }}>
         <div style={{ maxWidth: 1060, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "clamp(36px,5vw,72px)", alignItems: "center" }}>
           <div>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(37,211,102,.1)", color: "#5A5FE8", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100, marginBottom: 22, border: "1px solid rgba(37,211,102,.2)" }}>🏥 Clinics & Healthcare</div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(37,211,102,.1)", color: "#1D6AF5", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100, marginBottom: 22, border: "1px solid rgba(37,211,102,.2)" }}>🏥 Clinics & Healthcare</div>
             <h1 style={{ fontSize: "clamp(30px,4.5vw,52px)", fontWeight: 800, color: "#fff", letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 18, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Your patients message in Telugu. Fastrill replies in Telugu.</h1>
             <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.8, marginBottom: 28 }}>Patients message in their native language asking about appointments, fees, and availability. Fastrill responds instantly, books the slot, and sends a reminder — no receptionist needed after hours.</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#5A5FE8", color: "#fff", padding: "13px 24px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Start free trial →</Link>
+              <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#1D6AF5", color: "#fff", padding: "13px 24px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Start free trial →</Link>
               <Link href="/pricing" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#F3F4F6", color: "#fff", padding: "13px 20px", borderRadius: 10, fontWeight: 600, fontSize: 14, textDecoration: "none", border: "1px solid #E5E7EB" }}>See pricing</Link>
             </div>
           </div>
@@ -32,7 +32,7 @@ export default function ClinicsPage() {
               { side: "right", msg: "Confirmed! Dr. Sharma · Skin Consultation · Reppu 3:00 PM · ₹500\n\nReminder pampistaamu ✓" },
             ].map((m, i) => (
               <div key={i} style={{ display: "flex", justifyContent: m.side === "right" ? "flex-end" : "flex-start", marginBottom: 10 }}>
-                <div style={{ maxWidth: "82%", background: m.side === "right" ? "rgba(37,211,102,.12)" : "#E5E7EB", border: `1px solid ${m.side === "right" ? "rgba(37,211,102,.2)" : "#E5E7EB"}`, borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: m.side === "right" ? "#5A5FE8" : "rgba(255,255,255,.8)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{m.msg}</div>
+                <div style={{ maxWidth: "82%", background: m.side === "right" ? "rgba(37,211,102,.12)" : "#E5E7EB", border: `1px solid ${m.side === "right" ? "rgba(37,211,102,.2)" : "#E5E7EB"}`, borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: m.side === "right" ? "#1D6AF5" : "rgba(255,255,255,.8)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{m.msg}</div>
               </div>
             ))}
             <div style={{ textAlign: "right", fontSize: 11, color: "#9CA3AF", marginTop: 8 }}>Replied in 1.8s · Language auto-detected</div>
@@ -63,12 +63,12 @@ export default function ClinicsPage() {
 
       <section style={{ padding: "70px clamp(16px,4vw,44px)", textAlign: "center" }}>
         <div style={{ maxWidth: 640, margin: "0 auto" }}>
-          <div style={{ fontSize: 42, fontWeight: 800, color: "#5A5FE8", letterSpacing: "-.02em", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>₹22k</div>
+          <div style={{ fontSize: 42, fontWeight: 800, color: "#1D6AF5", letterSpacing: "-.02em", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>₹22k</div>
           <div style={{ fontSize: 14, color: "#6B7280", marginBottom: 28 }}>saved per month on receptionist time</div>
           <p style={{ fontSize: 16, color: "rgba(255,255,255,.7)", lineHeight: 1.8, fontStyle: "italic", marginBottom: 28 }}>"My patients message in Telugu and Fastrill replies in Telugu, books the slot, and follows up if they go quiet. I had to see it to believe it wasn't a person."</p>
           <div style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>Dr. Ravi Sharma</div>
           <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 48 }}>Skin First Clinic, Vijayawada</div>
-          <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#5A5FE8", color: "#fff", padding: "14px 28px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Start free for clinics →</Link>
+          <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#1D6AF5", color: "#fff", padding: "14px 28px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Start free for clinics →</Link>
         </div>
       </section>
 

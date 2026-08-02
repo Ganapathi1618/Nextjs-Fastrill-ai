@@ -17,7 +17,7 @@ export default function MarketingFooter() {
           {[
             { h: "Features", links: [["AI Conversations", "/features#ai"], ["Booking Automation", "/features#booking"], ["Campaigns", "/features#campaigns"], ["Smart Inbox", "/features#inbox"], ["Lead Recovery", "/features#lead-recovery"]] },
             { h: "Industries", links: [["Salons & Spas", "/industries/salons"], ["Clinics", "/industries/clinics"], ["Coaching", "/industries/coaching"], ["Real Estate", "/industries/real-estate"], ["Gyms", "/industries/gyms"]] },
-            { h: "Company", links: [["About us", "/about"], ["Pricing", "/pricing"], ["Contact", "mailto:team@fastrill.com"], ["WhatsApp us", "https://wa.me/916309279265"]] },
+            { h: "Resources", links: [["Blog", "/blog"], ["Use Cases", "/use-cases"], ["About us", "/about"], ["Contact", "mailto:team@fastrill.com"]] },
             { h: "Legal", links: [["Privacy Policy", "/privacy"], ["Terms of Service", "/terms"], ["Sign in", "/login"], ["Start free", "/signup"]] },
           ].map(col => (
             <div key={col.h}>

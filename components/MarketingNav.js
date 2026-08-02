@@ -23,7 +23,13 @@ const NAV_ITEMS = [
     ]
   },
   { label: "Pricing", href: "/pricing" },
-  { label: "About", href: "/about" },
+  {
+    label: "Resources", dropdown: [
+      { label: "Blog", desc: "Tips and strategies for WhatsApp growth", href: "/blog" },
+      { label: "Use Cases", desc: "See how businesses use Fastrill", href: "/use-cases" },
+      { label: "About", desc: "Our story and mission", href: "/about" },
+    ]
+  },
 ]
 
 export default function MarketingNav() {
@@ -63,7 +69,8 @@ export default function MarketingNav() {
         .mn-btn:hover,.mn-btn.active{color:#1A1D23;background:#F3F4F6}
         .mn-chevron{width:14px;height:14px;transition:transform .2s;opacity:.5}
         .mn-item.op .mn-chevron{transform:rotate(180deg)}
-        .mn-drop{position:absolute;top:calc(100% + 12px);left:50%;transform:translateX(-50%);background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:8px;min-width:270px;box-shadow:0 8px 32px rgba(0,0,0,.12);animation:mnDropIn .15s ease;z-index:10}
+        .mn-drop{position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%);background:#fff;border:1px solid #E5E7EB;border-radius:14px;padding:8px;min-width:270px;box-shadow:0 8px 32px rgba(0,0,0,.12);animation:mnDropIn .15s ease;z-index:10}
+        .mn-drop::before{content:'';position:absolute;top:-10px;left:0;right:0;height:10px}
         @keyframes mnDropIn{from{opacity:0;transform:translateX(-50%) translateY(-6px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
         .mn-drop-item{display:flex;flex-direction:column;gap:2px;padding:10px 14px;border-radius:9px;text-decoration:none;transition:background .12s}
         .mn-drop-item:hover{background:#F9FAFB}
@@ -72,8 +79,8 @@ export default function MarketingNav() {
         .mn-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
         .mn-signin{font-size:14px;font-weight:500;color:#4B5563;text-decoration:none;padding:9px 14px;border-radius:8px;transition:color .15s,background .15s}
         .mn-signin:hover{color:#1A1D23;background:#F3F4F6}
-        .mn-cta{display:inline-flex;align-items:center;gap:6px;background:#5A5FE8;color:#fff;padding:10px 20px;border-radius:9px;font-weight:700;font-size:14px;text-decoration:none;transition:background .15s;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap}
-        .mn-cta:hover{background:#4449D0}
+        .mn-cta{display:inline-flex;align-items:center;gap:6px;background:#1D6AF5;color:#fff;padding:10px 20px;border-radius:9px;font-weight:700;font-size:14px;text-decoration:none;transition:background .15s;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap}
+        .mn-cta:hover{background:#1558D0}
         .mn-hbg{display:none;background:none;border:1px solid #E5E7EB;border-radius:8px;width:40px;height:40px;align-items:center;justify-content:center;cursor:pointer;color:#4B5563;font-size:18px;flex-shrink:0}
 
         /* MOBILE DRAWER */
@@ -91,7 +98,7 @@ export default function MarketingNav() {
         .mn-mob-sublink span{font-size:11.5px;color:#9CA3AF}
         .mn-mob-actions{padding:16px 0 8px;display:flex;flex-direction:column;gap:10px}
         .mn-mob-signin{display:block;text-align:center;padding:13px;border-radius:10px;font-size:15px;font-weight:600;color:#4B5563;text-decoration:none;border:1px solid #E5E7EB}
-        .mn-mob-cta{display:block;text-align:center;background:#5A5FE8;color:#fff;padding:14px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none}
+        .mn-mob-cta{display:block;text-align:center;background:#1D6AF5;color:#fff;padding:14px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none}
 
         @media(max-width:900px){.mn-center{display:none}.mn-signin{display:none}.mn-cta{display:none}.mn-hbg{display:inline-flex}}
         @media(min-width:901px){.mn-mob{display:none}}
