@@ -100,7 +100,7 @@ export default function MarketingNav() {
         .mn-mob-signin{display:block;text-align:center;padding:13px;border-radius:10px;font-size:15px;font-weight:600;color:#4B5563;text-decoration:none;border:1px solid #E5E7EB}
         .mn-mob-cta{display:block;text-align:center;background:#1D6AF5;color:#fff;padding:14px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none}
 
-        @media(max-width:900px){.mn-center{display:none}.mn-signin{display:none}.mn-cta{display:none}.mn-hbg{display:inline-flex}}
+        @media(max-width:900px){.mn-center{display:none}.mn-signin{display:none}.mn-cta{display:none}.mn-hbg{display:inline-flex}.mn-right{margin-left:auto}}
         @media(min-width:901px){.mn-mob{display:none}}
       `}</style>
 
