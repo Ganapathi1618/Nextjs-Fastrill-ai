@@ -56,6 +56,9 @@ export default function Referrals() {
   const [referrals,  setReferrals]  = useState(MOCK_REFERRALS)
   const [copied,     setCopied]     = useState(false)
   const [withdrawing,setWithdrawing]= useState(false)
+  const [showBankForm, setShowBankForm] = useState(false)
+  const [bankDetails, setBankDetails] = useState({ name:"", account:"", ifsc:"", upi:"" })
+  const [useUPI, setUseUPI] = useState(true)
 
   useEffect(() => {
     if (userId) {
@@ -107,7 +110,8 @@ export default function Referrals() {
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         html,body{background:${bg}!important;color:${tx}!important;font-family:'Plus Jakarta Sans',sans-serif!important;}
         .wrap{display:flex;height:100vh;overflow:hidden;}
-        .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;}
+        .sidebar{width:224px;flex-shrink:0;background:${sb};border-right:1px solid ${bdr};display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:none;}
+        .sidebar::-webkit-scrollbar{display:none;}
         .logo{padding:16px 18px;font-weight:800;font-size:20px;color:${tx};text-decoration:none;display:flex;align-items:center;gap:10px;border-bottom:1px solid ${bdr};line-height:1;}
         .nav-section{padding:14px 16px 5px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${txf};font-weight:600;}
         .nav-item{display:flex;align-items:center;gap:9px;padding:8px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:${navText};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;}
@@ -279,10 +283,47 @@ export default function Referrals() {
                     <div style={{fontWeight:700,fontSize:13,color:tx}}>Wallet balance</div>
                     <div style={{fontSize:22,fontWeight:800,color:"#4ade80"}}>₹{totalEarned.toLocaleString()}</div>
                   </div>
-                  <button onClick={withdraw} disabled={withdrawing||totalEarned===0}
+                  <button onClick={()=>totalEarned>0&&setShowBankForm(b=>!b)} disabled={withdrawing||totalEarned===0}
                     style={{width:"100%",padding:"10px",borderRadius:9,background:totalEarned>0?acc:ibg,border:`1px solid ${cbdr}`,color:totalEarned>0?"#000":txf,fontWeight:700,fontSize:13,cursor:totalEarned>0?"pointer":"default",fontFamily:"'Plus Jakarta Sans',sans-serif",opacity:withdrawing?0.7:1}}>
-                    {withdrawing?"Processing…":totalEarned>0?"↓ Withdraw to bank":"No balance yet"}
+                    {totalEarned>0?(showBankForm?"✕ Close":"↓ Withdraw to bank"):"No balance yet"}
                   </button>
+                  {showBankForm&&(
+                    <div style={{marginTop:12,borderTop:`1px solid ${bdr}`,paddingTop:12}}>
+                      <div style={{display:"flex",gap:6,marginBottom:10}}>
+                        <button onClick={()=>setUseUPI(true)} style={{flex:1,padding:"6px",borderRadius:7,border:`1px solid ${useUPI?acc:cbdr}`,background:useUPI?acc+"18":"transparent",color:useUPI?acc:txm,fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>UPI</button>
+                        <button onClick={()=>setUseUPI(false)} style={{flex:1,padding:"6px",borderRadius:7,border:`1px solid ${!useUPI?acc:cbdr}`,background:!useUPI?acc+"18":"transparent",color:!useUPI?acc:txm,fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Bank Transfer</button>
+                      </div>
+                      {useUPI?(
+                        <div style={{marginBottom:10}}>
+                          <div style={{fontSize:11,color:txm,marginBottom:4,fontWeight:600}}>UPI ID</div>
+                          <input value={bankDetails.upi} onChange={e=>setBankDetails(b=>({...b,upi:e.target.value}))} placeholder="yourname@upi" style={{width:"100%",background:ibg,border:`1px solid ${cbdr}`,borderRadius:7,padding:"8px 10px",fontSize:12.5,color:tx,outline:"none",fontFamily:"'Plus Jakarta Sans',sans-serif"}}/>
+                        </div>
+                      ):(
+                        <div style={{display:"grid",gap:8,marginBottom:10}}>
+                          <div>
+                            <div style={{fontSize:11,color:txm,marginBottom:4,fontWeight:600}}>Account Holder Name</div>
+                            <input value={bankDetails.name} onChange={e=>setBankDetails(b=>({...b,name:e.target.value}))} placeholder="As on bank account" style={{width:"100%",background:ibg,border:`1px solid ${cbdr}`,borderRadius:7,padding:"8px 10px",fontSize:12.5,color:tx,outline:"none",fontFamily:"'Plus Jakarta Sans',sans-serif"}}/>
+                          </div>
+                          <div>
+                            <div style={{fontSize:11,color:txm,marginBottom:4,fontWeight:600}}>Account Number</div>
+                            <input value={bankDetails.account} onChange={e=>setBankDetails(b=>({...b,account:e.target.value}))} placeholder="Enter account number" style={{width:"100%",background:ibg,border:`1px solid ${cbdr}`,borderRadius:7,padding:"8px 10px",fontSize:12.5,color:tx,outline:"none",fontFamily:"'Plus Jakarta Sans',sans-serif"}}/>
+                          </div>
+                          <div>
+                            <div style={{fontSize:11,color:txm,marginBottom:4,fontWeight:600}}>IFSC Code</div>
+                            <input value={bankDetails.ifsc} onChange={e=>setBankDetails(b=>({...b,ifsc:e.target.value.toUpperCase()}))} placeholder="e.g. HDFC0001234" style={{width:"100%",background:ibg,border:`1px solid ${cbdr}`,borderRadius:7,padding:"8px 10px",fontSize:12.5,color:tx,outline:"none",fontFamily:"'Plus Jakarta Sans',sans-serif"}}/>
+                          </div>
+                        </div>
+                      )}
+                      <button onClick={async()=>{
+                        const valid = useUPI ? bankDetails.upi.includes("@") : (bankDetails.name&&bankDetails.account&&bankDetails.ifsc)
+                        if(!valid){toast.error(useUPI?"Enter a valid UPI ID":"Fill all bank details");return}
+                        await withdraw()
+                        setShowBankForm(false)
+                      }} disabled={withdrawing} style={{width:"100%",padding:"9px",borderRadius:8,background:acc,border:"none",color:"#000",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",opacity:withdrawing?0.7:1}}>
+                        {withdrawing?"Processing…":`Withdraw ₹${totalEarned.toLocaleString()} →`}
+                      </button>
+                    </div>
+                  )}
                   <div style={{fontSize:11,color:txf,marginTop:7,textAlign:"center"}}>Or apply as Fastrill credits to reduce your bill</div>
                 </div>
               </div>
