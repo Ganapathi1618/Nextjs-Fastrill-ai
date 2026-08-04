@@ -32,6 +32,9 @@ export default function Dashboard() {
   const [userId, setUserId]               = useState(null)
   const [connected, setConnected]         = useState(false)
   const [period, setPeriod]               = useState("today")
+  const todayStr0 = new Date().toISOString().split("T")[0]
+  const [customFrom, setCustomFrom]       = useState("")
+  const [customTo,   setCustomTo]         = useState(todayStr0)
   const [dark, setDark]                   = useState(true)
   const [mobSidebarOpen, setMobSidebarOpen] = useState(false)
   const [loading, setLoading]             = useState(true)
@@ -64,7 +67,7 @@ export default function Dashboard() {
     initAuth()
   }, [])
 
-  useEffect(() => { if (userId) loadAll() }, [userId, period])
+  useEffect(() => { if (userId) loadAll() }, [userId, period, customFrom, customTo])
 
   async function loadAll() {
     setLoading(true)
@@ -73,8 +76,11 @@ export default function Dashboard() {
       let from = new Date()
       if (period === "today") from.setHours(0,0,0,0)
       else if (period === "week") from.setDate(now.getDate()-7)
+      else if (period === "month") from.setDate(1)
+      else if (period === "custom" && customFrom) from = new Date(customFrom)
       else from.setDate(1)
       const fromISO     = from.toISOString()
+      const toISO       = period === "custom" && customTo ? new Date(customTo+"T23:59:59").toISOString() : now.toISOString()
       const fromDateStr = from.toISOString().split("T")[0]
       const todayStr    = now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0")
 
@@ -83,9 +89,9 @@ export default function Dashboard() {
       const [{ data:wa },{ data:biz },{ data:msgs },{ data:allBks },{ data:leads },{ count:customerCount }] = await Promise.all([
         supabase.from("whatsapp_connections").select("id").eq("user_id",userId).maybeSingle(),
         supabase.from("business_settings").select("business_name").eq("user_id",userId).maybeSingle(),
-        supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id",userId).gte("created_at",fromISO).limit(5000),
+        supabase.from("messages").select("direction,is_ai,created_at,conversation_id").eq("user_id",userId).gte("created_at",fromISO).lte("created_at",toISO).limit(5000),
         supabase.from("bookings").select("id,status,amount,ai_booked,booking_date,customer_name,service,booking_time").eq("user_id",userId).limit(2000),
-        supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id",userId).gte("created_at",fromISO).limit(1000),
+        supabase.from("leads").select("status,source,estimated_value,created_at").eq("user_id",userId).gte("created_at",fromISO).lte("created_at",toISO).limit(1000),
         supabase.from("customers").select("id",{ count:"exact", head:true }).eq("user_id",userId),
       ])
 
@@ -163,7 +169,7 @@ export default function Dashboard() {
   const hColor=healthScore>=75?acc:healthScore>=40?"#f59e0b":"#ef4444"
   const hLabel=healthScore>=75?"Excellent":healthScore>=40?"Needs Work":"Getting Started"
   const circ=2*Math.PI*46
-  const pLabel=period==="today"?"Today":period==="week"?"This week":"This month"
+  const pLabel=period==="today"?"Today":period==="week"?"This week":period==="custom"&&customFrom?`${customFrom} → ${customTo}`:"This month"
 
   const fMax=Math.max(funnel.customers,1)
   const fSteps=[
@@ -263,12 +269,23 @@ export default function Dashboard() {
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <button className="hbtn" onClick={()=>setMobSidebarOpen(s=>!s)}>{"☰"}</button>
               <span style={{fontWeight:700,fontSize:15,color:tx}}>Revenue Engine</span>
-              <div className="period-wrap">
-                {["today","week","month"].map(p=>(
-                  <button key={p} className={"pbt"+(period===p?" on":"")} onClick={()=>setPeriod(p)}>
-                    {p.charAt(0).toUpperCase()+p.slice(1)}
-                  </button>
-                ))}
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                <div className="period-wrap">
+                  {["today","week","month","custom"].map(p=>(
+                    <button key={p} className={"pbt"+(period===p?" on":"")} onClick={()=>setPeriod(p)}>
+                      {p==="today"?"Today":p==="week"?"Week":p==="month"?"Month":"Custom"}
+                    </button>
+                  ))}
+                </div>
+                {period==="custom"&&(
+                  <div style={{display:"flex",alignItems:"center",gap:5,background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:"3px 8px"}}>
+                    <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} max={customTo||todayStr0}
+                      style={{background:"transparent",border:"none",color:tx,fontSize:11,outline:"none",fontFamily:"'Plus Jakarta Sans',sans-serif",cursor:"pointer"}}/>
+                    <span style={{color:txf,fontSize:10}}>→</span>
+                    <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} min={customFrom} max={todayStr0}
+                      style={{background:"transparent",border:"none",color:tx,fontSize:11,outline:"none",fontFamily:"'Plus Jakarta Sans',sans-serif",cursor:"pointer"}}/>
+                  </div>
+                )}
               </div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>

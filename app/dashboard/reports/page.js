@@ -54,6 +54,9 @@ export default function Reports() {
   const [period,   setPeriod]   = useState("month")
   const [loading,  setLoading]  = useState(true)
   const [exporting,setExporting]= useState(false)
+  const today = new Date().toISOString().split("T")[0]
+  const [customFrom, setCustomFrom] = useState("")
+  const [customTo,   setCustomTo]   = useState(today)
   const [data,     setData]     = useState({
     revenue:0, prevRevenue:0, bookings:0, prevBookings:0,
     leads:0, prevLeads:0, conversion:0, prevConversion:0,
@@ -62,34 +65,40 @@ export default function Reports() {
     leadSources:[], teamPerformance:[]
   })
 
-  useEffect(() => { if (userId) loadReport() }, [userId, period])
+  useEffect(() => { if (userId) loadReport() }, [userId, period, customFrom, customTo])
 
   async function loadReport() {
     setLoading(true)
     const now = new Date()
     let from = new Date(), prevFrom = new Date(), prevTo = new Date()
 
-    if (period==="week")    { from.setDate(now.getDate()-7);    prevFrom.setDate(now.getDate()-14); prevTo.setDate(now.getDate()-7); }
-    if (period==="month")   { from.setDate(now.getDate()-30);   prevFrom.setDate(now.getDate()-60); prevTo.setDate(now.getDate()-30); }
-    if (period==="quarter") { from.setDate(now.getDate()-90);   prevFrom.setDate(now.getDate()-180); prevTo.setDate(now.getDate()-90); }
-    if (period==="year")    { from.setFullYear(now.getFullYear()-1); prevFrom.setFullYear(now.getFullYear()-2); prevTo.setFullYear(now.getFullYear()-1); }
+    if (period==="custom" && customFrom) {
+      from = new Date(customFrom)
+      const rangeDays = Math.ceil((new Date(customTo)-from)/(1000*60*60*24))
+      prevTo = new Date(from); prevTo.setDate(prevTo.getDate()-1)
+      prevFrom = new Date(prevTo); prevFrom.setDate(prevFrom.getDate()-rangeDays)
+    } else if (period==="week")    { from.setDate(now.getDate()-7);    prevFrom.setDate(now.getDate()-14); prevTo.setDate(now.getDate()-7); }
+    else if (period==="month")   { from.setDate(now.getDate()-30);   prevFrom.setDate(now.getDate()-60); prevTo.setDate(now.getDate()-30); }
+    else if (period==="quarter") { from.setDate(now.getDate()-90);   prevFrom.setDate(now.getDate()-180); prevTo.setDate(now.getDate()-90); }
+    else if (period==="year")    { from.setFullYear(now.getFullYear()-1); prevFrom.setFullYear(now.getFullYear()-2); prevTo.setFullYear(now.getFullYear()-1); }
 
+    const toISO = period==="custom" && customTo ? new Date(customTo+"T23:59:59").toISOString() : now.toISOString()
     const [{ data:bks }, { data:prevBks }, { data:leads }, { data:convos }] = await Promise.all([
-      supabase.from("bookings").select("*").eq("user_id",userId).gte("created_at",from.toISOString()),
+      supabase.from("bookings").select("*").eq("user_id",userId).gte("created_at",from.toISOString()).lte("created_at",toISO),
       supabase.from("bookings").select("*").eq("user_id",userId).gte("created_at",prevFrom.toISOString()).lt("created_at",prevTo.toISOString()),
-      supabase.from("leads").select("*").eq("user_id",userId).gte("created_at",from.toISOString()),
-      supabase.from("conversations").select("*").eq("user_id",userId).gte("created_at",from.toISOString()).limit(200),
+      supabase.from("leads").select("*").eq("user_id",userId).gte("created_at",from.toISOString()).lte("created_at",toISO),
+      supabase.from("conversations").select("*").eq("user_id",userId).gte("created_at",from.toISOString()).lte("created_at",toISO).limit(200),
     ])
 
     const bkList = bks||[], prevBkList = prevBks||[], leadList = leads||[]
-    const revenue = bkList.filter(b=>b.status!=="cancelled").reduce((s,b)=>s+(b.service_price||0),0)
-    const prevRevenue = prevBkList.filter(b=>b.status!=="cancelled").reduce((s,b)=>s+(b.service_price||0),0)
+    const revenue = bkList.filter(b=>b.status!=="cancelled").reduce((s,b)=>s+(b.amount||0),0)
+    const prevRevenue = prevBkList.filter(b=>b.status!=="cancelled").reduce((s,b)=>s+(b.amount||0),0)
     const bookings = bkList.filter(b=>b.status!=="cancelled").length
     const converted = leadList.filter(l=>l.status==="converted").length
     const conversion = leadList.length ? Math.round(converted/leadList.length*100) : 0
 
     const svcMap = {}
-    bkList.forEach(b=>{ if(b.service_name){ svcMap[b.service_name]=(svcMap[b.service_name]||0)+(b.service_price||0) } })
+    bkList.forEach(b=>{ if(b.service){ svcMap[b.service]=(svcMap[b.service]||0)+(b.amount||0) } })
     const topServices = Object.entries(svcMap).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([name,rev])=>({name,rev}))
 
     const srcMap = {}
@@ -102,7 +111,7 @@ export default function Reports() {
       const d = new Date(); d.setDate(d.getDate()-(days-1-i))
       const label = period==="week"||period==="month" ? d.toLocaleDateString("en-IN",{weekday:"short"}) : d.toLocaleDateString("en-IN",{month:"short"})
       const dayBks = bkList.filter(b=>new Date(b.created_at).toDateString()===d.toDateString())
-      return { label, value: dayBks.reduce((s,b)=>s+(b.service_price||0),0) }
+      return { label, value: dayBks.reduce((s,b)=>s+(b.amount||0),0) }
     })
 
     setData({
@@ -233,13 +242,28 @@ export default function Reports() {
               <span style={{fontWeight:700,fontSize:15,color:tx}}>Reports</span>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{display:"flex",background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:3,gap:2}}>
-                {PERIODS.map(p=>(
-                  <button key={p.id} onClick={()=>setPeriod(p.id)}
-                    style={{padding:"5px 12px",borderRadius:6,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",background:period===p.id?acc:"transparent",color:period===p.id?"#000":txm,transition:"all 0.15s"}}>
-                    {p.label}
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                <div style={{display:"flex",background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:3,gap:2}}>
+                  {PERIODS.map(p=>(
+                    <button key={p.id} onClick={()=>setPeriod(p.id)}
+                      style={{padding:"5px 12px",borderRadius:6,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",background:period===p.id?acc:"transparent",color:period===p.id?"#000":txm,transition:"all 0.15s"}}>
+                      {p.label}
+                    </button>
+                  ))}
+                  <button onClick={()=>setPeriod("custom")}
+                    style={{padding:"5px 12px",borderRadius:6,fontSize:12,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",background:period==="custom"?acc:"transparent",color:period==="custom"?"#000":txm,transition:"all 0.15s"}}>
+                    Custom
                   </button>
-                ))}
+                </div>
+                {period==="custom"&&(
+                  <div style={{display:"flex",alignItems:"center",gap:6,background:ibg,border:`1px solid ${cbdr}`,borderRadius:8,padding:"4px 10px"}}>
+                    <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} max={customTo||today}
+                      style={{background:"transparent",border:"none",color:tx,fontSize:12,outline:"none",fontFamily:"'Plus Jakarta Sans',sans-serif",cursor:"pointer"}}/>
+                    <span style={{color:txf,fontSize:11}}>→</span>
+                    <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} min={customFrom} max={today}
+                      style={{background:"transparent",border:"none",color:tx,fontSize:12,outline:"none",fontFamily:"'Plus Jakarta Sans',sans-serif",cursor:"pointer"}}/>
+                  </div>
+                )}
               </div>
               <button onClick={exportReport} disabled={exporting}
                 style={{padding:"7px 14px",borderRadius:8,background:ibg,border:`1px solid ${cbdr}`,color:txm,fontSize:12,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:600}}>

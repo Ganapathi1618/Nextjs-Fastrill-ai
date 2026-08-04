@@ -133,7 +133,8 @@ export default function Team() {
         .modal{background:${sb};border:1px solid ${cbdr};border-radius:16px;padding:24px;width:100%;max-width:400px;display:flex;flex-direction:column;gap:14px}
         .inp{background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:9px 12px;font-size:13px;color:${tx};outline:none;width:100%;font-family:'Plus Jakarta Sans',sans-serif;}
         .inp:focus{border-color:${acc}66}
-        .sel{background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:9px 12px;font-size:13px;color:${tx};outline:none;width:100%;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;}
+        .sel{appearance:none;-webkit-appearance:none;background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:9px 12px;font-size:13px;color:${tx};outline:none;width:100%;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;}
+        .sel option{background:${dark?"#12121f":"#ffffff"};color:${tx};}
         .member-card{background:${card};border:1px solid ${cbdr};border-radius:12px;padding:16px;cursor:pointer;transition:border-color 0.12s;display:flex;align-items:center;gap:13px}
         .member-card:hover{border-color:${acc}55}
         .member-card.sel{border-color:${acc};background:${adim}}
