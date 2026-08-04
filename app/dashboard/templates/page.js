@@ -28,34 +28,12 @@ const NAV = [
 const CATEGORIES = ["All","Booking","Reminder","Promotion","Follow-up","Lead Recovery","Post-visit","Custom"]
 const STATUS_COLORS = { approved:"#4ade80", pending:"#f59e0b", rejected:"#f87171", draft:"#9ca3af" }
 
-const SAMPLE_TEMPLATES = [
-  { id:"t1", name:"booking_confirmation", category:"Booking", status:"approved", lang:"en",
-    body:"Hi {{1}}, your {{2}} appointment is confirmed for {{3}} at {{4}}. Reply CANCEL to cancel or RESCHEDULE to change. — {{5}}",
-    variables:["Customer Name","Service","Date","Time","Business Name"], usedIn:["campaigns","sequences"] },
-  { id:"t2", name:"appointment_reminder_24h", category:"Reminder", status:"approved", lang:"en",
-    body:"Hi {{1}}, gentle reminder — your {{2}} is tomorrow at {{3}}. Reply CONFIRM to confirm or RESCHEDULE to change your slot.",
-    variables:["Customer Name","Service","Time"], usedIn:["sequences"] },
-  { id:"t3", name:"lead_recovery_day1", category:"Lead Recovery", status:"approved", lang:"en",
-    body:"Hi {{1}}, you enquired about {{2}} recently. We'd love to have you in — slots are filling up this week. Want to book?",
-    variables:["Customer Name","Service"], usedIn:["sequences"] },
-  { id:"t4", name:"festive_offer", category:"Promotion", status:"approved", lang:"en",
-    body:"🎉 Hi {{1}}! Exclusive offer this week — {{2}} at just ₹{{3}}. Limited slots. Book now: reply YES.",
-    variables:["Customer Name","Service","Price"], usedIn:["campaigns"] },
-  { id:"t5", name:"hindi_booking_confirm", category:"Booking", status:"approved", lang:"hi",
-    body:"Namaste {{1}} ji, aapka {{2}} appointment confirm ho gaya hai — {{3}} ko {{4}} baje. — {{5}}",
-    variables:["Customer Name","Service","Date","Time","Business Name"], usedIn:["campaigns"] },
-  { id:"t6", name:"post_visit_review", category:"Post-visit", status:"pending", lang:"en",
-    body:"Hi {{1}}, thank you for visiting {{2}}! How was your experience? We'd love a quick Google review 🙏 {{3}}",
-    variables:["Customer Name","Business Name","Review Link"], usedIn:[] },
-  { id:"t7", name:"winback_30days", category:"Follow-up", status:"approved", lang:"en",
-    body:"Hi {{1}}, it's been a while! Your favourite {{2}} is ready for you. 10% off this week only — book at {{3}}.",
-    variables:["Customer Name","Service","Booking Link"], usedIn:["sequences"] },
-  { id:"t8", name:"real_estate_followup", category:"Follow-up", status:"draft", lang:"en",
-    body:"Hi {{1}}, following up on your interest in {{2}}. New inventory just arrived. Want to schedule a site visit?",
-    variables:["Customer Name","Project Name"], usedIn:[] },
-]
-
 const LANG_LABELS = { en:"🇬🇧 English", hi:"🇮🇳 Hindi", te:"Telugu", ta:"Tamil", kn:"Kannada", ml:"Malayalam" }
+
+function extractVariables(body) {
+  const matches = body.match(/\{\{(\d+)\}\}/g) || []
+  return [...new Set(matches)].sort()
+}
 
 export default function Templates() {
   usePlanGuard()
@@ -65,13 +43,26 @@ export default function Templates() {
   const router = useRouter()
 
   const [mobOpen,   setMobOpen]   = useState(false)
-  const [templates, setTemplates] = useState(SAMPLE_TEMPLATES)
+  const [templates, setTemplates] = useState([])
+  const [loading,   setLoading]   = useState(true)
   const [selected,  setSelected]  = useState(null)
   const [filter,    setFilter]    = useState("All")
   const [showNew,   setShowNew]   = useState(false)
   const [newTpl,    setNewTpl]    = useState({ name:"", category:"Booking", body:"", lang:"en" })
   const [saving,    setSaving]    = useState(false)
+  const [deleting,  setDeleting]  = useState(null)
   const [copying,   setCopying]   = useState(null)
+
+  useEffect(() => { if (userId) loadTemplates() }, [userId])
+
+  async function loadTemplates() {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from("wa_templates").select("*").eq("user_id", userId).order("created_at", { ascending: false })
+    if (error) { toast.error("Failed to load templates"); setLoading(false); return }
+    setTemplates(data || [])
+    setLoading(false)
+  }
 
   function copyVariable(tplId, variable) {
     navigator.clipboard.writeText(`{{${variable}}}`)
@@ -82,14 +73,36 @@ export default function Templates() {
 
   async function submitTemplate() {
     if (!newTpl.name.trim()||!newTpl.body.trim()) { toast.error("Name and body required"); return }
+    const nameClean = newTpl.name.trim().toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"")
+    if (!nameClean) { toast.error("Template name must be alphanumeric"); return }
     setSaving(true)
-    await new Promise(r=>setTimeout(r,900))
-    const tpl = { id:"t"+Date.now(), ...newTpl, status:"pending", usedIn:[] }
-    setTemplates(p=>[tpl,...p])
-    toast.success("Template submitted for Meta approval (1-3 business days)")
+    const variables = extractVariables(newTpl.body)
+    const { data, error } = await supabase.from("wa_templates").insert([{
+      user_id: userId,
+      name: nameClean,
+      category: newTpl.category,
+      body: newTpl.body.trim(),
+      lang: newTpl.lang,
+      status: "pending",
+      variables,
+    }]).select().single()
+    if (error) { toast.error("Failed to save: " + error.message); setSaving(false); return }
+    setTemplates(p => [data, ...p])
+    toast.success("Template saved — submit to Meta for approval from Settings → WhatsApp")
     setShowNew(false)
     setNewTpl({ name:"", category:"Booking", body:"", lang:"en" })
     setSaving(false)
+  }
+
+  async function deleteTemplate(tpl) {
+    if (!confirm(`Delete template "${tpl.name}"?`)) return
+    setDeleting(tpl.id)
+    const { error } = await supabase.from("wa_templates").delete().eq("id", tpl.id).eq("user_id", userId)
+    if (error) { toast.error("Failed to delete: " + error.message); setDeleting(null); return }
+    setTemplates(p => p.filter(t => t.id !== tpl.id))
+    if (selected?.id === tpl.id) setSelected(null)
+    toast.success("Template deleted")
+    setDeleting(null)
   }
 
   const bg   = dark?"#08080e":"#f0f2f5", sb=dark?"#0c0c15":"#ffffff"
@@ -237,10 +250,18 @@ export default function Templates() {
 
             <div className="tpl-grid">
               <div className="tpl-list">
-                {filtered.map(tpl=>(
+                {loading?(
+                  <div style={{textAlign:"center",padding:"32px 0",color:txf,fontSize:13}}>Loading templates...</div>
+                ):filtered.length===0?(
+                  <div style={{textAlign:"center",padding:"32px 0"}}>
+                    <div style={{fontSize:28,marginBottom:8}}>📋</div>
+                    <div style={{fontSize:13,color:txm,fontWeight:600,marginBottom:4}}>{filter==="All"?"No templates yet":"No "+filter+" templates"}</div>
+                    <div style={{fontSize:12,color:txf}}>Click "+ New Template" to create one</div>
+                  </div>
+                ):filtered.map(tpl=>(
                   <div key={tpl.id} className={`tpl-card${selected?.id===tpl.id?" sel":""}`} onClick={()=>setSelected(selected?.id===tpl.id?null:tpl)}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                      <div>
+                      <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:700,fontSize:13,color:tx,marginBottom:3}}>{tpl.name}</div>
                         <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                           <span style={{fontSize:10,fontWeight:700,color:STATUS_COLORS[tpl.status]||txm,background:(STATUS_COLORS[tpl.status]||txm)+"18",border:`1px solid ${(STATUS_COLORS[tpl.status]||txm)}33`,borderRadius:100,padding:"1px 7px"}}>{tpl.status}</span>
@@ -248,7 +269,10 @@ export default function Templates() {
                           <span style={{fontSize:10,color:txm,background:ibg,border:`1px solid ${cbdr}`,borderRadius:100,padding:"1px 7px"}}>{LANG_LABELS[tpl.lang]||tpl.lang}</span>
                         </div>
                       </div>
-                      {tpl.usedIn.length>0&&<span style={{fontSize:10,color:txf,whiteSpace:"nowrap"}}>Used in {tpl.usedIn.join(", ")}</span>}
+                      <button onClick={e=>{e.stopPropagation();deleteTemplate(tpl)}} disabled={deleting===tpl.id}
+                        style={{fontSize:10,color:"#f87171",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,padding:"2px 7px",cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif",flexShrink:0,marginLeft:8}}>
+                        {deleting===tpl.id?"…":"Delete"}
+                      </button>
                     </div>
                     <div style={{fontSize:12,color:txm,lineHeight:1.5,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{tpl.body}</div>
                   </div>
@@ -292,9 +316,9 @@ export default function Templates() {
                       </div>
                     )}
 
-                    {selected.usedIn?.length>0&&(
-                      <div style={{marginTop:14,padding:"10px 12px",background:ibg,border:`1px solid ${cbdr}`,borderRadius:8}}>
-                        <div style={{fontSize:11,color:txm}}>Used in: <strong style={{color:tx}}>{selected.usedIn.join(" · ")}</strong></div>
+                    {selected.rejection_reason&&(
+                      <div style={{marginTop:14,padding:"10px 12px",background:"rgba(248,113,113,0.06)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:8}}>
+                        <div style={{fontSize:11,color:"#f87171"}}>Rejection reason: {selected.rejection_reason}</div>
                       </div>
                     )}
 

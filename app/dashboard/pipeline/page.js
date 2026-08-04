@@ -68,9 +68,16 @@ export default function Pipeline() {
   }
 
   async function moveStage(lead, newStage) {
-    await supabase.from("leads").update({ status: newStage }).eq("id", lead.id)
+    const prevStatus = lead.status
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStage } : l))
     if (selected?.id === lead.id) setSelected(s => ({ ...s, status: newStage }))
+    const { error } = await supabase.from("leads").update({ status: newStage, updated_at: new Date().toISOString() }).eq("id", lead.id).eq("user_id", userId)
+    if (error) {
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus } : l))
+      if (selected?.id === lead.id) setSelected(s => ({ ...s, status: prevStatus }))
+      toast.error("Failed to save — " + error.message)
+      return
+    }
     toast.success(`Moved to ${STAGES.find(s=>s.id===newStage)?.label}`)
   }
 

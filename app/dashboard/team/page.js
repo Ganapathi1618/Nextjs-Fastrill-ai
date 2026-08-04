@@ -28,13 +28,6 @@ const NAV = [
 const ROLES = ["Admin","Sales Rep","Support Agent","Manager"]
 const ROLE_COLORS = { Admin:"#f59e0b", "Sales Rep":"#38bdf8", "Support Agent":"#a78bfa", Manager:"#4ade80" }
 
-const MOCK_TEAM = [
-  { id:"t1", name:"Priya Nair",    email:"priya@salon.com",   role:"Admin",        leads:24, conversations:87, status:"online",  avatar:"P" },
-  { id:"t2", name:"Ravi Kumar",    email:"ravi@salon.com",    role:"Sales Rep",    leads:18, conversations:54, status:"online",  avatar:"R" },
-  { id:"t3", name:"Sneha Reddy",   email:"sneha@salon.com",   role:"Support Agent",leads:9,  conversations:41, status:"offline", avatar:"S" },
-  { id:"t4", name:"Arjun Mehta",   email:"arjun@salon.com",   role:"Sales Rep",    leads:31, conversations:96, status:"online",  avatar:"A" },
-]
-
 export default function Team() {
   usePlanGuard()
   const { userId, userEmail, loading: authLoading, logout } = useAuth()
@@ -43,8 +36,9 @@ export default function Team() {
   const router = useRouter()
 
   const [mobOpen,    setMobOpen]    = useState(false)
-  const [team,       setTeam]       = useState(MOCK_TEAM)
+  const [team,       setTeam]       = useState([])
   const [leads,      setLeads]      = useState([])
+  const [loading,    setLoading]    = useState(true)
   const [selected,   setSelected]   = useState(null)
   const [showInvite, setShowInvite] = useState(false)
   const [invEmail,   setInvEmail]   = useState("")
@@ -52,35 +46,68 @@ export default function Team() {
   const [invName,    setInvName]    = useState("")
   const [saving,     setSaving]     = useState(false)
   const [assigning,  setAssigning]  = useState(null)
+  const [deleting,   setDeleting]   = useState(null)
 
-  useEffect(() => { if (userId) loadLeads() }, [userId])
+  useEffect(() => { if (userId) { loadTeam(); loadLeads() } }, [userId])
+
+  async function loadTeam() {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from("team_members").select("*").eq("user_id", userId).order("created_at", { ascending: true })
+    if (error) { toast.error("Failed to load team"); setLoading(false); return }
+    setTeam(data || [])
+    setLoading(false)
+  }
 
   async function loadLeads() {
     const { data } = await supabase
-      .from("leads").select("*, customers(name,phone)")
-      .eq("user_id", userId)
-      .order("last_message_at", { ascending: false })
+      .from("leads").select("id,name,phone,status,assigned_to,estimated_value,created_at")
+      .eq("user_id", userId).order("created_at", { ascending: false })
     setLeads(data || [])
   }
 
   async function inviteMember() {
     if (!invEmail.trim()||!invName.trim()) { toast.error("Name and email required"); return }
     setSaving(true)
-    await new Promise(r=>setTimeout(r,800))
-    const newMember = {
-      id:"t"+Date.now(), name:invName.trim(), email:invEmail.trim(),
-      role:invRole, leads:0, conversations:0, status:"invited", avatar:invName[0].toUpperCase()
-    }
-    setTeam(prev=>[...prev,newMember])
-    toast.success(`Invite sent to ${invEmail}`)
+    const { data, error } = await supabase.from("team_members").insert([{
+      user_id: userId,
+      name: invName.trim(),
+      email: invEmail.trim(),
+      role: invRole,
+      status: "invited",
+      avatar: invName.trim()[0].toUpperCase(),
+    }]).select().single()
+    if (error) { toast.error("Failed to add member: " + error.message); setSaving(false); return }
+    setTeam(prev => [...prev, data])
+    toast.success(`${invName} added to team`)
     setShowInvite(false); setInvEmail(""); setInvName(""); setInvRole("Sales Rep")
     setSaving(false)
   }
 
+  async function removeMember(member) {
+    if (!confirm(`Remove ${member.name} from team?`)) return
+    setDeleting(member.id)
+    const { error } = await supabase.from("team_members").delete().eq("id", member.id).eq("user_id", userId)
+    if (error) { toast.error("Failed to remove: " + error.message); setDeleting(null); return }
+    setTeam(prev => prev.filter(m => m.id !== member.id))
+    if (selected?.id === member.id) setSelected(null)
+    toast.success(`${member.name} removed`)
+    setDeleting(null)
+  }
+
+  async function updateRole(member, newRole) {
+    const { error } = await supabase.from("team_members").update({ role: newRole, updated_at: new Date().toISOString() }).eq("id", member.id).eq("user_id", userId)
+    if (error) { toast.error("Failed to update role"); return }
+    setTeam(prev => prev.map(m => m.id === member.id ? { ...m, role: newRole } : m))
+    if (selected?.id === member.id) setSelected(s => ({ ...s, role: newRole }))
+    toast.success("Role updated")
+  }
+
   async function assignLead(leadId, memberId) {
     setAssigning(leadId)
-    await supabase.from("leads").update({ assigned_to: memberId }).eq("id", leadId)
-    setLeads(prev=>prev.map(l=>l.id===leadId?{...l,assigned_to:memberId}:l))
+    const { error } = await supabase.from("leads").update({ assigned_to: memberId, updated_at: new Date().toISOString() }).eq("id", leadId).eq("user_id", userId)
+    if (error) { toast.error("Failed to assign: " + error.message); setAssigning(null); return }
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, assigned_to: memberId } : l))
     toast.success("Lead assigned")
     setAssigning(null)
   }
@@ -218,27 +245,40 @@ export default function Team() {
               {/* Team list */}
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 <div style={{fontSize:12,fontWeight:700,color:txm,textTransform:"uppercase",letterSpacing:"0.8px"}}>Members</div>
-                {team.map(member=>(
+                {loading?(
+                  <div style={{textAlign:"center",padding:"32px 0",color:txf,fontSize:13}}>Loading team...</div>
+                ):team.length===0?(
+                  <div style={{textAlign:"center",padding:"32px 0"}}>
+                    <div style={{fontSize:28,marginBottom:8}}>👥</div>
+                    <div style={{fontSize:13,color:txm,fontWeight:600,marginBottom:4}}>No team members yet</div>
+                    <div style={{fontSize:12,color:txf}}>Click "Invite member" to add your first team member</div>
+                  </div>
+                ):team.map(member=>(
                   <div key={member.id} className={`member-card${selected?.id===member.id?" sel":""}`} onClick={()=>setSelected(selected?.id===member.id?null:member)}>
                     <div className="av" style={{background:`linear-gradient(135deg,${ROLE_COLORS[member.role]||acc},${ROLE_COLORS[member.role]||acc}88)`}}>
-                      {member.avatar}
+                      {member.avatar||member.name?.[0]?.toUpperCase()}
                     </div>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:2}}>
                         <span style={{fontWeight:700,fontSize:13.5,color:tx}}>{member.name}</span>
-                        <span className="status-dot" style={{background:member.status==="online"?"#4ade80":member.status==="invited"?"#f59e0b":"#6b7280"}}/>
+                        <span className="status-dot" style={{background:member.status==="active"?"#4ade80":member.status==="invited"?"#f59e0b":"#6b7280"}}/>
                         <span style={{fontSize:10,color:txm}}>{member.status}</span>
                       </div>
                       <div style={{fontSize:11.5,color:txm,marginBottom:5}}>{member.email}</div>
-                      <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                        <span style={{fontSize:10.5,fontWeight:700,color:ROLE_COLORS[member.role]||acc,background:(ROLE_COLORS[member.role]||acc)+"18",border:`1px solid ${(ROLE_COLORS[member.role]||acc)}33`,borderRadius:100,padding:"2px 8px"}}>{member.role}</span>
-                        <span style={{fontSize:10.5,color:txf}}>{leads.filter(l=>l.assigned_to===member.id).length} leads assigned</span>
-                        <span style={{fontSize:10.5,color:txf}}>{member.conversations} convos</span>
+                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                        <select value={member.role} className="sel" style={{width:"auto",padding:"2px 6px",fontSize:10.5,borderRadius:100}}
+                          onClick={e=>e.stopPropagation()} onChange={e=>{e.stopPropagation();updateRole(member,e.target.value)}}>
+                          {ROLES.map(r=><option key={r} value={r}>{r}</option>)}
+                        </select>
+                        <span style={{fontSize:10.5,color:txf}}>{leads.filter(l=>l.assigned_to===member.id).length} leads</span>
                       </div>
                     </div>
-                    <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0}}>
                       <div style={{fontSize:20,fontWeight:700,color:acc}}>{leads.filter(l=>l.assigned_to===member.id).length}</div>
-                      <div style={{fontSize:10,color:txf}}>leads</div>
+                      <button onClick={e=>{e.stopPropagation();removeMember(member)}} disabled={deleting===member.id}
+                        style={{fontSize:10,color:"#f87171",background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:6,padding:"2px 7px",cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                        {deleting===member.id?"…":"Remove"}
+                      </button>
                     </div>
                   </div>
                 ))}
