@@ -17,11 +17,11 @@ const NAV = [
   { id:"sequences",    label:"Sequences",       icon:"⟳", path:"/dashboard/sequences" },
   { id:"leads",        label:"Lead Recovery",   icon:"◉", path:"/dashboard/leads" },
   { id:"contacts",     label:"Customers",       icon:"◑", path:"/dashboard/contacts" },
+  { id:"analytics",    label:"Analytics",       icon:"▦", path:"/dashboard/analytics" },
   { id:"templates",    label:"WA Templates",    icon:"▤", path:"/dashboard/templates" },
   { id:"integrations", label:"Integrations",    icon:"⌁", path:"/dashboard/integrations" },
   { id:"reports",      label:"Reports",         icon:"⊟", path:"/dashboard/reports" },
   { id:"referrals",    label:"Refer & Earn",    icon:"◈", path:"/dashboard/referrals" },
-  { id:"analytics",    label:"Analytics",       icon:"▦", path:"/dashboard/analytics" },
   { id:"settings",     label:"Settings",        icon:"◌", path:"/dashboard/settings" },
 ]
 
@@ -134,7 +134,9 @@ export default function Templates() {
         .toggle-pill::after{content:'';position:absolute;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;left:${dark?"16px":"2px"};}
         .hamburger{display:none;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:17px;color:#eeeef5;line-height:1;margin-right:2px;}
         .mob-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;cursor:pointer;}
+        .stats4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;}
         .tpl-grid{display:grid;grid-template-columns:1fr 340px;gap:14px;margin-top:16px;}
+        @media(max-width:900px){.stats4{grid-template-columns:repeat(2,1fr);}}
         .tpl-list{display:flex;flex-direction:column;gap:8px;}
         .tpl-card{background:${card};border:1px solid ${cbdr};border-radius:11px;padding:14px 16px;cursor:pointer;transition:border-color 0.12s;}
         .tpl-card:hover{border-color:${acc}44}
@@ -147,7 +149,8 @@ export default function Templates() {
         .modal{background:${sb};border:1px solid ${cbdr};border-radius:16px;padding:24px;width:100%;max-width:480px;display:flex;flex-direction:column;gap:13px;max-height:90vh;overflow-y:auto}
         .inp{background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:9px 12px;font-size:13px;color:${tx};outline:none;width:100%;font-family:'Plus Jakarta Sans',sans-serif;}
         .inp:focus{border-color:${acc}66}
-        .sel{background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:9px 12px;font-size:13px;color:${tx};outline:none;width:100%;font-family:'Plus Jakarta Sans',sans-serif;}
+        .sel{appearance:none;-webkit-appearance:none;background:${ibg};border:1px solid ${cbdr};border-radius:8px;padding:9px 12px;font-size:13px;color:${tx};outline:none;width:100%;font-family:'Plus Jakarta Sans',sans-serif;}
+        .sel option{background:${dark?"#12121f":"#ffffff"};color:${tx};}
         @media(max-width:900px){.tpl-grid{grid-template-columns:1fr;}}
         @media(max-width:767px){
           .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:300;transform:translateX(-100%);transition:transform 0.25s ease;width:240px!important;box-shadow:4px 0 24px rgba(0,0,0,0.5);}
@@ -207,7 +210,7 @@ export default function Templates() {
 
           <div className="content">
             {/* Stats */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11}}>
+            <div className="stats4">
               {[
                 {l:"Total",    v:templates.length,                                    c:tx},
                 {l:"Approved", v:templates.filter(t=>t.status==="approved").length,   c:"#4ade80"},
