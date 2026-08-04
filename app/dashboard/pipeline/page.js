@@ -71,7 +71,7 @@ export default function Pipeline() {
     const prevStatus = lead.status
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStage } : l))
     if (selected?.id === lead.id) setSelected(s => ({ ...s, status: newStage }))
-    const { error } = await supabase.from("leads").update({ status: newStage, updated_at: new Date().toISOString() }).eq("id", lead.id).eq("user_id", userId)
+    const { error } = await supabase.from("leads").update({ status: newStage, updated_at: new Date().toISOString() }).eq("id", lead.id)
     if (error) {
       setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus } : l))
       if (selected?.id === lead.id) setSelected(s => ({ ...s, status: prevStatus }))
