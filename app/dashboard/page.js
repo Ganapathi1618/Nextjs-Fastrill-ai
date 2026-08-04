@@ -328,7 +328,11 @@ export default function Dashboard() {
                 {loading?(
                   <div style={{textAlign:"center",padding:"28px 0",color:txf,fontSize:12}}>Loading...</div>
                 ):funnel.customers===0?(
-                  <div style={{textAlign:"center",padding:"28px 0",color:txf,fontSize:12}}>No data yet</div>
+                  <div style={{textAlign:"center",padding:"28px 0"}}>
+                    <div style={{fontSize:28,marginBottom:8}}>📊</div>
+                    <div style={{fontSize:13,color:txm,fontWeight:600,marginBottom:4}}>Pipeline is empty for {pLabel.toLowerCase()}</div>
+                    <div style={{fontSize:11.5,color:txf}}>Connect WhatsApp and start chatting — your funnel will appear here</div>
+                  </div>
                 ):(
                   <div>
                     {/* Pipeline steps */}

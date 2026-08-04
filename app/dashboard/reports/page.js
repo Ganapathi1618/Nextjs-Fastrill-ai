@@ -272,14 +272,22 @@ export default function Reports() {
                 <div style={{fontWeight:700,fontSize:13,color:tx}}>Revenue over time</div>
                 <div style={{fontSize:12,color:txm}}>₹{(data.revenue||0).toLocaleString()} total</div>
               </div>
-              <div style={{display:"flex",gap:4,alignItems:"flex-end",height:80}}>
-                {(data.dailyRevenue||[]).map((d,i)=>(
-                  <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                    <Bar value={d.value} max={maxRev} color={acc} height={64}/>
-                    <div style={{fontSize:9,color:txf,textAlign:"center"}}>{d.label}</div>
-                  </div>
-                ))}
-              </div>
+              {maxRev <= 1 ? (
+                <div style={{height:80,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6}}>
+                  <div style={{fontSize:22}}>📊</div>
+                  <div style={{fontSize:12,color:txf}}>No revenue recorded for this period</div>
+                  <div style={{fontSize:11,color:txf,opacity:0.6}}>Bookings with payments will appear here</div>
+                </div>
+              ) : (
+                <div style={{display:"flex",gap:4,alignItems:"flex-end",height:80}}>
+                  {(data.dailyRevenue||[]).map((d,i)=>(
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                      <Bar value={d.value} max={maxRev} color={acc} height={64}/>
+                      <div style={{fontSize:9,color:txf,textAlign:"center"}}>{d.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Two col: top services + lead sources */}

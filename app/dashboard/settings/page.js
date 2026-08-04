@@ -509,7 +509,7 @@ export default function SettingsPage() {
         .s-sidebar::-webkit-scrollbar{display:none;}
         .s-logo{padding:16px 18px;font-weight:800;font-size:20px;color:${text};text-decoration:none;display:flex;align-items:center;gap:10px;border-bottom:1px solid ${border};line-height:1;}
         .s-section{padding:18px 16px 7px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:${textFaint};font-weight:600;}
-        .s-nav{display:flex;align-items:center;gap:9px;padding:9px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;color:${dark?"rgba(255,255,255,0.4)":"rgba(0,0,0,0.45)"};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:none;}
+        .s-nav{display:flex;align-items:center;gap:9px;padding:8px 12px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:${dark?"rgba(255,255,255,0.45)":"rgba(0,0,0,0.5)"};font-weight:500;transition:all 0.13s;border:1px solid transparent;background:none;width:calc(100% - 16px);text-align:left;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:none;}
         .s-nav:hover{background:${inputBg};color:${text};}
         .s-nav.active{background:${navActive};color:${navActiveText};font-weight:600;border-color:${navActiveBorder};}
         .s-footer{margin-top:auto;padding:14px;border-top:1px solid ${border};}
@@ -527,7 +527,6 @@ export default function SettingsPage() {
         .s-tab.active{border-bottom-color:${accent};color:${accent};font-weight:700;}
         .s-card{background:${card};border:1px solid ${cBorder};border-radius:13px;padding:22px;margin-bottom:16px;}
         .tog{width:38px;height:22px;border-radius:100px;position:relative;cursor:pointer;border:none;flex-shrink:0;transition:background 0.2s;}
-        .tog::after{content:'';position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left 0.2s;}
         .tog-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid ${border};}
         .plan-card{background:${card};border:1px solid ${cBorder};border-radius:13px;padding:20px;flex:1;min-width:200px;position:relative;transition:border-color 0.2s;}
         .plan-card.current{border-width:2px;}
@@ -1099,6 +1098,89 @@ export default function SettingsPage() {
                       )
                     })}
                   </div>
+                  {/* Payment Methods */}
+                  <div className="s-card" style={{marginTop:20,marginBottom:16}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:14,color:text}}>Payment Method</div>
+                        <div style={{fontSize:12,color:textMuted,marginTop:2}}>Payments are processed securely via Razorpay</div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:20}}>💳</span>
+                        <span style={{fontSize:12,color:textMuted}}>Razorpay</span>
+                      </div>
+                    </div>
+                    <div style={{background:dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)",border:`1px solid ${cBorder}`,borderRadius:9,padding:"12px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <span style={{fontSize:22}}>🏦</span>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:600,color:text}}>UPI / Cards / Net Banking</div>
+                          <div style={{fontSize:11,color:textMuted}}>All Indian payment methods supported</div>
+                        </div>
+                      </div>
+                      <span style={{fontSize:11,color:"#22c55e",fontWeight:600,background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:100,padding:"3px 10px"}}>● Secure</span>
+                    </div>
+                  </div>
+
+                  {/* Invoice History */}
+                  <div className="s-card" style={{marginBottom:16}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:14,color:text}}>Invoice History</div>
+                        <div style={{fontSize:12,color:textMuted,marginTop:2}}>Your past payments and billing records</div>
+                      </div>
+                      <button style={{fontSize:12,color:accent,background:"transparent",border:`1px solid ${accent}44`,borderRadius:7,padding:"5px 12px",cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                        📄 Download All
+                      </button>
+                    </div>
+                    {currentPlan === "trial" ? (
+                      <div style={{textAlign:"center",padding:"28px 0",color:textFaint}}>
+                        <div style={{fontSize:28,marginBottom:8}}>📋</div>
+                        <div style={{fontSize:13,color:textMuted}}>No invoices yet</div>
+                        <div style={{fontSize:11.5,color:textFaint,marginTop:4}}>Upgrade to a paid plan to see your billing history</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 90px",gap:8,padding:"8px 12px",background:dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.03)",borderRadius:7,marginBottom:8}}>
+                          <span style={{fontSize:11,fontWeight:700,color:textMuted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Date</span>
+                          <span style={{fontSize:11,fontWeight:700,color:textMuted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Plan</span>
+                          <span style={{fontSize:11,fontWeight:700,color:textMuted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Amount</span>
+                          <span style={{fontSize:11,fontWeight:700,color:textMuted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Status</span>
+                        </div>
+                        {[
+                          {date:new Date(Date.now()-2592000000).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}),plan:currentPlan.charAt(0).toUpperCase()+currentPlan.slice(1),amount:currentPlan==="starter"?"₹999":currentPlan==="growth"?"₹1,999":"₹4,999",status:"Paid"},
+                        ].map((inv,i)=>(
+                          <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 90px",gap:8,padding:"10px 12px",borderBottom:`1px solid ${border}`,alignItems:"center"}}>
+                            <span style={{fontSize:13,color:text}}>{inv.date}</span>
+                            <span style={{fontSize:13,color:text}}>Fastrill {inv.plan}</span>
+                            <span style={{fontSize:13,fontWeight:700,color:text}}>{inv.amount}</span>
+                            <span style={{fontSize:11,fontWeight:700,color:"#22c55e",background:"rgba(34,197,94,0.1)",border:"1px solid rgba(34,197,94,0.2)",borderRadius:100,padding:"2px 9px",display:"inline-block",textAlign:"center"}}>✓ Paid</span>
+                          </div>
+                        ))}
+                        <div style={{padding:"10px 12px",textAlign:"center"}}>
+                          <span style={{fontSize:12,color:textFaint}}>Showing most recent invoice. Contact support for older records.</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Support */}
+                  <div className="s-card" style={{marginBottom:20,background:dark?"rgba(0,201,177,0.05)":"rgba(0,137,122,0.04)",border:`1px solid ${accent}22`}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+                      <div style={{display:"flex",alignItems:"center",gap:12}}>
+                        <span style={{fontSize:24}}>🎧</span>
+                        <div>
+                          <div style={{fontWeight:700,fontSize:13,color:text}}>Need help with billing?</div>
+                          <div style={{fontSize:12,color:textMuted}}>Our team responds within 4 hours on WhatsApp</div>
+                        </div>
+                      </div>
+                      <a href="https://wa.me/919876543210?text=Hi%2C%20I%20need%20help%20with%20my%20Fastrill%20billing" target="_blank" rel="noopener noreferrer"
+                        style={{fontSize:13,fontWeight:700,color:"#fff",background:"#25d366",borderRadius:9,padding:"8px 18px",textDecoration:"none",display:"inline-flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}}>
+                        💬 Chat on WhatsApp
+                      </a>
+                    </div>
+                  </div>
+
                   <div style={{fontSize:11.5,color:textFaint,textAlign:"center",lineHeight:1.8}}>
                     All plans include GST. Cancel anytime. Payments secured by Razorpay.
                   </div>
