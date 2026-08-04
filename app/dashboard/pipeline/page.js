@@ -63,18 +63,26 @@ export default function Pipeline() {
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
     if (error) { toast.error("Failed to load pipeline"); setLoading(false); return }
-    setLeads(data || [])
+    setLeads((data || []).filter(l => l && l.id))
     setLoading(false)
   }
 
+  // ── FIXED: guards against null selected + captures leadId before await ──
   async function moveStage(lead, newStage) {
+    if (!lead?.id) { toast.error("Lead not found"); return }
+    const leadId = lead.id
     const prevStatus = lead.status
-    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: newStage } : l))
-    if (selected?.id === lead.id) setSelected(s => ({ ...s, status: newStage }))
-    const { error } = await supabase.from("leads").update({ status: newStage, updated_at: new Date().toISOString() }).eq("id", lead.id)
+
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStage } : l))
+    setSelected(s => (s && s.id === leadId) ? { ...s, status: newStage } : s)
+
+    const { error } = await supabase.from("leads")
+      .update({ status: newStage, updated_at: new Date().toISOString() })
+      .eq("id", leadId)
+
     if (error) {
-      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: prevStatus } : l))
-      if (selected?.id === lead.id) setSelected(s => ({ ...s, status: prevStatus }))
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: prevStatus } : l))
+      setSelected(s => (s && s.id === leadId) ? { ...s, status: prevStatus } : s)
       toast.error("Failed to save — " + error.message)
       return
     }
@@ -83,6 +91,7 @@ export default function Pipeline() {
 
   async function addLead() {
     if (!newName.trim()) { toast.error("Name required"); return }
+    if (!userId) { toast.error("Not signed in"); return }
     setSaving(true)
     const { data, error } = await supabase.from("leads").insert([{
       user_id: userId,
@@ -95,7 +104,10 @@ export default function Pipeline() {
       last_message_at: new Date().toISOString(),
     }]).select()
     setSaving(false)
-    if (error) { toast.error("Failed to add lead"); return }
+    if (error || !data?.[0]?.id) {
+      toast.error("Failed to add lead" + (error ? " — " + error.message : ""))
+      return
+    }
     setLeads(prev => [data[0], ...prev])
     setNewName(""); setNewPhone(""); setNewValue(""); setAddStage(null)
     toast.success("Lead added!")
@@ -327,8 +339,8 @@ export default function Pipeline() {
         </div>
       </div>
 
-      {/* Lead detail modal */}
-      {selected&&(
+      {/* Lead detail modal — only renders when we have a real lead with an id */}
+      {selected?.id&&(
         <div className="modal-ov" onClick={e=>{if(e.target===e.currentTarget)setSelected(null)}}>
           <div className="modal">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -355,7 +367,7 @@ export default function Pipeline() {
               <div style={{fontSize:11,color:txm,marginBottom:7,fontWeight:600}}>Move to stage</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                 {STAGES.filter(s=>s.id!==(selected.status||"new")).map(s=>(
-                  <button key={s.id} onClick={()=>{moveStage(selected,s.id);setSelected(null)}}
+                  <button key={s.id} onClick={()=>{const l=selected;setSelected(null);moveStage(l,s.id)}}
                     style={{padding:"5px 12px",borderRadius:7,background:s.color+"18",border:`1px solid ${s.color}44`,color:s.color,fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
                     → {s.label}
                   </button>
