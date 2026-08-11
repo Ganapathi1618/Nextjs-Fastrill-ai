@@ -58,7 +58,8 @@ export default function MarketingNav() {
   return (
     <>
       <style>{`
-        .mn-bar{position:fixed;top:0;left:0;right:0;z-index:500;height:80px;display:flex;align-items:center;padding:0 clamp(16px,4vw,52px);background:#fff;border-bottom:1px solid #EAECF0;box-shadow:0 1px 3px rgba(0,0,0,.06);max-width:100vw;overflow:hidden}
+        /* NOTE: no overflow:hidden here — it clips the absolutely-positioned dropdowns. */
+        .mn-bar{position:fixed;top:0;left:0;right:0;z-index:500;height:80px;display:flex;align-items:center;padding:0 clamp(16px,4vw,52px);background:#fff;border-bottom:1px solid #EAECF0;box-shadow:0 1px 3px rgba(0,0,0,.06);max-width:100vw}
         .mn-logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
         .mn-logo img{width:34px;height:34px;object-fit:contain}
         .mn-logo-text{font-weight:800;font-size:20px;color:#1A1D23;letter-spacing:-.03em;font-family:'Plus Jakarta Sans',sans-serif}
