@@ -9,17 +9,17 @@ export const metadata = {
 
 export default function RealEstatePage() {
   return (
-    <div style={{ background: "#fff", minHeight: "100vh", fontFamily: "'Inter',system-ui,sans-serif", color: "#C7CBD3" }}>
+    <div style={{ background: "#fff", minHeight: "100vh", fontFamily: "'Inter',system-ui,sans-serif", color: "#4B5563" }}>
       <MarketingNav />
       <section style={{ paddingTop: 130, paddingBottom: 80, paddingLeft: "clamp(16px,4vw,44px)", paddingRight: "clamp(16px,4vw,44px)", textAlign: "center" }}>
         <div style={{ maxWidth: 700, margin: "0 auto" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(37,211,102,.1)", color: "#1D6AF5", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100, marginBottom: 22, border: "1px solid rgba(37,211,102,.2)" }}>🏠 Real Estate</div>
-          <h1 style={{ fontSize: "clamp(30px,4.5vw,52px)", fontWeight: 800, color: "#fff", letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 18, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Qualify 100 leads. Follow up on all of them. Automatically.</h1>
+          <h1 style={{ fontSize: "clamp(30px,4.5vw,52px)", fontWeight: 800, color: "#1A1D23", letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 18, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Qualify 100 leads. Follow up on all of them. Automatically.</h1>
           <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.8, marginBottom: 36 }}>Property inquiries come in at all hours from ads. Fastrill asks qualifying questions, answers budget and location queries, and books site visits — without a single manual message from your team.</p>
           <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#1D6AF5", color: "#fff", padding: "14px 28px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Start free trial →</Link>
         </div>
       </section>
-      <section style={{ padding: "70px clamp(16px,4vw,44px)", background: "#F9FAFB", borderTop: "1px solid rgba(255,255,255,.05)" }}>
+      <section style={{ padding: "70px clamp(16px,4vw,44px)", background: "#F9FAFB", borderTop: "1px solid #F3F4F6" }}>
         <div style={{ maxWidth: 1060, margin: "0 auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
             {[
@@ -28,7 +28,7 @@ export default function RealEstatePage() {
               { title: "Lead nurture sequences", desc: "A lead inquired 2 weeks ago and went cold. Fastrill sends a follow-up sequence with new inventory — stops when they respond." },
             ].map(p => (
               <div key={p.title} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 14, padding: "24px 22px" }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 10 }}>{p.title}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1D23", marginBottom: 10 }}>{p.title}</div>
                 <div style={{ fontSize: 13.5, color: "#6B7280", lineHeight: 1.7 }}>{p.desc}</div>
               </div>
             ))}

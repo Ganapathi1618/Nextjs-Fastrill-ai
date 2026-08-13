@@ -9,18 +9,18 @@ export const metadata = {
 
 export default function CoachingPage() {
   return (
-    <div style={{ background: "#fff", minHeight: "100vh", fontFamily: "'Inter',system-ui,sans-serif", color: "#C7CBD3" }}>
+    <div style={{ background: "#fff", minHeight: "100vh", fontFamily: "'Inter',system-ui,sans-serif", color: "#4B5563" }}>
       <MarketingNav />
 
       <section style={{ paddingTop: 130, paddingBottom: 80, paddingLeft: "clamp(16px,4vw,44px)", paddingRight: "clamp(16px,4vw,44px)" }}>
         <div style={{ maxWidth: 1060, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "clamp(36px,5vw,72px)", alignItems: "center" }}>
           <div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(37,211,102,.1)", color: "#1D6AF5", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100, marginBottom: 22, border: "1px solid rgba(37,211,102,.2)" }}>📚 Coaching & Education</div>
-            <h1 style={{ fontSize: "clamp(30px,4.5vw,52px)", fontWeight: 800, color: "#fff", letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 18, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Turn every parent inquiry into an enrolled student.</h1>
+            <h1 style={{ fontSize: "clamp(30px,4.5vw,52px)", fontWeight: 800, color: "#1A1D23", letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 18, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Turn every parent inquiry into an enrolled student.</h1>
             <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.8, marginBottom: 28 }}>Parents message about your coaching centre at all hours — batch timings, fees, subjects, demo class availability. Fastrill answers all of it instantly and books the demo class automatically.</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#1D6AF5", color: "#fff", padding: "13px 24px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Start free trial →</Link>
-              <Link href="/pricing" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#F3F4F6", color: "#fff", padding: "13px 20px", borderRadius: 10, fontWeight: 600, fontSize: 14, textDecoration: "none", border: "1px solid #E5E7EB" }}>See pricing</Link>
+              <Link href="/pricing" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#F3F4F6", color: "#1A1D23", padding: "13px 20px", borderRadius: 10, fontWeight: 600, fontSize: 14, textDecoration: "none", border: "1px solid #E5E7EB" }}>See pricing</Link>
             </div>
           </div>
           <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 18, padding: 24 }}>
@@ -32,16 +32,16 @@ export default function CoachingPage() {
               { side: "right", msg: "Kal 6 PM demo class confirmed! Bright Minds, Kondapur.\n\nBeti ka naam batayein? 📚" },
             ].map((m, i) => (
               <div key={i} style={{ display: "flex", justifyContent: m.side === "right" ? "flex-end" : "flex-start", marginBottom: 10 }}>
-                <div style={{ maxWidth: "82%", background: m.side === "right" ? "rgba(37,211,102,.12)" : "#E5E7EB", border: `1px solid ${m.side === "right" ? "rgba(37,211,102,.2)" : "#E5E7EB"}`, borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: m.side === "right" ? "#1D6AF5" : "rgba(255,255,255,.8)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{m.msg}</div>
+                <div style={{ maxWidth: "82%", background: m.side === "right" ? "rgba(37,211,102,.12)" : "#E5E7EB", border: `1px solid ${m.side === "right" ? "rgba(37,211,102,.2)" : "#E5E7EB"}`, borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: m.side === "right" ? "#1D6AF5" : "#1F2937", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{m.msg}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section style={{ padding: "70px clamp(16px,4vw,44px)", background: "#F9FAFB", borderTop: "1px solid rgba(255,255,255,.05)" }}>
+      <section style={{ padding: "70px clamp(16px,4vw,44px)", background: "#F9FAFB", borderTop: "1px solid #F3F4F6" }}>
         <div style={{ maxWidth: 1060, margin: "0 auto" }}>
-          <h2 style={{ fontSize: "clamp(24px,3vw,36px)", fontWeight: 800, color: "#fff", marginBottom: 44, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>What Fastrill does for coaching centres</h2>
+          <h2 style={{ fontSize: "clamp(24px,3vw,36px)", fontWeight: 800, color: "#1A1D23", marginBottom: 44, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>What Fastrill does for coaching centres</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14 }}>
             {[
               { title: "Answers fee and batch queries instantly", desc: "Parents ask about fees, subjects, batch timings at all hours. Fastrill gives accurate answers based on your coaching programme." },
@@ -50,7 +50,7 @@ export default function CoachingPage() {
               { title: "Handles re-enrollment campaigns", desc: "Summer batch starting? Send a campaign to last year's students with one click. Fastrill handles all the replies." },
             ].map(s => (
               <div key={s.title} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 14, padding: "26px 24px" }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 10 }}>{s.title}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1D23", marginBottom: 10 }}>{s.title}</div>
                 <div style={{ fontSize: 13.5, color: "#6B7280", lineHeight: 1.7 }}>{s.desc}</div>
               </div>
             ))}
@@ -60,7 +60,7 @@ export default function CoachingPage() {
 
       <section style={{ padding: "80px clamp(16px,4vw,44px)", textAlign: "center" }}>
         <div style={{ maxWidth: 520, margin: "0 auto" }}>
-          <h2 style={{ fontSize: "clamp(24px,3vw,36px)", fontWeight: 800, color: "#fff", marginBottom: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Never miss an enrollment inquiry again.</h2>
+          <h2 style={{ fontSize: "clamp(24px,3vw,36px)", fontWeight: 800, color: "#1A1D23", marginBottom: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Never miss an enrollment inquiry again.</h2>
           <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 28 }}>14-day free trial. No credit card. Cancel anytime.</p>
           <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#1D6AF5", color: "#fff", padding: "14px 28px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Start free for coaching →</Link>
         </div>
