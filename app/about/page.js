@@ -9,14 +9,14 @@ export const metadata = {
 
 export default function AboutPage() {
   return (
-    <div style={{ background: "#fff", minHeight: "100vh", fontFamily: "'Inter',system-ui,sans-serif", color: "#C7CBD3" }}>
+    <div style={{ background: "#fff", minHeight: "100vh", fontFamily: "'Inter',system-ui,sans-serif", color: "#4B5563" }}>
       <MarketingNav />
 
       {/* HERO */}
       <section style={{ paddingTop: 130, paddingBottom: 80, paddingLeft: "clamp(16px,4vw,44px)", paddingRight: "clamp(16px,4vw,44px)", textAlign: "center" }}>
         <div style={{ maxWidth: 680, margin: "0 auto" }}>
           <div style={{ display: "inline-block", background: "rgba(37,211,102,.1)", color: "#1D6AF5", fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100, marginBottom: 22, border: "1px solid rgba(37,211,102,.2)" }}>Our story</div>
-          <h1 style={{ fontSize: "clamp(34px,5vw,56px)", fontWeight: 800, color: "#fff", letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 20, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>We're building the AI operating system for customer communication</h1>
+          <h1 style={{ fontSize: "clamp(34px,5vw,56px)", fontWeight: 800, color: "#1A1D23", letterSpacing: "-.03em", lineHeight: 1.1, marginBottom: 20, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>We're building the AI operating system for customer communication</h1>
           <p style={{ fontSize: 17, color: "#6B7280", lineHeight: 1.75 }}>Built for the 63 million small businesses in India who run on WhatsApp — and lose revenue every day because nobody replied fast enough.</p>
         </div>
       </section>
@@ -25,25 +25,25 @@ export default function AboutPage() {
       <section style={{ padding: "0 clamp(16px,4vw,44px) 80px" }}>
         <div style={{ maxWidth: 680, margin: "0 auto", background: "#fff", border: "1px solid #E5E7EB", borderRadius: 20, padding: "clamp(32px,5vw,56px)" }}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "#1D6AF5", marginBottom: 24 }}>A letter from the founder</div>
-          <div style={{ fontFamily: "'Newsreader',serif", fontStyle: "italic", fontSize: "clamp(16px,1.9vw,19px)", color: "rgba(255,255,255,.7)", lineHeight: 1.9 }}>
+          <div style={{ fontFamily: "'Newsreader',serif", fontStyle: "italic", fontSize: "clamp(16px,1.9vw,19px)", color: "#4B5563", lineHeight: 1.9 }}>
             <p>I've spent years in digital marketing — running ads, building funnels, optimising campaigns for businesses across India. Every lead costs money. Real money.</p>
             <br />
-            <p>And yet, the single most common thing I saw across <strong style={{ color: "#fff", fontStyle: "normal" }}>every single client</strong> — salons, clinics, gyms, coaching centres — was this:</p>
+            <p>And yet, the single most common thing I saw across <strong style={{ color: "#1A1D23", fontStyle: "normal" }}>every single client</strong> — salons, clinics, gyms, coaching centres — was this:</p>
             <br />
             <p style={{ fontSize: "clamp(19px,2.2vw,24px)", color: "#1D6AF5", lineHeight: 1.5 }}>"Leads were arriving. And dying in the WhatsApp inbox."</p>
             <br />
             <p>A customer messages at 10 PM, ready to book. Nobody replies until morning. By then, they've moved on. You spent ₹300 on that click. It just evaporated.</p>
             <br />
-            <p>I saw a salon owner in Hyderabad spending <strong style={{ color: "#fff", fontStyle: "normal" }}>₹40,000 a month on Instagram ads</strong>. Almost 60% of the leads who messaged never got a reply within the hour. Not because of bad ads — because of slow replies.</p>
+            <p>I saw a salon owner in Hyderabad spending <strong style={{ color: "#1A1D23", fontStyle: "normal" }}>₹40,000 a month on Instagram ads</strong>. Almost 60% of the leads who messaged never got a reply within the hour. Not because of bad ads — because of slow replies.</p>
             <br />
-            <p><strong style={{ color: "#fff", fontStyle: "normal" }}>The problem was never the ads. It was always the follow-up.</strong></p>
+            <p><strong style={{ color: "#1A1D23", fontStyle: "normal" }}>The problem was never the ads. It was always the follow-up.</strong></p>
             <br />
             <p>So we built Fastrill — not as another chatbot, but as a revenue recovery system that sits between your ad spend and your bank account, and makes sure every lead gets an instant reply, in their language, at any hour.</p>
           </div>
           <div style={{ marginTop: 36, display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ width: 46, height: 46, borderRadius: "50%", background: "rgba(37,211,102,.15)", color: "#1D6AF5", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18, flexShrink: 0, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>G</div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Ganapathi</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#1A1D23" }}>Ganapathi</div>
               <div style={{ fontSize: 12, color: "#9CA3AF" }}>Founder, Fastrill · Solvabil Pvt. Ltd.</div>
             </div>
           </div>
@@ -51,12 +51,12 @@ export default function AboutPage() {
       </section>
 
       {/* MISSION */}
-      <section style={{ padding: "70px clamp(16px,4vw,44px)", background: "#F9FAFB", borderTop: "1px solid rgba(255,255,255,.05)" }}>
+      <section style={{ padding: "70px clamp(16px,4vw,44px)", background: "#F9FAFB", borderTop: "1px solid #F3F4F6" }}>
         <div style={{ maxWidth: 1060, margin: "0 auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "clamp(36px,5vw,72px)", alignItems: "center" }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "#1D6AF5", marginBottom: 14 }}>Our mission</div>
-              <h2 style={{ fontSize: "clamp(24px,3vw,38px)", fontWeight: 800, color: "#fff", letterSpacing: "-.025em", lineHeight: 1.2, marginBottom: 16, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Make every Indian small business as responsive as a Fortune 500 company</h2>
+              <h2 style={{ fontSize: "clamp(24px,3vw,38px)", fontWeight: 800, color: "#1A1D23", letterSpacing: "-.025em", lineHeight: 1.2, marginBottom: 16, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Make every Indian small business as responsive as a Fortune 500 company</h2>
               <p style={{ fontSize: 15, color: "#6B7280", lineHeight: 1.8 }}>Large companies have CRM teams, sales teams, and support teams. A salon owner in Vijayawada has WhatsApp and herself. Fastrill bridges that gap — giving every small business the same 24/7 responsiveness at a fraction of the cost.</p>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -79,7 +79,7 @@ export default function AboutPage() {
       {/* COMPANY */}
       <section style={{ padding: "70px clamp(16px,4vw,44px)" }}>
         <div style={{ maxWidth: 680, margin: "0 auto" }}>
-          <h2 style={{ fontSize: "clamp(22px,2.8vw,34px)", fontWeight: 800, color: "#fff", marginBottom: 28, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>About the company</h2>
+          <h2 style={{ fontSize: "clamp(22px,2.8vw,34px)", fontWeight: 800, color: "#1A1D23", marginBottom: 28, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>About the company</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {[
               { label: "Company", value: "Solvabil Pvt. Ltd." },
@@ -90,7 +90,7 @@ export default function AboutPage() {
             ].map(r => (
               <div key={r.label} style={{ display: "flex", gap: 24, padding: "16px 0", borderBottom: "1px solid #F3F4F6" }}>
                 <div style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 600, minWidth: 100 }}>{r.label}</div>
-                <div style={{ fontSize: 14, color: "rgba(255,255,255,.7)" }}>{r.value}</div>
+                <div style={{ fontSize: 14, color: "#4B5563" }}>{r.value}</div>
               </div>
             ))}
           </div>
@@ -100,11 +100,11 @@ export default function AboutPage() {
       {/* CTA */}
       <section style={{ padding: "0 clamp(16px,4vw,44px) 100px", textAlign: "center" }}>
         <div style={{ maxWidth: 520, margin: "0 auto", background: "#fff", border: "1px solid #E5E7EB", borderRadius: 20, padding: "clamp(40px,5vw,56px)" }}>
-          <h2 style={{ fontSize: "clamp(22px,3vw,32px)", fontWeight: 800, color: "#fff", marginBottom: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Join us in fixing the follow-up problem</h2>
+          <h2 style={{ fontSize: "clamp(22px,3vw,32px)", fontWeight: 800, color: "#1A1D23", marginBottom: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Join us in fixing the follow-up problem</h2>
           <p style={{ fontSize: 15, color: "#6B7280", marginBottom: 28 }}>14-day free trial. No credit card required.</p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
             <Link href="/signup" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#1D6AF5", color: "#fff", padding: "13px 24px", borderRadius: 10, fontWeight: 800, fontSize: 15, textDecoration: "none", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Start free →</Link>
-            <Link href="mailto:team@fastrill.com" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#F3F4F6", color: "#fff", padding: "13px 20px", borderRadius: 10, fontWeight: 600, fontSize: 14, textDecoration: "none", border: "1px solid #E5E7EB" }}>Contact us</Link>
+            <Link href="mailto:team@fastrill.com" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#F3F4F6", color: "#1A1D23", padding: "13px 20px", borderRadius: 10, fontWeight: 600, fontSize: 14, textDecoration: "none", border: "1px solid #E5E7EB" }}>Contact us</Link>
           </div>
         </div>
       </section>
