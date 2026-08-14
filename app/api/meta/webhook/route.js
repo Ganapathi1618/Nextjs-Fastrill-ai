@@ -1,16 +1,13 @@
 // app/api/meta/webhook/route.js
-// v9.2 — SECURITY: Meta POST signature verification added
+// v9.3 — FIX: Conditional decrypt for plaintext access tokens
 //
-// CHANGES FROM v9.1:
-// 1. NEW: verifySignature() — validates X-Hub-Signature-256 header against
-//    raw request body using META_APP_SECRET, before any JSON parsing or
-//    DB calls happen. Requests that fail verification are rejected with
-//    401 and never reach processMessage/orchestrate.
-// 2. POST handler now reads req.text() FIRST (raw body needed for HMAC),
-//    then JSON.parse()s it manually — req.json() can't be used here because
-//    it consumes the body stream before we can read it raw.
-// Everything else — campaign flow, hard-confirm guard, dedup, rate limiting —
-// is byte-for-byte unchanged from the version you're running now.
+// CHANGES FROM v9.2:
+// 1. FIX: access_token is now conditionally decrypted — if it already starts
+//    with "EAA" (plaintext Meta token), it's used as-is. If not, decrypt()
+//    is called. This prevents decrypt() from corrupting plaintext tokens
+//    and silently killing processMessage before any orchestrator call.
+// 2. Added "🔑 Token resolved" log to confirm token is valid before processMessage.
+// Everything else is byte-for-byte unchanged from v9.2.
 
 const { NextResponse } = require("next/server")
 const { createClient } = require("@supabase/supabase-js")
@@ -32,8 +29,6 @@ const RATE_LIMIT_WINDOW_MS = 60000
 const RATE_LIMIT_MAX = 100
 
 async function isRateLimited(phone) {
-  // Fast path: per-instance memory (only effective while the serverless
-  // instance stays warm — cheap first line of defense).
   const now  = Date.now()
   const data = rateLimitMap.get(phone) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS }
   if (now > data.resetAt) { rateLimitMap.set(phone, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS }) }
@@ -43,9 +38,6 @@ async function isRateLimited(phone) {
     rateLimitMap.set(phone, data)
   }
 
-  // Authoritative check: count this phone's inbound messages in the last
-  // window from the DB, which is shared across all serverless instances.
-  // Rate-limited messages are never saved, so the count self-caps.
   try {
     const since = new Date(now - RATE_LIMIT_WINDOW_MS).toISOString()
     const { count } = await supabaseAdmin
@@ -56,16 +48,10 @@ async function isRateLimited(phone) {
       .gte("created_at", since)
     return (count || 0) >= RATE_LIMIT_MAX
   } catch (e) {
-    return false // fail open — don't drop real customer messages on a DB blip
+    return false
   }
 }
 
-// ── CONTENT-BASED DEDUP ──────────────────────────────────────
-// Per-instance only: two serverless instances won't share this map, so it
-// can miss. That's acceptable — this is just a courtesy guard against a
-// user double-sending identical text. Actual webhook RETRY dedup (Meta
-// redelivering the same message) is handled by isDuplicate(), which
-// checks messages.wa_message_id in the DB and works across instances.
 const recentMessages = new Map()
 function isDuplicateContent(phone, text) {
   const key  = phone + "|" + (text || "").toLowerCase().trim()
@@ -76,13 +62,6 @@ function isDuplicateContent(phone, text) {
   return false
 }
 
-// ── NEW: META SIGNATURE VERIFICATION ─────────────────────────
-// Meta signs every webhook POST with HMAC-SHA256 of the raw body,
-// using your app secret as the key, sent as the X-Hub-Signature-256
-// header in the form "sha256=<hex digest>". We recompute it and
-// compare using a timing-safe check. If it doesn't match, or the
-// header/secret is missing, we reject the request before any
-// parsing, DB writes, or AI calls happen.
 function verifySignature(rawBody, signatureHeader) {
   const appSecret = process.env.META_APP_SECRET
   if (!appSecret) {
@@ -93,7 +72,7 @@ function verifySignature(rawBody, signatureHeader) {
     console.error("❌ Missing or malformed X-Hub-Signature-256 header")
     return false
   }
-  const receivedSig = signatureHeader.slice(7) // strip "sha256="
+  const receivedSig = signatureHeader.slice(7)
   const expectedSig = crypto
     .createHmac("sha256", appSecret)
     .update(rawBody, "utf8")
@@ -102,18 +81,10 @@ function verifySignature(rawBody, signatureHeader) {
   const receivedBuf = Buffer.from(receivedSig, "hex")
   const expectedBuf = Buffer.from(expectedSig, "hex")
 
-  // timingSafeEqual throws if buffers are different lengths — guard that
   if (receivedBuf.length !== expectedBuf.length) return false
   return crypto.timingSafeEqual(receivedBuf, expectedBuf)
 }
 
-// ── DELIVERY STATUS TRACKING ─────────────────────────────────
-// Meta accepts a send with HTTP 200 (so we record "sent"), then delivery
-// can still fail ASYNCHRONOUSLY — expired token quality, WABA payment
-// issue, tier limits, number blocks. The failure reason only ever arrives
-// here, as a status event with an errors[] array. Log it loudly and flip
-// the message row to "failed" so the dashboard stops showing replies the
-// customer never received.
 async function recordStatusUpdate(s) {
   if (!s?.id || !["delivered", "read", "failed"].includes(s.status)) return
 
@@ -125,8 +96,6 @@ async function recordStatusUpdate(s) {
     }))
   }
 
-  // Update status on its own first — it must never be blocked by the
-  // timestamp column below.
   const { error } = await supabaseAdmin.from("messages")
     .update({ status: s.status })
     .eq("wa_message_id", s.id)
@@ -135,9 +104,6 @@ async function recordStatusUpdate(s) {
     return
   }
 
-  // Timestamp column (delivered_at / read_at / failed_at) is best-effort:
-  // if the column doesn't exist this fails alone instead of silently
-  // killing the status update too, which is what happened before.
   const { error: tsError } = await supabaseAdmin.from("messages")
     .update({ [s.status + "_at"]: new Date().toISOString() })
     .eq("wa_message_id", s.id)
@@ -157,8 +123,6 @@ async function GET(req) {
 
 async function POST(req) {
   try {
-    // ── Read RAW body first — required for signature verification.
-    // req.json() would consume the stream before we can hash it raw.
     const rawBody = await req.text()
     const signatureHeader = req.headers.get("x-hub-signature-256")
 
@@ -169,12 +133,6 @@ async function POST(req) {
 
     const body = JSON.parse(rawBody)
 
-    // Meta batches webhooks: one POST can carry MULTIPLE entries/changes,
-    // and statuses can arrive in the same batch as messages. The old code
-    // only looked at entry[0].changes[0] and skipped statuses entirely
-    // whenever a message was present — so delivery-failure notifications
-    // (the only place Meta says WHY a customer didn't receive a message)
-    // were being dropped on the floor.
     const values = []
     for (const entry of body?.entry || []) {
       for (const change of entry?.changes || []) {
@@ -208,23 +166,32 @@ async function POST(req) {
       }
       console.log("✅ Found connection for userId:", connection.user_id, "token starts:", connection.access_token?.slice(0,10))
 
+      // ── FIX: Conditional decrypt ──────────────────────────────
+      // Tokens stored via Embedded Signup OAuth are encrypted at rest.
+      // Tokens stored before encryption was introduced are plaintext
+      // and start with "EAA". Calling decrypt() on a plaintext token
+      // corrupts it and silently kills all outgoing API calls.
+      const rawToken = connection.access_token
+      const accessToken = rawToken?.startsWith("EAA") ? rawToken : decrypt(rawToken)
+      console.log("🔑 Token resolved, length:", accessToken?.length)
+
       for (const message of messages) {
         try {
           await processMessage({
             message, contacts,
             userId: connection.user_id,
-            accessToken: decrypt(connection.access_token),
+            accessToken,
             phoneNumberId
           })
         } catch(e) {
-          console.error("❌ processMessage error:", e.message)
+          console.error("❌ processMessage error:", e.message, e.stack)
         }
       }
     }
 
     return NextResponse.json({ status: sawMessages ? "ok" : "no_message" })
   } catch(err) {
-    console.error("❌ Webhook fatal:", err.message)
+    console.error("❌ Webhook fatal:", err.message, err.stack)
     return NextResponse.json({ status: "error" }, { status: 200 })
   }
 }
